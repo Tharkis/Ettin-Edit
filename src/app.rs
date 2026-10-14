@@ -1,6 +1,7 @@
 //! The NixPad window: menu bar, tab strip, editor and status bar.
 
 mod compare;
+mod csv_query;
 mod menus;
 mod text_tools;
 mod views;
@@ -83,6 +84,7 @@ pub struct NixPadApp {
     trash_confirm: Option<u64>,
     summary: Option<Summary>,
     json_tree: JsonTree,
+    csv: crate::csv_query::CsvQueryPanel,
     /// Select the tree node at the caret once the tree is built.
     json_tree_reveal: bool,
     xpath: XPathPanel,
@@ -152,6 +154,7 @@ impl NixPadApp {
             trash_confirm: None,
             summary: None,
             json_tree: JsonTree::default(),
+            csv: crate::csv_query::CsvQueryPanel::default(),
             json_tree_reveal: false,
             xpath: XPathPanel::default(),
             xml_outline: None,
@@ -1056,6 +1059,10 @@ impl NixPadApp {
             | Action::CloseComparison
             | Action::ExportComparePatch
             | Action::ToggleCompareOption(_) => self.run_compare(ctx, action),
+            Action::ToggleCsvQuery
+            | Action::RunCsvQuery
+            | Action::CopyCsvResults
+            | Action::CsvResultsToNewTab => self.run_csv_action(ctx, action),
             _ => self.run_edit(ctx, action),
         }
         if focus_editor {
@@ -2653,6 +2660,7 @@ impl eframe::App for NixPadApp {
             self.pending.extend(picked);
         }
         self.json_tree_panel(ui, &ctx);
+        self.csv_query_panel(ui, &ctx);
         self.record_editor_input(&ctx);
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
