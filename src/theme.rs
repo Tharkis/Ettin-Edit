@@ -40,6 +40,12 @@ pub struct Palette {
     pub mark: Color32,
     /// Other occurrences of the selected word.
     pub word_hit: Color32,
+    /// Background of a bracket and its partner.
+    pub brace_match: Color32,
+    /// An unmatched bracket.
+    pub brace_bad: Color32,
+    /// Whitespace and end-of-line symbols, indent guides and the edge line.
+    pub guide: Color32,
 }
 
 fn to_egui(c: SyntectColor) -> Color32 {
@@ -132,6 +138,18 @@ impl Palette {
                 accent.b(),
                 if dark { 52 } else { 44 },
             ),
+            brace_match: Color32::from_rgba_unmultiplied(
+                accent.r(),
+                accent.g(),
+                accent.b(),
+                if dark { 90 } else { 70 },
+            ),
+            brace_bad: if dark {
+                Color32::from_rgba_unmultiplied(240, 80, 80, 110)
+            } else {
+                Color32::from_rgba_unmultiplied(220, 40, 40, 80)
+            },
+            guide: mix(editor_bg, editor_fg, if dark { 0.22 } else { 0.25 }),
         }
     }
 
@@ -163,7 +181,9 @@ impl Palette {
         w.inactive.weak_bg_fill = Color32::TRANSPARENT;
         w.inactive.bg_fill = self.tab_bg;
         w.inactive.fg_stroke = Stroke::new(1.0, self.text);
-        w.inactive.bg_stroke = Stroke::NONE;
+        // An outline keeps unticked checkboxes and radio buttons visible
+        // against dialog backgrounds; menus drop it in their own style.
+        w.inactive.bg_stroke = Stroke::new(1.0, mix(self.chrome_bg, self.text, 0.3));
         w.hovered.weak_bg_fill = mix(self.chrome_bg, self.accent, 0.18);
         w.hovered.bg_fill = mix(self.chrome_bg, self.accent, 0.18);
         w.hovered.bg_stroke = Stroke::NONE;

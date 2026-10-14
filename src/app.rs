@@ -11,14 +11,17 @@ use egui::{
 
 use crate::actions::{self, Action};
 use crate::document::{Document, LineEnding};
-use crate::editor::{FindOutcome, MAX_HIGHLIGHTS, ViewConfig};
+use crate::editor::lines::{CaseKind, SortKind, TrimKind, comment_tokens};
+use crate::editor::{EditOptions, FindOutcome, MAX_HIGHLIGHTS, ViewConfig};
 use crate::highlight::{Highlighter, PLAIN_TEXT};
+use crate::macros::{MacroStep, Recorder, SavedMacro};
 use crate::search::{self, FileSearch, Query};
 use crate::search_ui::{
     FifDialog, FifRequest, FileJob, FindBar, GotoDialog, Jump, Results, Source,
 };
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette, ThemeDef};
+use crate::tools_ui::{ColumnDialog, RunMacroDialog, RunTimes, SaveMacroDialog};
 
 const MIN_FONT: f32 = 8.0;
 const MAX_FONT: f32 = 48.0;
@@ -53,6 +56,10 @@ pub struct NixPadApp {
     results: Results,
     goto: GotoDialog,
     fif: FifDialog,
+    column: ColumnDialog,
+    run_macro: RunMacroDialog,
+    save_macro: SaveMacroDialog,
+    recorder: Recorder,
 }
 
 impl NixPadApp {
@@ -89,6 +96,10 @@ impl NixPadApp {
             results: Results::default(),
             goto: GotoDialog::default(),
             fif: FifDialog::default(),
+            column: ColumnDialog::default(),
+            run_macro: RunMacroDialog::default(),
+            save_macro: SaveMacroDialog::default(),
+            recorder: Recorder::default(),
         };
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
@@ -283,6 +294,9 @@ impl NixPadApp {
 
     fn run(&mut self, ctx: &egui::Context, action: Action) {
         let focus_editor = action.focuses_editor();
+        if action.recordable() {
+            self.recorder.push(MacroStep::Action(action.clone()));
+        }
         match action {
             Action::NewTab => self.new_tab(),
             Action::Open => self.open_dialog(),
@@ -457,10 +471,221 @@ impl NixPadApp {
                 self.docs[self.active].editor.remove_lines(ctx, true)
             }
             Action::InverseBookmarks => self.docs[self.active].editor.inverse_bookmarks(),
+            _ => self.run_edit(ctx, action),
         }
         if focus_editor {
             self.focus_editor = true;
         }
+    }
+
+    /// Editing, folding, view and macro commands.
+    fn run_edit(&mut self, ctx: &egui::Context, action: Action) {
+        let edge = self.settings.edge_column;
+        let syntax = self.docs[self.active].syntax.clone();
+        let editor = &mut self.docs[self.active].editor;
+        match action {
+            Action::Undo => editor.undo(),
+            Action::Redo => editor.redo(),
+            Action::Cut => {
+                if let Some(t) = editor.cut(ctx) {
+                    ctx.copy_text(t);
+                }
+            }
+            Action::Copy => {
+                if let Some(t) = editor.selected_text() {
+                    ctx.copy_text(t);
+                }
+            }
+            Action::Paste => ctx.send_viewport_cmd(ViewportCommand::RequestPaste),
+            Action::SelectAll => editor.select_all(),
+            Action::Duplicate => editor.duplicate(ctx),
+            Action::DeleteLines => editor.delete_lines(ctx),
+            Action::MoveLinesUp => editor.move_lines(ctx, true),
+            Action::MoveLinesDown => editor.move_lines(ctx, false),
+            Action::JoinLines => editor.join_lines(ctx),
+            Action::SplitLines => editor.split_lines(ctx, edge),
+            Action::InsertBlankAbove => editor.insert_blank_line(ctx, true),
+            Action::InsertBlankBelow => editor.insert_blank_line(ctx, false),
+            Action::SortLines { kind, desc } => editor.sort_lines(ctx, kind, desc),
+            Action::ReverseLines => editor.reverse_lines(ctx),
+            Action::RemoveDuplicateLines => editor.remove_duplicate_lines(ctx, false),
+            Action::RemoveConsecutiveDuplicates => editor.remove_duplicate_lines(ctx, true),
+            Action::RemoveEmptyLines { blank } => editor.remove_empty_lines(ctx, blank),
+            Action::Trim(kind) => editor.trim_lines(ctx, kind),
+            Action::EolToSpace => editor.eol_to_space(ctx),
+            Action::TabsToSpaces => editor.tabs_to_spaces(ctx),
+            Action::SpacesToTabs { all } => editor.spaces_to_tabs(ctx, all),
+            Action::ConvertCase(kind) => editor.convert_case(ctx, kind),
+            Action::ToggleLineComment => editor.toggle_line_comment(ctx, &comment_tokens(&syntax)),
+            Action::ToggleBlockComment => {
+                editor.toggle_block_comment(ctx, &comment_tokens(&syntax))
+            }
+            Action::InsertDateTime { long } => {
+                let now = chrono::Local::now();
+                let text = if long {
+                    now.format("%A, %-d %B %Y %H:%M:%S").to_string()
+                } else {
+                    now.format("%Y-%m-%d %H:%M").to_string()
+                };
+                editor.insert_text(ctx, &text);
+            }
+            Action::SelectNextOccurrence => editor.select_next_occurrence(),
+            Action::SelectAllOccurrences => {
+                editor.select_all_occurrences();
+            }
+            Action::ColumnEditor => self.column.show_dialog(),
+            Action::ToggleReadOnly => editor.buffer.read_only = !editor.buffer.read_only,
+            Action::FoldAll => editor.fold_all(),
+            Action::UnfoldAll => editor.unfold_all(),
+            Action::FoldCurrent => editor.fold_current(true),
+            Action::UnfoldCurrent => editor.fold_current(false),
+            Action::FoldLevel(level) => editor.fold_level(level),
+            Action::ToggleWhitespace => {
+                self.settings.show_whitespace = !self.settings.show_whitespace
+            }
+            Action::ToggleEol => self.settings.show_eol = !self.settings.show_eol,
+            Action::ToggleIndentGuides => {
+                self.settings.indent_guides = !self.settings.indent_guides
+            }
+            Action::ToggleEdge => self.settings.show_edge = !self.settings.show_edge,
+            Action::ToggleAutoClose => self.settings.auto_close = !self.settings.auto_close,
+            Action::ToggleSmartIndent => self.settings.smart_indent = !self.settings.smart_indent,
+            Action::ToggleUseSpaces => self.settings.use_spaces = !self.settings.use_spaces,
+            Action::ToggleCompletion => {
+                self.settings.word_completion = !self.settings.word_completion
+            }
+            Action::ToggleMacroRecording => self.recorder.toggle(),
+            Action::PlayMacro => {
+                if !self.recorder.is_recording() {
+                    let steps = self.recorder.current.clone();
+                    self.play_macro(ctx, &steps);
+                }
+            }
+            Action::RunMacroMultiple => {
+                if !self.recorder.is_recording() {
+                    self.run_macro.show_dialog();
+                }
+            }
+            Action::SaveMacro => {
+                if !self.recorder.current.is_empty() {
+                    self.save_macro.show_dialog();
+                }
+            }
+            Action::PlaySavedMacro(i) => {
+                if !self.recorder.is_recording()
+                    && let Some(m) = self.settings.macros.get(i)
+                {
+                    let steps = m.steps.clone();
+                    self.play_macro(ctx, &steps);
+                }
+            }
+            Action::DeleteSavedMacro(i) if i < self.settings.macros.len() => {
+                self.settings.macros.remove(i);
+            }
+            _ => {}
+        }
+    }
+
+    /// Plays a macro once against the active document.
+    fn play_macro(&mut self, ctx: &egui::Context, steps: &[MacroStep]) {
+        for step in steps {
+            let editor = &mut self.docs[self.active].editor;
+            match step {
+                MacroStep::Text(t) => {
+                    // Char by char, so auto-closed brackets behave as they did.
+                    for c in t.chars() {
+                        editor.type_text(ctx, c.encode_utf8(&mut [0; 4]));
+                    }
+                }
+                MacroStep::Key { .. } => {
+                    if let Some((key, mods)) = step.key() {
+                        editor.replay_key(ctx, key, mods);
+                    }
+                }
+                MacroStep::Paste(t) => editor.paste(ctx, t),
+                MacroStep::Copy => {
+                    if let Some(t) = editor.selected_text() {
+                        ctx.copy_text(t);
+                    }
+                }
+                MacroStep::Cut => {
+                    if let Some(t) = editor.cut(ctx) {
+                        ctx.copy_text(t);
+                    }
+                }
+                MacroStep::Action(a) => self.run(ctx, a.clone()),
+            }
+        }
+    }
+
+    /// Plays the current macro several times, or until it reaches the end of
+    /// the document or stops changing anything.
+    fn play_macro_times(&mut self, ctx: &egui::Context, times: RunTimes) {
+        let steps = self.recorder.current.clone();
+        if steps.is_empty() {
+            return;
+        }
+        let limit = match times {
+            RunTimes::Count(n) => n,
+            RunTimes::ToEnd => 100_000,
+        };
+        for _ in 0..limit {
+            let state = |app: &Self| {
+                let e = &app.docs[app.active].editor;
+                (e.buffer.version(), e.selections.primary().head)
+            };
+            let before = state(self);
+            self.play_macro(ctx, &steps);
+            if times == RunTimes::ToEnd {
+                let after = state(self);
+                let editor = &self.docs[self.active].editor;
+                if after == before || after.1 >= editor.buffer.len_chars() {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Inserts the column editor's text or numbers.
+    fn column_insert(&mut self, ctx: &egui::Context, what: crate::tools_ui::ColumnInsert) {
+        let editor = &mut self.docs[self.active].editor;
+        let count = if editor.caret_count() > 1 {
+            editor.caret_count()
+        } else {
+            let (line, _) = editor.caret_line_col();
+            editor.buffer.len_lines() - (line - 1)
+        };
+        let values = what.values(count);
+        editor.column_insert(ctx, |i| values.get(i).cloned().unwrap_or_default());
+    }
+
+    /// Records the keys typed into the editor while a macro is recording.
+    fn record_editor_input(&mut self, ctx: &egui::Context) {
+        if !self.recorder.is_recording() {
+            return;
+        }
+        let Some(doc) = self.docs.get(self.active) else {
+            return;
+        };
+        let id = Id::new(("editor", doc.id));
+        if !ctx.memory(|m| m.has_focus(id)) {
+            return;
+        }
+        let steps: Vec<MacroStep> =
+            ctx.input(|i| i.events.iter().filter_map(MacroStep::from_event).collect());
+        for step in steps {
+            self.recorder.push(step);
+        }
+    }
+
+    fn any_dialog_open(&self) -> bool {
+        self.close_queue.is_some()
+            || self.show_about
+            || self.goto.open
+            || self.fif.open
+            || self.column.open
+            || self.run_macro.open
+            || self.save_macro.open
     }
 
     // ---------------------------------------------------------------------
@@ -720,12 +945,13 @@ impl NixPadApp {
     }
 
     fn handle_input(&mut self, ctx: &egui::Context) {
-        if self.close_queue.is_none() && !self.show_about && !self.goto.open && !self.fif.open {
+        if !self.any_dialog_open() {
             let mut fired = Vec::new();
             ctx.input_mut(|i| {
                 for (shortcut, action) in actions::shortcuts() {
-                    if i.consume_shortcut(&shortcut) {
-                        fired.push(action);
+                    // A key can repeat more than once in a frame.
+                    while i.consume_shortcut(&shortcut) {
+                        fired.push(action.clone());
                     }
                 }
                 // Alt shortcuts also arrive as typed characters; don't insert them.
@@ -804,6 +1030,7 @@ impl NixPadApp {
                 ui.separator();
                 self.menu_item(ui, "Exit", Action::Quit);
             });
+            ui.menu_button("Edit", |ui| self.edit_menu(ui));
             ui.menu_button("Search", |ui| {
                 self.menu_item(ui, "Find…", Action::Find);
                 self.menu_item(ui, "Replace…", Action::Replace);
@@ -853,6 +1080,42 @@ impl NixPadApp {
                     Action::ToggleCurrentLine,
                 );
                 ui.separator();
+                ui.menu_button("Show Symbol", |ui| {
+                    self.toggle_item(
+                        ui,
+                        "Show Whitespace",
+                        s.show_whitespace,
+                        Action::ToggleWhitespace,
+                    );
+                    self.toggle_item(ui, "Show End of Line", s.show_eol, Action::ToggleEol);
+                    self.toggle_item(
+                        ui,
+                        "Indent Guides",
+                        s.indent_guides,
+                        Action::ToggleIndentGuides,
+                    );
+                });
+                self.toggle_item(
+                    ui,
+                    &format!("Long-Line Marker (column {})", s.edge_column),
+                    s.show_edge,
+                    Action::ToggleEdge,
+                );
+                ui.menu_button("Folding", |ui| {
+                    self.menu_item(ui, "Fold All", Action::FoldAll);
+                    self.menu_item(ui, "Unfold All", Action::UnfoldAll);
+                    self.menu_item(ui, "Fold Current Level", Action::FoldCurrent);
+                    self.menu_item(ui, "Unfold Current Level", Action::UnfoldCurrent);
+                    ui.separator();
+                    for level in 1..=5 {
+                        self.menu_item(
+                            ui,
+                            &format!("Fold Level {level}"),
+                            Action::FoldLevel(level),
+                        );
+                    }
+                });
+                ui.separator();
                 self.menu_item(ui, "Zoom In", Action::ZoomIn);
                 self.menu_item(ui, "Zoom Out", Action::ZoomOut);
                 self.menu_item(ui, "Reset Zoom", Action::ZoomReset);
@@ -884,10 +1147,188 @@ impl NixPadApp {
                 self.menu_item(ui, "Open Themes Folder", Action::OpenThemesFolder);
             });
             ui.menu_button("Language", |ui| self.language_menu(ui));
+            ui.menu_button("Settings", |ui| {
+                let s = self.settings.clone();
+                self.toggle_item(
+                    ui,
+                    "Auto-Close Brackets and Quotes",
+                    s.auto_close,
+                    Action::ToggleAutoClose,
+                );
+                self.toggle_item(
+                    ui,
+                    "Smart Indentation",
+                    s.smart_indent,
+                    Action::ToggleSmartIndent,
+                );
+                self.toggle_item(
+                    ui,
+                    "Indent With Spaces",
+                    s.use_spaces,
+                    Action::ToggleUseSpaces,
+                );
+                self.toggle_item(
+                    ui,
+                    "Word Completion",
+                    s.word_completion,
+                    Action::ToggleCompletion,
+                );
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("Long-line column");
+                    ui.add(egui::DragValue::new(&mut self.settings.edge_column).range(10..=400));
+                });
+            });
+            ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
                 self.menu_item(ui, "About NixPad", Action::About);
             });
         });
+    }
+
+    fn edit_menu(&mut self, ui: &mut Ui) {
+        let read_only = self
+            .docs
+            .get(self.active)
+            .is_some_and(|d| d.editor.buffer.read_only);
+        self.menu_item(ui, "Undo", Action::Undo);
+        self.menu_item(ui, "Redo", Action::Redo);
+        ui.separator();
+        self.menu_item(ui, "Cut", Action::Cut);
+        self.menu_item(ui, "Copy", Action::Copy);
+        self.menu_item(ui, "Paste", Action::Paste);
+        self.menu_item(ui, "Select All", Action::SelectAll);
+        ui.separator();
+        ui.menu_button("Line Operations", |ui| {
+            self.menu_item(ui, "Duplicate", Action::Duplicate);
+            self.menu_item(ui, "Delete Lines", Action::DeleteLines);
+            self.menu_item(ui, "Move Up", Action::MoveLinesUp);
+            self.menu_item(ui, "Move Down", Action::MoveLinesDown);
+            self.menu_item(ui, "Join Lines", Action::JoinLines);
+            self.menu_item(ui, "Split Lines at Long-Line Column", Action::SplitLines);
+            self.menu_item(ui, "Insert Blank Line Above", Action::InsertBlankAbove);
+            self.menu_item(ui, "Insert Blank Line Below", Action::InsertBlankBelow);
+            ui.separator();
+            for (label, kind) in [
+                ("Lexicographically", SortKind::Lexical),
+                ("Ignoring Case", SortKind::IgnoreCase),
+                ("As Integers", SortKind::Integer),
+                ("As Decimals", SortKind::Decimal),
+                ("By Length", SortKind::Length),
+            ] {
+                self.menu_item(
+                    ui,
+                    &format!("Sort {label} Ascending"),
+                    Action::SortLines { kind, desc: false },
+                );
+                self.menu_item(
+                    ui,
+                    &format!("Sort {label} Descending"),
+                    Action::SortLines { kind, desc: true },
+                );
+            }
+            self.menu_item(ui, "Reverse Line Order", Action::ReverseLines);
+            ui.separator();
+            self.menu_item(ui, "Remove Duplicate Lines", Action::RemoveDuplicateLines);
+            self.menu_item(
+                ui,
+                "Remove Consecutive Duplicate Lines",
+                Action::RemoveConsecutiveDuplicates,
+            );
+            self.menu_item(
+                ui,
+                "Remove Empty Lines",
+                Action::RemoveEmptyLines { blank: false },
+            );
+            self.menu_item(
+                ui,
+                "Remove Empty Lines (Including Blank Ones)",
+                Action::RemoveEmptyLines { blank: true },
+            );
+        });
+        ui.menu_button("Convert Case To", |ui| {
+            self.menu_item(ui, "UPPERCASE", Action::ConvertCase(CaseKind::Upper));
+            self.menu_item(ui, "lowercase", Action::ConvertCase(CaseKind::Lower));
+            self.menu_item(ui, "Title Case", Action::ConvertCase(CaseKind::Title));
+            self.menu_item(ui, "Sentence case", Action::ConvertCase(CaseKind::Sentence));
+            self.menu_item(ui, "iNVERT cASE", Action::ConvertCase(CaseKind::Invert));
+        });
+        ui.menu_button("Comment", |ui| {
+            self.menu_item(ui, "Toggle Line Comment", Action::ToggleLineComment);
+            self.menu_item(ui, "Toggle Block Comment", Action::ToggleBlockComment);
+        });
+        ui.menu_button("Blank Operations", |ui| {
+            self.menu_item(ui, "Trim Trailing Space", Action::Trim(TrimKind::Trailing));
+            self.menu_item(ui, "Trim Leading Space", Action::Trim(TrimKind::Leading));
+            self.menu_item(
+                ui,
+                "Trim Leading and Trailing Space",
+                Action::Trim(TrimKind::Both),
+            );
+            self.menu_item(ui, "EOL to Space", Action::EolToSpace);
+            ui.separator();
+            self.menu_item(ui, "Tabs to Spaces", Action::TabsToSpaces);
+            self.menu_item(
+                ui,
+                "Leading Spaces to Tabs",
+                Action::SpacesToTabs { all: false },
+            );
+            self.menu_item(ui, "All Spaces to Tabs", Action::SpacesToTabs { all: true });
+        });
+        ui.menu_button("Insert", |ui| {
+            self.menu_item(
+                ui,
+                "Date and Time (Short)",
+                Action::InsertDateTime { long: false },
+            );
+            self.menu_item(
+                ui,
+                "Date and Time (Long)",
+                Action::InsertDateTime { long: true },
+            );
+        });
+        ui.menu_button("Multi-Select", |ui| {
+            self.menu_item(ui, "Select Next Occurrence", Action::SelectNextOccurrence);
+            self.menu_item(ui, "Select All Occurrences", Action::SelectAllOccurrences);
+        });
+        self.menu_item(ui, "Column Editor…", Action::ColumnEditor);
+        ui.separator();
+        self.toggle_item(ui, "Read-Only", read_only, Action::ToggleReadOnly);
+    }
+
+    fn macro_menu(&mut self, ui: &mut Ui) {
+        let recording = self.recorder.is_recording();
+        let has_macro = !self.recorder.current.is_empty();
+        let label = if recording {
+            "Stop Recording"
+        } else {
+            "Start Recording"
+        };
+        self.menu_item(ui, label, Action::ToggleMacroRecording);
+        ui.add_enabled_ui(!recording && has_macro, |ui| {
+            self.menu_item(ui, "Playback", Action::PlayMacro);
+            self.menu_item(ui, "Run a Macro Multiple Times…", Action::RunMacroMultiple);
+            self.menu_item(ui, "Save Current Macro…", Action::SaveMacro);
+        });
+        if !self.settings.macros.is_empty() {
+            ui.separator();
+            let names: Vec<String> = self
+                .settings
+                .macros
+                .iter()
+                .map(|m| m.name.clone())
+                .collect();
+            ui.add_enabled_ui(!recording, |ui| {
+                for (i, name) in names.iter().enumerate() {
+                    self.menu_item(ui, name, Action::PlaySavedMacro(i));
+                }
+            });
+            ui.menu_button("Delete Saved Macro", |ui| {
+                for (i, name) in names.iter().enumerate() {
+                    self.menu_item(ui, name, Action::DeleteSavedMacro(i));
+                }
+            });
+        }
     }
 
     /// Languages grouped by first letter, like Notepad++'s Language menu.
@@ -1074,15 +1515,24 @@ impl NixPadApp {
     fn editor(&mut self, ui: &mut Ui) {
         let palette = self.palette();
         let theme_def = &self.themes[self.theme_idx];
-        let request_focus = std::mem::take(&mut self.focus_editor)
-            && self.close_queue.is_none()
-            && !self.show_about
-            && !self.goto.open
-            && !self.fif.open;
+        let request_focus = std::mem::take(&mut self.focus_editor) && !self.any_dialog_open();
         let Some(doc) = self.docs.get_mut(self.active) else {
             return;
         };
         let syntax = self.highlighter.syntax(&doc.syntax);
+        let s = &self.settings;
+        doc.editor.opts = EditOptions {
+            auto_close: s.auto_close,
+            smart_indent: s.smart_indent,
+            use_spaces: s.use_spaces,
+            completion: s.word_completion && !self.recorder.is_recording(),
+            colon_indents: matches!(doc.syntax.as_str(), "Python" | "YAML" | "Nim"),
+            markup: matches!(
+                doc.syntax.as_str(),
+                "HTML" | "XML" | "SVG" | "Vue Component" | "PHP" | "ASP"
+            ),
+        };
+        let eol_label = doc.line_ending.short_label();
         let cfg = ViewConfig {
             font: FontId::monospace(self.settings.font_size),
             wrap: self.settings.word_wrap,
@@ -1095,6 +1545,11 @@ impl NixPadApp {
             theme_name: &theme_def.name,
             plain: doc.syntax == PLAIN_TEXT,
             request_focus,
+            show_whitespace: s.show_whitespace,
+            show_eol: s.show_eol,
+            eol_label,
+            indent_guides: s.indent_guides,
+            edge_column: s.show_edge.then_some(s.edge_column),
         };
         doc.editor.show(ui, Id::new(("editor", doc.id)), &cfg);
     }
@@ -1113,6 +1568,8 @@ impl NixPadApp {
         let length = doc.editor.buffer.len_chars();
         let lines = doc.line_count();
         let zoom = (self.settings.font_size / DEFAULT_FONT * 100.0).round();
+        let read_only = doc.editor.buffer.read_only;
+        let recording = self.recorder.is_recording();
         let dim = |s: String| RichText::new(s).size(12.0).color(palette.text_dim);
 
         ui.horizontal_centered(|ui| {
@@ -1130,6 +1587,21 @@ impl NixPadApp {
                 });
             });
             ui.label(dim(format!("length: {length}   lines: {lines}")));
+            if recording {
+                ui.label(
+                    RichText::new("● Recording macro")
+                        .size(12.0)
+                        .color(palette.modified),
+                );
+            }
+            if read_only
+                && ui
+                    .add(egui::Label::new(dim("Read-only".to_owned())).sense(Sense::click()))
+                    .on_hover_text("Click to allow editing")
+                    .clicked()
+            {
+                self.pending.push(Action::ToggleReadOnly);
+            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(4.0);
                 ui.label(dim(format!("{zoom}%")));
@@ -1253,6 +1725,23 @@ impl NixPadApp {
         }
         if let Some(req) = self.fif.ui(ctx, &mut self.settings.search, &palette) {
             self.start_file_search(req);
+        }
+        if let Some(what) = self.column.ui(ctx, &palette) {
+            self.column_insert(ctx, what);
+            self.focus_editor = true;
+        }
+        let has_macro = !self.recorder.current.is_empty();
+        if let Some(times) = self.run_macro.ui(ctx, has_macro) {
+            self.play_macro_times(ctx, times);
+            self.focus_editor = true;
+        }
+        if let Some(name) = self.save_macro.ui(ctx) {
+            let steps = self.recorder.current.clone();
+            match self.settings.macros.iter_mut().find(|m| m.name == name) {
+                Some(m) => m.steps = steps,
+                None => self.settings.macros.push(SavedMacro { name, steps }),
+            }
+            self.focus_editor = true;
         }
 
         if self.show_about {
@@ -1390,6 +1879,7 @@ impl eframe::App for NixPadApp {
             self.pending.extend(actions);
             self.update_search_hits();
         }
+        self.record_editor_input(&ctx);
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
             .show(ui, |ui| self.editor(ui));

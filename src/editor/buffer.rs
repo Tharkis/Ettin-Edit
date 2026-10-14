@@ -73,6 +73,8 @@ pub struct Buffer {
     char_edits: Vec<CharEdit>,
     /// Bumped on every change, so caches of the text know when they are stale.
     version: u64,
+    /// When set, edits and undo/redo are refused.
+    pub read_only: bool,
 }
 
 impl Buffer {
@@ -86,6 +88,7 @@ impl Buffer {
             line_edits: Vec::new(),
             char_edits: Vec::new(),
             version: 0,
+            read_only: false,
         }
     }
 
@@ -188,6 +191,9 @@ impl Buffer {
         kind: EditKind,
         time: f64,
     ) -> Selections {
+        if self.read_only {
+            return before.clone();
+        }
         replacements.sort_by_key(|r| (r.range.start, r.range.end));
         let mut changes = Vec::with_capacity(replacements.len());
         let mut new_sels = Vec::with_capacity(replacements.len());
@@ -219,6 +225,30 @@ impl Buffer {
             return after;
         }
         self.record(changes, before.clone(), after.clone(), kind, time);
+        after
+    }
+
+    /// Applies non-overlapping replacements and leaves `after` as the selections,
+    /// for commands that work out where the carets go themselves.
+    pub fn apply_explicit(
+        &mut self,
+        before: &Selections,
+        replacements: Vec<Replacement>,
+        after: Selections,
+        time: f64,
+    ) -> Selections {
+        if self.read_only {
+            return before.clone();
+        }
+        let version = self.version;
+        self.apply(before, replacements, EditKind::Other, time);
+        let mut after = after;
+        after.clamp(self.rope.len_chars());
+        if self.version != version
+            && let Some(last) = self.undo.last_mut()
+        {
+            last.after = after.clone();
+        }
         after
     }
 
@@ -283,6 +313,9 @@ impl Buffer {
 
     /// Reverts the last undo step, returning the selections to restore.
     pub fn undo(&mut self) -> Option<Selections> {
+        if self.read_only {
+            return None;
+        }
         let t = self.undo.pop()?;
         for c in t.changes.iter().rev() {
             let end = c.start + c.inserted.chars().count();
@@ -294,6 +327,9 @@ impl Buffer {
     }
 
     pub fn redo(&mut self) -> Option<Selections> {
+        if self.read_only {
+            return None;
+        }
         let t = self.redo.pop()?;
         for c in &t.changes {
             let end = c.start + c.removed.chars().count();

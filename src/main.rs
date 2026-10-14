@@ -8,10 +8,12 @@ mod document;
 mod editor;
 mod fonts;
 mod highlight;
+mod macros;
 mod search;
 mod search_ui;
 mod settings;
 mod theme;
+mod tools_ui;
 
 use std::path::PathBuf;
 

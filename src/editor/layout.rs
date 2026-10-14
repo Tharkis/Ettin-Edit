@@ -68,7 +68,10 @@ pub struct RowIndex {
     wrap_cols: Option<usize>,
     rows: Vec<u32>,
     widths: Vec<u32>,
-    /// Prefix sums of `rows`, rebuilt lazily.
+    /// Lines inside a folded region; they take no rows.
+    hidden: Vec<bool>,
+    any_hidden: bool,
+    /// Prefix sums of `rows` (skipping hidden lines), rebuilt lazily.
     starts: Vec<u64>,
     starts_valid: bool,
     max_width: u32,
@@ -81,6 +84,8 @@ impl RowIndex {
             wrap_cols,
             rows: Vec::new(),
             widths: Vec::new(),
+            hidden: Vec::new(),
+            any_hidden: false,
             starts: Vec::new(),
             starts_valid: false,
             max_width: 0,
@@ -134,6 +139,7 @@ impl RowIndex {
         self.rows.push(r);
         self.widths.push(w);
         debug_assert_eq!(self.rows.len(), n);
+        self.hidden.resize(n, false);
         self.starts_valid = false;
         self.max_width_valid = false;
     }
@@ -166,10 +172,16 @@ impl RowIndex {
                 .splice(start..end, std::iter::repeat_n(0, e.new_lines));
             self.widths
                 .splice(start..end, std::iter::repeat_n(0, e.new_lines));
+            let hend = end.min(self.hidden.len());
+            self.hidden.splice(
+                start.min(hend)..hend,
+                std::iter::repeat_n(false, e.new_lines),
+            );
         }
         let n = buffer.len_lines();
         self.rows.resize(n, 0);
         self.widths.resize(n, 0);
+        self.hidden.resize(n, false);
         for line in 0..n {
             if self.rows[line] == 0 {
                 let (r, w) = Self::measure_line(buffer, line, self.wrap_cols);
@@ -181,6 +193,26 @@ impl RowIndex {
         self.max_width_valid = false;
     }
 
+    /// Hides the lines in `ranges` (folded regions) and shows all others.
+    pub fn set_hidden(&mut self, ranges: impl Iterator<Item = std::ops::Range<usize>>) {
+        let n = self.rows.len();
+        self.hidden.clear();
+        self.hidden.resize(n, false);
+        self.any_hidden = false;
+        for r in ranges {
+            let (a, b) = (r.start.min(n), r.end.min(n));
+            if a < b {
+                self.hidden[a..b].fill(true);
+                self.any_hidden = true;
+            }
+        }
+        self.starts_valid = false;
+    }
+
+    pub fn is_hidden(&self, line: usize) -> bool {
+        self.any_hidden && self.hidden.get(line).copied().unwrap_or(false)
+    }
+
     fn ensure_starts(&mut self) {
         if self.starts_valid {
             return;
@@ -188,9 +220,11 @@ impl RowIndex {
         self.starts.clear();
         self.starts.reserve(self.rows.len() + 1);
         let mut acc = 0u64;
-        for &r in &self.rows {
+        for (i, &r) in self.rows.iter().enumerate() {
             self.starts.push(acc);
-            acc += r as u64;
+            if !(self.any_hidden && self.hidden[i]) {
+                acc += r as u64;
+            }
         }
         self.starts.push(acc);
         self.starts_valid = true;
@@ -211,12 +245,17 @@ impl RowIndex {
     pub fn row_to_line(&mut self, row: usize) -> (usize, usize) {
         self.ensure_starts();
         let row = row as u64;
-        let line = match self.starts.binary_search(&row) {
-            Ok(i) => i,
-            Err(i) => i - 1,
+        let n = self.rows.len();
+        // The last line starting at or before `row`; hidden lines take no rows,
+        // so they share a start with the visible line after them.
+        let mut line = self.starts[..n]
+            .partition_point(|&s| s <= row)
+            .saturating_sub(1)
+            .min(n.saturating_sub(1));
+        while line > 0 && self.is_hidden(line) {
+            line -= 1;
         }
-        .min(self.rows.len().saturating_sub(1));
-        (line, (row - self.starts[line]) as usize)
+        (line, row.saturating_sub(self.starts[line]) as usize)
     }
 
     pub fn max_width(&mut self) -> usize {
@@ -277,5 +316,19 @@ mod tests {
         assert_eq!(index.total_rows(), 6);
         assert_eq!(index.row_to_line(5), (4, 0));
         assert_eq!(index.max_width(), 9);
+    }
+
+    #[test]
+    fn hidden_lines_take_no_rows() {
+        let buf = Buffer::new("a\nb\nc\nd\ne");
+        let mut index = RowIndex::new(&buf, None);
+        index.set_hidden(std::iter::once(1..3));
+        assert_eq!(index.total_rows(), 3);
+        assert_eq!(index.row_to_line(0), (0, 0));
+        assert_eq!(index.row_to_line(1), (3, 0));
+        assert_eq!(index.line_to_row(3), 1);
+        index.set_hidden(std::iter::once(3..5));
+        assert_eq!(index.total_rows(), 3);
+        assert_eq!(index.row_to_line(2), (2, 0));
     }
 }
