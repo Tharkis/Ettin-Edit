@@ -1,21 +1,21 @@
-// NixPad plugin API for JavaScript (Node).
+// Ettin Edit plugin API for JavaScript (Node).
 //
 // A plugin requires this module and adds its commands and event handlers:
 //
-//     const nixpad = require('nixpad');
+//     const ettin = require('ettin');
 //
-//     nixpad.command('Shout', async () => {
-//       const doc = await nixpad.activeDocument();
+//     ettin.command('Shout', async () => {
+//       const doc = await ettin.activeDocument();
 //       await doc.replaceSelections((await doc.getSelectedText()).toUpperCase());
 //     }, { shortcut: 'Ctrl+Alt+S' });
 //
-// Every call to NixPad returns a Promise. NixPad starts the plugin as its own
+// Every call to Ettin Edit returns a Promise. Ettin Edit starts the plugin as its own
 // process and talks to it over standard input and output, so console.log()
 // goes to the plugin log instead (Plugins > Plugin Log). Text positions count
 // characters (Unicode code points) from the start of the document, and lines
 // end with "\n".
 //
-// The full guide is in NixPad under Plugins > Plugin Guide.
+// The full guide is in Ettin Edit under Plugins > Plugin Guide.
 
 'use strict';
 
@@ -32,10 +32,10 @@ const pending = new Map();
 const commands = new Map();
 const handlers = new Map();
 const panelHandlers = new Map();
-/** What NixPad sent at start: plugin id, NixPad version, API version. */
+/** What Ettin Edit sent at start: plugin id, Ettin Edit version, API version. */
 const info = {};
 
-class NixPadError extends Error {}
+class EttinError extends Error {}
 
 function send(msg) {
   msg.jsonrpc = '2.0';
@@ -50,7 +50,7 @@ function clean(params) {
   return out;
 }
 
-/** Calls a NixPad API method. Resolves with its result. */
+/** Calls an Ettin Edit API method. Resolves with its result. */
 function call(method, params = {}) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
@@ -83,7 +83,7 @@ class Document {
   get lineCount() { return this._info.lineCount; }
   get encoding() { return this._info.encoding; }
   get lineEnding() { return this._info.lineEnding; }
-  /** {line, column} of the main caret, both from 1. */
+  /** {line, column, offset, anchor} of the main caret; line and column from 1. */
   get caret() { return this._info.caret; }
 
   async refresh() {
@@ -147,7 +147,7 @@ function prompt(text, { value = '', title } = {}) {
   return call('ui.prompt', { prompt: String(text), value, title });
 }
 function setClipboard(text) { return call('clipboard.set', { text: String(text) }); }
-/** Runs one of NixPad's own commands, like 'Duplicate', 'SelectAll' or
+/** Runs one of Ettin Edit's own commands, like 'Duplicate', 'SelectAll' or
  *  {SortLines: {kind: 'IgnoreCase', desc: false}}. */
 function runAction(action) { return call('editor.runAction', { action }); }
 /** Writes a line to the plugin log. */
@@ -164,11 +164,12 @@ async function command(title, fn, options = {}) {
   return call('commands.register', { id, title, shortcut: options.shortcut });
 }
 
-const EVENTS = ['opened', 'saved', 'closed', 'activated', 'changed', 'shutdown'];
+const EVENTS = ['opened', 'saved', 'closed', 'activated', 'changed', 'caret', 'shutdown'];
 
 /** Calls fn(doc) when the event happens: opened, saved, closed, activated
  *  (another tab got focus), changed (the text was edited; sent after a short
- *  pause in typing) or shutdown (no argument; the plugin is stopping). */
+ *  pause in typing), caret (the caret or selection moved in the active tab;
+ *  sent after a short pause) or shutdown (no argument; the plugin is stopping). */
 function on(event, fn) {
   if (!EVENTS.includes(event)) {
     throw new Error(`unknown event "${event}"; use one of ${EVENTS.join(', ')}`);
@@ -179,8 +180,9 @@ function on(event, fn) {
 }
 
 /** Shows a panel (or updates it, if it's open). position: 'right' or 'bottom'. */
-function showPanel(id, { title, items = [], position = 'right' } = {}) {
-  return call('panel.show', { id, title, items, position });
+/** Shows or updates a panel. scrollToTop scrolls an open panel back to its start. */
+function showPanel(id, { title, items = [], position = 'right', scrollToTop = false } = {}) {
+  return call('panel.show', { id, title, items, position, scrollToTop });
 }
 function closePanel(id) { return call('panel.close', { id }); }
 /** Calls fn(event) when the user uses the panel: {item, event, value, values},
@@ -198,7 +200,8 @@ const ui = {
   checkbox: (id, label, value = false) => ({ type: 'checkbox', id, label, value }),
   select: (id, options, { value = '', label = '' } = {}) => ({ type: 'select', id, options, value, label }),
   row: (...items) => ({ type: 'row', items }),
-  tree: (id, nodes) => ({ type: 'tree', id, nodes }),
+  tree: (id, nodes, { selected } = {}) =>
+    selected === undefined ? { type: 'tree', id, nodes } : { type: 'tree', id, nodes, selected },
   node: (label, { id = '', detail = '', children = [], open } = {}) => {
     const n = { label: String(label), id: String(id), detail: String(detail), children };
     if (open !== undefined) n.open = open;
@@ -208,7 +211,7 @@ const ui = {
 };
 
 // ----------------------------------------------------------------------
-// Messages from NixPad
+// Messages from Ettin Edit
 
 function report(err) {
   const text = (err && err.stack) || String(err);
@@ -265,7 +268,7 @@ input.on('line', (line) => {
   try {
     msg = JSON.parse(line);
   } catch (err) {
-    console.error('nixpad: bad message from NixPad:', line);
+    console.error('ettin: bad message from Ettin Edit:', line);
     return;
   }
   if (msg.method) {
@@ -273,11 +276,11 @@ input.on('line', (line) => {
   } else if (pending.has(msg.id)) {
     const { resolve, reject } = pending.get(msg.id);
     pending.delete(msg.id);
-    if (msg.error) reject(new NixPadError(msg.error.message || 'error'));
+    if (msg.error) reject(new EttinError(msg.error.message || 'error'));
     else resolve(msg.result);
   }
 });
-// NixPad closed.
+// Ettin Edit closed.
 input.on('close', () => shutdown());
 process.on('unhandledRejection', report);
 
@@ -285,7 +288,7 @@ process.on('unhandledRejection', report);
 function run() {}
 
 module.exports = {
-  NixPadError, Document, ui, info,
+  EttinError, Document, ui, info,
   command, on, onPanel, run,
   activeDocument, documents, openFile, newDocument,
   message, prompt, setClipboard, runAction, log,

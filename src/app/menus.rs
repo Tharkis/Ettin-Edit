@@ -3,7 +3,7 @@
 
 use egui::Ui;
 
-use super::NixPadApp;
+use super::EttinApp;
 use crate::actions::{self, Action};
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
 use crate::menu::{self, MenuEntry};
@@ -52,7 +52,7 @@ impl<'c> MenuModel<'c> {
         self.entry(label, enabled, None, action)
     }
 
-    /// An item whose shortcut isn't one of NixPad's own (a plugin's).
+    /// An item whose shortcut isn't one of Ettin Edit's own (a plugin's).
     fn item_with_shortcut(
         &mut self,
         label: &str,
@@ -87,7 +87,7 @@ fn submenu(label: &str, entries: Vec<MenuEntry>) -> MenuEntry {
     }
 }
 
-impl NixPadApp {
+impl EttinApp {
     /// Draws the Edit or Tools menu into an open menu-bar menu.
     pub(super) fn shared_menu(&mut self, ui: &mut Ui, tools: bool) {
         let ctx = ui.ctx().clone();

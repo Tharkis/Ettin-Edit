@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>name</key><string>Mocha</string>
+<key>author</key><string>Chris Kempson (http://chriskempson.com)</string>
+<key>settings</key><array>
+<dict><key>settings</key><dict><key>background</key><string>#3B3228</string><key>foreground</key><string>#D0C8C6</string><key>caret</key><string>#D0C8C6</string><key>selection</key><string>#645240</string><key>lineHighlight</key><string>#7E705A30</string><key>accent</key><string>#8AA6A2</string></dict></dict>
+<dict><key>scope</key><string>variable.parameter.function</string><key>settings</key><dict><key>foreground</key><string>#D0C8C6</string></dict></dict>
+<dict><key>scope</key><string>comment, punctuation.definition.comment</string><key>settings</key><dict><key>foreground</key><string>#7E705A</string></dict></dict>
+<dict><key>scope</key><string>punctuation.definition.string, punctuation.definition.variable, punctuation.definition.string, punctuation.definition.parameters, punctuation.definition.string, punctuation.definition.array</string><key>settings</key><dict><key>foreground</key><string>#D0C8C6</string></dict></dict>
+<dict><key>scope</key><string>none</string><key>settings</key><dict><key>foreground</key><string>#D0C8C6</string></dict></dict>
+<dict><key>scope</key><string>keyword.operator</string><key>settings</key><dict><key>foreground</key><string>#D0C8C6</string></dict></dict>
+<dict><key>scope</key><string>keyword</string><key>settings</key><dict><key>foreground</key><string>#A89BB9</string></dict></dict>
+<dict><key>scope</key><string>variable, variable.other.dollar.only.js</string><key>settings</key><dict><key>foreground</key><string>#CB6077</string></dict></dict>
+<dict><key>scope</key><string>entity.name.function, meta.require, support.function.any-method, variable.function</string><key>settings</key><dict><key>foreground</key><string>#8AB3B5</string></dict></dict>
+<dict><key>scope</key><string>support.class, entity.name.class, entity.name.type.class</string><key>settings</key><dict><key>foreground</key><string>#F4BC87</string></dict></dict>
+<dict><key>scope</key><string>meta.class</string><key>settings</key><dict><key>foreground</key><string>#F5EEEB</string></dict></dict>
+<dict><key>scope</key><string>keyword.other.special-method</string><key>settings</key><dict><key>foreground</key><string>#8AB3B5</string></dict></dict>
+<dict><key>scope</key><string>storage</string><key>settings</key><dict><key>foreground</key><string>#A89BB9</string></dict></dict>
+<dict><key>scope</key><string>support.function</string><key>settings</key><dict><key>foreground</key><string>#7BBDA4</string></dict></dict>
+<dict><key>scope</key><string>string, constant.other.symbol, entity.other.inherited-class</string><key>settings</key><dict><key>foreground</key><string>#BEB55B</string></dict></dict>
+<dict><key>scope</key><string>constant.numeric</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>none</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>none</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>constant</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>entity.name.tag</string><key>settings</key><dict><key>foreground</key><string>#CB6077</string></dict></dict>
+<dict><key>scope</key><string>entity.other.attribute-name</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>entity.other.attribute-name.id, punctuation.definition.entity</string><key>settings</key><dict><key>foreground</key><string>#8AB3B5</string></dict></dict>
+<dict><key>scope</key><string>meta.selector</string><key>settings</key><dict><key>foreground</key><string>#A89BB9</string></dict></dict>
+<dict><key>scope</key><string>none</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>markup.heading punctuation.definition.heading, entity.name.section</string><key>settings</key><dict><key>foreground</key><string>#8AB3B5</string><key>fontStyle</key><string></string></dict></dict>
+<dict><key>scope</key><string>keyword.other.unit</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>markup.bold, punctuation.definition.bold</string><key>settings</key><dict><key>foreground</key><string>#F4BC87</string><key>fontStyle</key><string>bold</string></dict></dict>
+<dict><key>scope</key><string>markup.italic, punctuation.definition.italic</string><key>settings</key><dict><key>foreground</key><string>#A89BB9</string><key>fontStyle</key><string>italic</string></dict></dict>
+<dict><key>scope</key><string>markup.raw.inline</string><key>settings</key><dict><key>foreground</key><string>#BEB55B</string></dict></dict>
+<dict><key>scope</key><string>string.other.link</string><key>settings</key><dict><key>foreground</key><string>#CB6077</string></dict></dict>
+<dict><key>scope</key><string>meta.link</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>meta.image</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>markup.list</string><key>settings</key><dict><key>foreground</key><string>#CB6077</string></dict></dict>
+<dict><key>scope</key><string>markup.quote</string><key>settings</key><dict><key>foreground</key><string>#D28B71</string></dict></dict>
+<dict><key>scope</key><string>meta.separator</string><key>settings</key><dict><key>foreground</key><string>#D0C8C6</string><key>background</key><string>#645240</string></dict></dict>
+<dict><key>scope</key><string>markup.inserted</string><key>settings</key><dict><key>foreground</key><string>#BEB55B</string></dict></dict>
+<dict><key>scope</key><string>markup.deleted</string><key>settings</key><dict><key>foreground</key><string>#CB6077</string></dict></dict>
+<dict><key>scope</key><string>markup.changed</string><key>settings</key><dict><key>foreground</key><string>#A89BB9</string></dict></dict>
+<dict><key>scope</key><string>constant.other.color</string><key>settings</key><dict><key>foreground</key><string>#7BBDA4</string></dict></dict>
+<dict><key>scope</key><string>string.regexp</string><key>settings</key><dict><key>foreground</key><string>#7BBDA4</string></dict></dict>
+<dict><key>scope</key><string>constant.character.escape</string><key>settings</key><dict><key>foreground</key><string>#7BBDA4</string></dict></dict>
+<dict><key>scope</key><string>punctuation.section.embedded, variable.interpolation</string><key>settings</key><dict><key>foreground</key><string>#BB9584</string></dict></dict>
+<dict><key>scope</key><string>invalid.illegal</string><key>settings</key><dict><key>foreground</key><string>#3B3228</string><key>background</key><string>#CB6077</string></dict></dict>
+<dict><key>scope</key><string>markup.deleted.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#F92672</string></dict></dict>
+<dict><key>scope</key><string>markup.inserted.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#A6E22E</string></dict></dict>
+<dict><key>scope</key><string>markup.changed.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#967EFB</string></dict></dict>
+<dict><key>scope</key><string>markup.ignored.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#565656</string></dict></dict>
+<dict><key>scope</key><string>markup.untracked.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#565656</string></dict></dict>
+</array></dict></plist>

@@ -1,7 +1,7 @@
 //! Plugins written in Python or JavaScript.
 //!
 //! Each plugin is a folder in the plugins folder with a `plugin.json` and a
-//! script. NixPad runs the script with the installed Python or Node as a
+//! script. Ettin Edit runs the script with the installed Python or Node as a
 //! separate process and talks to it with JSON-RPC 2.0 messages, one per line,
 //! over its standard input and output. A plugin that crashes or hangs can't
 //! take the editor down.
@@ -34,8 +34,11 @@ use process::{Proc, ProcEvent, Waker};
 /// The version of the plugin API, sent to plugins at start.
 pub const API_VERSION: u32 = 1;
 
-pub const SDK_PYTHON: &str = include_str!("../../plugins/sdk/nixpad.py");
-pub const SDK_JS: &str = include_str!("../../plugins/sdk/nixpad.js");
+pub const SDK_PYTHON: &str = include_str!("../../plugins/sdk/ettin.py");
+pub const SDK_JS: &str = include_str!("../../plugins/sdk/ettin.js");
+/// Plugins written before the rename import `nixpad`; these point it at `ettin`.
+const SDK_PYTHON_OLD_NAME: &str = "import sys\nimport ettin\n\nsys.modules[__name__] = ettin\n";
+const SDK_JS_OLD_NAME: &str = "module.exports = require('./ettin');\n";
 pub const GUIDE: &str = include_str!("../../docs/plugins.md");
 
 /// The sample plugins: (folder, [(file, contents)]).
@@ -66,6 +69,35 @@ pub const SAMPLES: &[(&str, &[(&str, &str)])] = &[
             ),
         ],
     ),
+    (
+        "hl7-viewer",
+        &[
+            (
+                "plugin.json",
+                include_str!("../../plugins/samples/hl7-viewer/plugin.json"),
+            ),
+            (
+                "main.py",
+                include_str!("../../plugins/samples/hl7-viewer/main.py"),
+            ),
+            (
+                "hl7.py",
+                include_str!("../../plugins/samples/hl7-viewer/hl7.py"),
+            ),
+            (
+                "hl7_defs.py",
+                include_str!("../../plugins/samples/hl7-viewer/hl7_defs.py"),
+            ),
+            (
+                "test_hl7.py",
+                include_str!("../../plugins/samples/hl7-viewer/test_hl7.py"),
+            ),
+            (
+                "sample.hl7",
+                include_str!("../../plugins/samples/hl7-viewer/sample.hl7"),
+            ),
+        ],
+    ),
 ];
 
 const MAX_LOG: usize = 2000;
@@ -73,7 +105,7 @@ const MAX_COMMANDS: usize = 200;
 /// How long a stopping plugin gets to finish before it is killed (seconds).
 const STOP_GRACE: f64 = 1.5;
 
-/// Where plugins live: `~/.config/NixPad/plugins` on Linux.
+/// Where plugins live: `~/.config/EttinEdit/plugins` on Linux.
 pub fn plugins_dir() -> Option<PathBuf> {
     crate::settings::config_dir().map(|d| d.join("plugins"))
 }
@@ -211,19 +243,24 @@ impl PluginHost {
         let sdk = self.sdk_dir()?;
         if let Err(e) = fs::create_dir_all(&sdk) {
             self.log(
-                "NixPad",
+                "Ettin Edit",
                 format!("Couldn't create {}: {e}", sdk.display()),
                 true,
             );
             return None;
         }
-        for (name, text) in [("nixpad.py", SDK_PYTHON), ("nixpad.js", SDK_JS)] {
+        for (name, text) in [
+            ("ettin.py", SDK_PYTHON),
+            ("ettin.js", SDK_JS),
+            ("nixpad.py", SDK_PYTHON_OLD_NAME),
+            ("nixpad.js", SDK_JS_OLD_NAME),
+        ] {
             let path = sdk.join(name);
             if fs::read_to_string(&path).ok().as_deref() != Some(text)
                 && let Err(e) = fs::write(&path, text)
             {
                 self.log(
-                    "NixPad",
+                    "Ettin Edit",
                     format!("Couldn't write {}: {e}", path.display()),
                     true,
                 );
@@ -335,7 +372,7 @@ impl PluginHost {
                     "initialize",
                     json!({
                         "plugin": id,
-                        "nixpad": env!("CARGO_PKG_VERSION"),
+                        "ettin": env!("CARGO_PKG_VERSION"),
                         "api": API_VERSION,
                     }),
                 ));
@@ -391,7 +428,7 @@ impl PluginHost {
         self.panels.retain(|panel| panel.plugin != id);
     }
 
-    /// Stops everything, for when NixPad closes.
+    /// Stops everything, for when Ettin Edit closes.
     pub fn shutdown(&mut self) {
         for i in 0..self.plugins.len() {
             self.stop(i, 0.0);
@@ -690,13 +727,13 @@ impl PluginHost {
         Ok(json!({ "shortcut": shortcut.is_some(), "warning": warning }))
     }
 
-    /// Who already uses a shortcut: NixPad or another plugin command.
+    /// Who already uses a shortcut: Ettin Edit or another plugin command.
     fn shortcut_owner(&self, s: &KeyboardShortcut, plugin: &str, command: &str) -> Option<String> {
         if crate::actions::all_shortcuts()
             .iter()
             .any(|(b, _)| shortcut::same(b, s))
         {
-            return Some("NixPad".to_owned());
+            return Some("Ettin Edit".to_owned());
         }
         self.plugins.iter().find_map(|p| {
             p.commands
@@ -771,6 +808,9 @@ impl PluginHost {
             panel.position = pos;
         }
         panel.set_items(items);
+        if call.params.get("scrollToTop").and_then(Value::as_bool) == Some(true) {
+            panel.scroll_to_top();
+        }
         Ok(Value::Null)
     }
 
@@ -902,7 +942,7 @@ mod tests {
             ))
             .unwrap();
         assert_eq!(r["shortcut"], true);
-        // NixPad's own shortcut.
+        // Ettin Edit's own shortcut.
         let r = host
             .register_command(&call(
                 "commands.register",
@@ -910,7 +950,7 @@ mod tests {
             ))
             .unwrap();
         assert_eq!(r["shortcut"], false);
-        assert!(r["warning"].as_str().unwrap().contains("NixPad"));
+        assert!(r["warning"].as_str().unwrap().contains("Ettin Edit"));
         // Taken by another command; registering "a" again keeps its own.
         let r = host
             .register_command(&call(
@@ -1010,7 +1050,7 @@ mod process_tests {
 
     fn run_plugin(folder: &str, main: &str, script: &str) {
         let root =
-            std::env::temp_dir().join(format!("nixpad-plugins-{}-{folder}", std::process::id()));
+            std::env::temp_dir().join(format!("ettin-plugins-{}-{folder}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let dir = root.join(folder);
         fs::create_dir_all(&dir).unwrap();
@@ -1074,18 +1114,18 @@ mod process_tests {
             "py-test",
             "main.py",
             r#"
-import nixpad
+import ettin
 
-@nixpad.command("Echo", shortcut="Ctrl+Alt+F11")
+@ettin.command("Echo", shortcut="Ctrl+Alt+F11")
 def echo():
     print("printed")
-    nixpad.log("got", nixpad.call("text.get"))
+    ettin.log("got", ettin.call("text.get"))
 
-@nixpad.on("saved")
+@ettin.on("saved")
 def saved(doc):
     pass
 
-nixpad.run()
+ettin.run()
 "#,
         );
     }
@@ -1100,12 +1140,12 @@ nixpad.run()
             "js-test",
             "main.js",
             r#"
-const nixpad = require('nixpad');
-nixpad.command('Echo', async () => {
+const ettin = require('ettin');
+ettin.command('Echo', async () => {
   console.log('printed');
-  nixpad.log('got', await nixpad.call('text.get'));
+  ettin.log('got', await ettin.call('text.get'));
 }, { shortcut: 'Ctrl+Alt+F11' });
-nixpad.on('saved', () => {});
+ettin.on('saved', () => {});
 "#,
         );
     }

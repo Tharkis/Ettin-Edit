@@ -613,7 +613,7 @@ mod tests {
 
     #[test]
     fn searches_a_folder() {
-        let dir = std::env::temp_dir().join(format!("nixpad-fif-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ettin-edit-fif-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::create_dir_all(dir.join(".git")).unwrap();

@@ -1,4 +1,4 @@
-//! NixPad: a modern, cross-platform text editor.
+//! Ettin Edit: a modern, cross-platform text editor.
 
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
@@ -40,7 +40,9 @@ fn main() -> eframe::Result {
         }
     }
 
-    // Hand the files to a NixPad that is already running, if there is one.
+    settings::migrate_old_config();
+
+    // Hand the files to an Ettin Edit that is already running, if there is one.
     // `owner` is the window that keeps the session and backups.
     let mut owner = true;
     if let Some(dir) = settings::config_dir() {
@@ -56,21 +58,23 @@ fn main() -> eframe::Result {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("NixPad")
-            .with_app_id("nixpad")
+            .with_title("Ettin Edit")
+            .with_app_id("ettin-edit")
             .with_inner_size([1100.0, 720.0])
             .with_min_inner_size([480.0, 320.0])
             .with_drag_and_drop(true)
             .with_icon(std::sync::Arc::new(
-                eframe::icon_data::from_png_bytes(include_bytes!("../assets/icons/nixpad-256.png"))
-                    .expect("bundled icon is a valid PNG"),
+                eframe::icon_data::from_png_bytes(include_bytes!(
+                    "../assets/icons/ettin-edit-256.png"
+                ))
+                .expect("bundled icon is a valid PNG"),
             )),
         ..Default::default()
     };
 
     eframe::run_native(
-        "NixPad",
+        "Ettin Edit",
         options,
-        Box::new(move |cc| Ok(Box::new(app::NixPadApp::new(cc, files, owner)))),
+        Box::new(move |cc| Ok(Box::new(app::EttinApp::new(cc, files, owner)))),
     )
 }

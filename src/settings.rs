@@ -1,9 +1,9 @@
 //! User settings, stored as JSON in the platform config folder
-//! (`~/.config/NixPad` on Linux, `%APPDATA%\NixPad` on Windows).
+//! (`~/.config/EttinEdit` on Linux, `%APPDATA%\EttinEdit` on Windows).
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,7 @@ pub struct Settings {
     pub use_spaces: bool,
     pub word_completion: bool,
     pub macros: Vec<SavedMacro>,
-    /// Opening a file while NixPad runs sends it to the open window.
+    /// Opening a file while Ettin Edit runs sends it to the open window.
     pub single_instance: bool,
     /// Quit without asking about unsaved changes; they come back next time.
     pub remember_unsaved: bool,
@@ -74,7 +74,7 @@ pub struct PluginPrefs {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            theme: "NixPad Dark".to_owned(),
+            theme: "Ettin Dark".to_owned(),
             font_size: 14.0,
             word_wrap: false,
             show_line_numbers: true,
@@ -114,9 +114,60 @@ impl Default for Settings {
     }
 }
 
-/// The NixPad folder inside the platform config directory.
+/// The Ettin Edit folder inside the platform config directory.
 pub fn config_dir() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("NixPad"))
+    dirs::config_dir().map(|d| d.join("EttinEdit"))
+}
+
+/// Before the rename to Ettin Edit, settings lived in a `NixPad` folder.
+const OLD_DIR_NAME: &str = "NixPad";
+
+/// Copies settings, session, themes and plugins from the old `NixPad` folder
+/// the first time Ettin Edit starts. The old folder is left as it was.
+pub fn migrate_old_config() {
+    let (Some(new), Some(old)) = (
+        config_dir(),
+        dirs::config_dir().map(|d| d.join(OLD_DIR_NAME)),
+    ) else {
+        return;
+    };
+    if new.exists() || !old.is_dir() {
+        return;
+    }
+    if let Err(e) = copy_dir(&old, &new) {
+        eprintln!(
+            "ettin-edit: could not copy settings from {}: {e}",
+            old.display()
+        );
+    }
+}
+
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        // The running-instance file and the plugin SDK belong to the old app.
+        if name == "instance.json" || name == ".sdk" {
+            continue;
+        }
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            copy_dir(&entry.path(), &to.join(&name))?;
+        } else if kind.is_file() {
+            fs::copy(entry.path(), to.join(&name))?;
+        }
+    }
+    Ok(())
+}
+
+/// Theme names from before the rename.
+fn renamed_theme(name: &str) -> Option<&'static str> {
+    match name {
+        "NixPad Dark" | "Eighties" => Some("Ettin Dark"),
+        "NixPad Light" => Some("Ettin Light"),
+        _ => None,
+    }
 }
 
 pub fn themes_dir() -> Option<PathBuf> {
@@ -131,7 +182,13 @@ impl Settings {
     pub fn load() -> Self {
         settings_path()
             .and_then(|p| fs::read_to_string(p).ok())
-            .and_then(|s| serde_json::from_str(&s).ok())
+            .and_then(|s| serde_json::from_str::<Self>(&s).ok())
+            .map(|mut s| {
+                if let Some(name) = renamed_theme(&s.theme) {
+                    s.theme = name.to_owned();
+                }
+                s
+            })
             .unwrap_or_default()
     }
 
@@ -143,10 +200,13 @@ impl Settings {
         match serde_json::to_string_pretty(self) {
             Ok(json) => {
                 if let Err(e) = fs::write(&path, json) {
-                    eprintln!("nixpad: could not save settings to {}: {e}", path.display());
+                    eprintln!(
+                        "ettin-edit: could not save settings to {}: {e}",
+                        path.display()
+                    );
                 }
             }
-            Err(e) => eprintln!("nixpad: could not serialise settings: {e}"),
+            Err(e) => eprintln!("ettin-edit: could not serialise settings: {e}"),
         }
     }
 

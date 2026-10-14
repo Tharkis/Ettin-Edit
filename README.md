@@ -1,15 +1,22 @@
-# NixPad
+# Ettin Edit
 
 A modern, cross-platform text editor for Linux and Windows, inspired by Notepad++.
-NixPad is an original, clean-room implementation written in Rust: it shares no code with Notepad++.
+Ettin Edit is an original, clean-room implementation written in Rust: it shares no code with Notepad++.
 
-![NixPad dark theme](docs/screenshots/dark.png)
+![Ettin Edit dark theme](docs/screenshots/dark.png)
 
 ## Status
 
-Release 0.9 adds plugins in Python or JavaScript. A plugin can read and change text,
+Release 0.10 renames NixPad to Ettin Edit (settings, sessions, themes and plugins are
+copied over the first time it starts). Ettin Dark, based on Base16 Eighties, is the new
+default theme, and every built-in theme is now a file in the themes folder that you can
+edit. Tabs show as an arrow across their full width when whitespace is shown, and code
+folding has boxed −/+ markers with lines showing where each region starts and ends. The
+new HL7 Viewer plugin shows HL7 v2 messages as a tree and explains any field: its
+designation, name, data type, optionality and repeatability, with a box to change it.
+Release 0.9 added plugins in Python or JavaScript. A plugin can read and change text,
 open and save files, add menu commands and shortcuts, react to events and show panels
-with trees, tables and forms. Plugins > Install Sample Plugins adds two to try, and
+with trees, tables and forms. Plugins > Install Sample Plugins adds them to try, and
 Plugins > Plugin Guide explains how to write your own ([docs/plugins.md](docs/plugins.md)).
 Release 0.8 added CsvQuery: SQL over the CSV or TSV file you have open, with joins
 across open tabs, a sortable results grid, column statistics, and results to a new tab.
@@ -54,12 +61,18 @@ cross-compiled from Linux with `rustup target add x86_64-pc-windows-gnu` and the
 
 ## Themes
 
-NixPad ships with nine themes (NixPad Dark and Light are its own; the rest are classic
-schemes bundled with syntect). Any TextMate `.tmTheme` file placed in the themes folder
-appears under **Theme > Custom** on the next start:
+Ettin Edit ships with nine themes. Ettin Dark, the default, is based on Base16 Eighties;
+Ettin Night and Ettin Light are its own; the rest are classic schemes bundled with syntect.
+All of them live as TextMate `.tmTheme` files in the themes folder, so you can change
+any colour and pick **Theme > Reload Themes** to see it. Any other `.tmTheme` file you
+put there appears under **Theme > Custom**. **Theme > Restore Built-in Themes** puts the
+originals back and keeps your edited copy as `<name>.tmTheme.bak`.
 
-- Linux: `~/.config/NixPad/themes/`
-- Windows: `%APPDATA%\NixPad\themes\`
+- Linux: `~/.config/EttinEdit/themes/`
+- Windows: `%APPDATA%\EttinEdit\themes\`
+
+A built-in theme you haven't edited is updated when Ettin Edit is; one you have edited is
+left alone.
 
 ## Code layout
 
@@ -71,7 +84,7 @@ appears under **Theme > Custom** on the next start:
 | `src/document.rs` | Loading, saving and reloading files: encodings, line endings, changes on disk |
 | `src/encoding.rs` | Encoding detection, decoding and encoding (UTF-8, UTF-16, legacy code pages) |
 | `src/session.rs` | The session and backups of unsaved changes |
-| `src/instance.rs` | Single-window mode: hands files to the NixPad already running |
+| `src/instance.rs` | Single-window mode: hands files to the Ettin Edit already running |
 | `src/system.rs` | Opening the file manager and a terminal, and reading the last Git commit |
 | `src/file_ui.rs` | Rename, move to trash and summary dialogs, the changed-on-disk bar, the Encoding menu |
 | `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `view.rs` (drawing, keyboard and mouse) |
@@ -89,14 +102,14 @@ appears under **Theme > Custom** on the next start:
 | `src/plugins/` | The plugin host: `mod.rs` (starting plugins, messages, commands, events), `manifest.rs` (`plugin.json`, finding plugins, the permission fingerprint), `process.rs` (plugin processes), `shortcut.rs` (shortcut text), `panel.rs` (JSON panels), `ui.rs` (Manage Plugins, the log and the permission prompt) |
 | `src/app/plugins.rs` | Answers plugin calls on the open documents, sends events, draws plugin panels |
 | `plugins/sdk/` | The Python and JavaScript SDKs that plugins import |
-| `plugins/samples/` | The sample plugins (Text Statistics in Python, Markdown Outline in JavaScript) |
+| `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
 | `docs/plugins.md` | The plugin guide |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |
 | `src/fonts.rs` | Fallback fonts for Chinese, Japanese and Korean text |
-| `src/theme.rs` | Built-in and custom themes, and the window colours derived from them |
+| `src/theme.rs` | Built-in and custom themes: copying the built-ins to the themes folder, loading them, and the window colours derived from them |
 | `src/settings.rs` | Settings, recent files and session, saved as JSON |
-| `assets/themes/` | The NixPad Dark and Light colour schemes |
+| `assets/themes/` | The nine built-in themes as `.tmTheme` files |
 | `assets/icons/` | The app icon (SVG, PNG, ICO) |
 | `packaging/` | Linux `.desktop` file and the Arch `PKGBUILD` |
 

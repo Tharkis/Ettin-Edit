@@ -11,6 +11,22 @@ use super::layout::char_cols;
 
 /// How many blank lines to look past when checking whether a line starts a fold.
 const BLANK_LOOKAHEAD: usize = 1000;
+/// How far above the view to look for the indentation regions start from.
+const MARK_LOOKBEHIND: usize = 20_000;
+
+/// What the fold column shows beside one line: a line from the region it is
+/// in, the box of a region it starts, and the end tick of a region.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FoldMark {
+    /// The line starts a region (a box).
+    pub header: bool,
+    /// The fold line comes in from above.
+    pub above: bool,
+    /// The fold line carries on below.
+    pub below: bool,
+    /// A region ends on this line (a tick to the right).
+    pub end: bool,
+}
 
 impl Editor {
     /// Display width of a line's indentation, or `None` for a blank line.
@@ -29,6 +45,57 @@ impl Editor {
     fn next_non_blank(&self, line: usize, limit: usize) -> Option<(usize, usize)> {
         let n = self.buffer.len_lines();
         (line + 1..n.min(line + 1 + limit)).find_map(|l| self.indent_cols(l).map(|i| (l, i)))
+    }
+
+    /// Fold-column marks for `lines`, which must be in order and may skip
+    /// lines hidden in folds.
+    pub fn fold_marks(&self, lines: &[usize]) -> Vec<FoldMark> {
+        let Some(&first) = lines.first() else {
+            return Vec::new();
+        };
+        // The shallowest indentation before the current line: a line is in a
+        // region when something above it is indented less.
+        let mut shallowest = usize::MAX;
+        for l in (first.saturating_sub(MARK_LOOKBEHIND)..first).rev() {
+            if let Some(i) = self.indent_cols(l) {
+                shallowest = shallowest.min(i);
+                if shallowest == 0 {
+                    break;
+                }
+            }
+        }
+        let next_indent = |l: usize| self.next_non_blank(l, BLANK_LOOKAHEAD).map(|(_, i)| i);
+        lines
+            .iter()
+            .map(|&l| {
+                let own = self.indent_cols(l);
+                let next = next_indent(l);
+                let effective = own.or(next).unwrap_or(0);
+                let inside = shallowest < effective;
+                let mut mark = FoldMark {
+                    above: inside,
+                    ..FoldMark::default()
+                };
+                if let Some(own) = own {
+                    let after = shallowest.min(own);
+                    if let Some(&end) = self.folds.get(&l) {
+                        mark.header = true;
+                        mark.below = next_indent(end).is_some_and(|n| after < n);
+                    } else if next.is_some_and(|n| n > own) {
+                        mark.header = true;
+                        mark.below = true;
+                    } else if inside {
+                        let n = next.unwrap_or(0);
+                        mark.end = n < own;
+                        mark.below = after < n;
+                    }
+                    shallowest = after;
+                } else {
+                    mark.below = inside;
+                }
+                mark
+            })
+            .collect()
     }
 
     /// True when `line` starts a foldable region.
@@ -317,6 +384,43 @@ mod tests {
             e.all_folds(Some(2)).into_iter().collect::<Vec<_>>(),
             vec![(1, 2)]
         );
+    }
+
+    #[test]
+    fn fold_column_marks() {
+        let mut e = Editor::new(CODE);
+        let m = |header, above, below, end| FoldMark {
+            header,
+            above,
+            below,
+            end,
+        };
+        let lines: Vec<usize> = (0..8).collect();
+        assert_eq!(
+            e.fold_marks(&lines),
+            vec![
+                m(true, false, true, false),   // fn a() {
+                m(true, true, true, false),    //     if x {
+                m(false, true, true, true),    //         y();  (inner region ends)
+                m(false, true, true, false),   //     }
+                m(false, true, true, false),   // (blank)
+                m(false, true, false, true),   //     z();  (outer region ends)
+                m(false, false, false, false), // }
+                m(false, false, false, false), // fn b() {}
+            ]
+        );
+        // Folded: the hidden lines are skipped and the line still joins below.
+        e.toggle_fold(1);
+        assert_eq!(
+            e.fold_marks(&[1, 3, 4]),
+            vec![
+                m(true, true, true, false),
+                m(false, true, true, false),
+                m(false, true, true, false),
+            ]
+        );
+        // Starting part-way down still knows it is inside a region.
+        assert_eq!(e.fold_marks(&[5]), vec![m(false, true, false, true)]);
     }
 
     #[test]

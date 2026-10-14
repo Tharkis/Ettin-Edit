@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>name</key><string>NixPad Light</string>
+<key>name</key><string>Ettin Light</string>
 <key>settings</key><array>
 <dict><key>settings</key><dict><key>background</key><string>#FBFBFC</string><key>foreground</key><string>#24292F</string><key>caret</key><string>#1A62C7</string><key>selection</key><string>#CFE0FA</string><key>lineHighlight</key><string>#F1F3F6</string><key>gutterForeground</key><string>#A0A7B1</string></dict></dict>
 <dict><key>name</key><string>Comment</string><key>scope</key><string>comment, punctuation.definition.comment</string><key>settings</key><dict><key>foreground</key><string>#8A929C</string><key>fontStyle</key><string>italic</string></dict></dict>

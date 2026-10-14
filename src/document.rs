@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn round_trips_crlf_and_bom() {
-        let dir = std::env::temp_dir().join(format!("nixpad-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ettin-edit-test-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("crlf.txt");
         let original = b"\xEF\xBB\xBFone\r\ntwo\r\n";
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn legacy_encodings_and_reload() {
-        let dir = std::env::temp_dir().join(format!("nixpad-test-enc-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ettin-edit-test-enc-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("latin.txt");
         fs::write(&path, b"caf\xE9\r\nna\xEFve\r\n").unwrap();

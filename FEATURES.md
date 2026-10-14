@@ -1,6 +1,6 @@
-# NixPad feature tracker
+# Ettin Edit feature tracker
 
-What NixPad does today and what is still missing. Tick a box when a feature ships,
+What Ettin Edit does today and what is still missing. Tick a box when a feature ships,
 and add new rows as ideas come up.
 
 Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
@@ -38,18 +38,19 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 
 ### Themes
 - [x] Dark mode by default, with light themes available
-- [x] 9 built-in themes: NixPad Dark, NixPad Light (original), Ocean Dark/Light, Eighties, Mocha, Solarized Dark/Light, GitHub Light
+- [x] 9 built-in themes: Ettin Dark (the default, based on Base16 Eighties), Ettin Night, Ettin Light (original), Ocean Dark/Light, Mocha, Solarized Dark/Light, GitHub Light
 - [x] Whole window (menus, tabs, status bar) follows the editor theme
 - [x] Custom themes: drop any `.tmTheme` file into the themes folder (Theme > Open Themes Folder)
+- [x] The built-in themes are files in the themes folder too, so they can be edited (Theme > Reload Themes, Theme > Restore Built-in Themes)
 - [x] Theme, zoom, wrap and other view settings remembered between runs
 
 ### Platform
 - [x] Linux (X11 and Wayland) and Windows builds from one codebase
-- [x] Settings in `~/.config/NixPad` (Linux) or `%APPDATA%\NixPad` (Windows)
+- [x] Settings in `~/.config/EttinEdit` (Linux) or `%APPDATA%\EttinEdit` (Windows)
 
 ## Release 0.2: new editor engine (done)
 
-- [x] NixPad's own editor engine on a rope buffer (replaces egui's text box)
+- [x] Ettin Edit's own editor engine on a rope buffer (replaces egui's text box)
 - [x] Undo/redo history with typing merged into steps, and the saved point tracked through undo
 - [x] Multiple carets: Alt+click to add, Ctrl+Alt+Up/Down to add above or below, Esc to go back to one
 - [x] Typing, deleting, pasting and Enter work at every caret; pasting N lines onto N carets puts one line at each
@@ -114,9 +115,9 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] Matching bracket highlight (red when unmatched) and matching HTML/XML tag highlight
 
 ### View
-- [x] Code folding by indentation: gutter arrows, fold/unfold current (Ctrl+Alt+F / Ctrl+Alt+Shift+F), fold all (Alt+0), unfold all (Alt+Shift+0), fold level 1–5 (Alt+1…5)
+- [x] Code folding by indentation: boxed −/+ markers in the gutter with a line showing where each region starts and ends, fold/unfold current (Ctrl+Alt+F / Ctrl+Alt+Shift+F), fold all (Alt+0), unfold all (Alt+Shift+0), fold level 1–5 (Alt+1…5)
 - [x] Indent guides
-- [x] Show whitespace (spaces and tabs) and end-of-line markers (LF, CRLF, CR)
+- [x] Show whitespace (dots for spaces, an arrow across the full width of each tab) and end-of-line markers (LF, CRLF, CR)
 - [x] Long-line edge marker at a configurable column (default 80)
 
 ### Macros
@@ -141,7 +142,7 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] File > Reload from Disk
 
 ### Window and tabs
-- [x] Single window: opening a file while NixPad runs sends it to the open window (turn off in Settings, or start with `--multi-instance`)
+- [x] Single window: opening a file while Ettin Edit runs sends it to the open window (turn off in Settings, or start with `--multi-instance`)
 - [x] Drag tabs to reorder them
 - [x] Pin tabs: pinned tabs stay at the front, show a pin, and are skipped by Close All and Close Others
 
@@ -153,7 +154,7 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] Summary dialog: path, dates, encoding, characters, words, lines, size on disk, selection
 
 ### Fixes
-- [x] The mouse pointer is an arrow over the gutter (fold arrows, bookmarks, line numbers), not a text cursor
+- [x] The mouse pointer is an arrow over the gutter (fold markers, bookmarks, line numbers), not a text cursor
 - [x] Theme > Open Themes Folder works on Windows (and on Linux it uses the desktop's file manager)
 
 ## Release 0.6: JSON, JavaScript, MIME and XML tools (done)
@@ -210,22 +211,33 @@ list further down is ticked off too; this section covers what sits around it.
 
 ## Release 0.9: plugin system (done)
 
-Plugins are folders in the plugins folder (`~/.config/NixPad/plugins/` on Linux,
-`%APPDATA%\NixPad\plugins\` on Windows) with a `plugin.json` and a Python or
+Plugins are folders in the plugins folder (`~/.config/EttinEdit/plugins/` on Linux,
+`%APPDATA%\EttinEdit\plugins\` on Windows) with a `plugin.json` and a Python or
 JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > Plugin Guide.
 
 - [x] Plugins menu: each running plugin's commands with their shortcuts, Manage Plugins, Plugin Log, Open Plugins Folder, Reload Plugins, Install Sample Plugins and Plugin Guide; the right-click menu has the plugin commands too
-- [x] Plugins run as their own processes; NixPad finds `python3`/`python` (`python`, `py -3` on Windows) and `node`, or the paths set in Manage Plugins
-- [x] A small SDK for each language (`import nixpad` / `require("nixpad")`) that NixPad keeps up to date
+- [x] Plugins run as their own processes; Ettin Edit finds `python3`/`python` (`python`, `py -3` on Windows) and `node`, or the paths set in Manage Plugins
+- [x] A small SDK for each language (`import ettin-edit` / `require("ettin-edit")`) that Ettin Edit keeps up to date
 - [x] API: documents (list, open, new, save, close, activate, info), text (get, set, replace ranges, insert), selections, go to line, run any built-in command, messages, a text prompt, the clipboard and the plugin log
 - [x] Events: opened, saved, closed, activated (tab switched), changed (after typing pauses) and shutdown
 - [x] Panels on the right or bottom described in JSON: headings, labels, buttons, inputs, checkboxes, dropdowns, rows, trees and sortable tables, with clicks and edits sent back to the plugin
 - [x] Plugin shortcuts that clash with a built-in one or another plugin's are refused, with a line in the log
 - [x] A permission prompt the first time a plugin runs and again when its files change, unless you tick "Don't ask when it changes"
 - [x] Manage Plugins: enable or disable, start, stop, restart, open each plugin's folder, see why one failed
-- [x] Plugin Log: what plugins print, their errors, and what NixPad refused
+- [x] Plugin Log: what plugins print, their errors, and what Ettin Edit refused
 - [x] A plugin that crashes or fails to start shows a notice and never takes the editor down; a plugin's undoable edits undo in one step
 - [x] Sample plugins: Text Statistics (Python: counts and word frequencies in a panel, frequencies to a CSV tab) and Markdown Outline (JavaScript: a clickable heading tree, Insert UUID, Wrap Lines)
+
+## Release 0.10: Ettin Edit (done)
+
+- [x] Renamed to Ettin Edit everywhere: window, menus, docs, packages (`ettin-edit`), desktop entry and a new icon
+- [x] Settings, session, backups, themes and plugins are copied from the old NixPad folder on first start; plugins that `import nixpad` keep working
+- [x] Ettin Dark (based on Base16 Eighties) is the default dark theme, with JSON keys in a different colour from every kind of value
+- [x] The built-in themes are `.tmTheme` files in the themes folder, so they can be edited; Theme > Reload Themes and Theme > Restore Built-in Themes
+- [x] Show Whitespace draws each tab as an arrow across its full width; whitespace and end-of-line symbols are easier to see in light and dark themes
+- [x] Fold markers are − and + in rounded boxes, with a line from where each region starts to where it ends
+- [x] HL7 Viewer plugin (Plugins > Install Sample Plugins): HL7 v2 messages as a tree of segments, fields, repetitions, components and subcomponents; the tree follows the caret; an inspector shows each piece's designation (e.g. `ORC-4.1`), name, data type, optionality, repeatability, length and table from an HL7 v2.5.1 dictionary, and edits its value in place
+- [x] Plugin API: a `caret` event, trees that select and reveal a node, and panels that scroll back to the top
 
 ## Core editor features still missing
 

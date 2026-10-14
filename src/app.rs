@@ -1,4 +1,4 @@
-//! The NixPad window: menu bar, tab strip, editor and status bar.
+//! The Ettin Edit window: menu bar, tab strip, editor and status bar.
 
 mod compare;
 mod csv_query;
@@ -46,7 +46,7 @@ struct CloseQueue {
     quit_after: bool,
 }
 
-pub struct NixPadApp {
+pub struct EttinApp {
     docs: Vec<Document>,
     active: usize,
     next_id: u64,
@@ -61,6 +61,8 @@ pub struct NixPadApp {
     close_queue: Option<CloseQueue>,
     errors: Vec<String>,
     show_about: bool,
+    /// The app icon shown in About, loaded the first time it opens.
+    about_icon: Option<egui::TextureHandle>,
     quitting: bool,
     focus_editor: bool,
     scroll_to_active_tab: bool,
@@ -73,7 +75,7 @@ pub struct NixPadApp {
     run_macro: RunMacroDialog,
     save_macro: SaveMacroDialog,
     recorder: Recorder,
-    /// Session and backups; only the first NixPad window keeps them.
+    /// Session and backups; only the first Ettin Edit window keeps them.
     session: Option<SessionStore>,
     instance: Option<instance::Listener>,
     last_backup: f64,
@@ -108,11 +110,21 @@ const BACKUP_INTERVAL: f64 = 7.0;
 /// Seconds between checks for files changed on disk.
 const DISK_CHECK_INTERVAL: f64 = 2.0;
 
-impl NixPadApp {
-    /// `owner` is false when another NixPad window already runs and owns the session.
+impl EttinApp {
+    /// Reads the themes folder again and keeps the current theme if it still exists.
+    fn reload_themes(&mut self) {
+        let name = self.themes[self.theme_idx].name.clone();
+        let (themes, errors) = theme::load_themes(settings::themes_dir().as_deref());
+        self.errors.extend(errors);
+        self.theme_idx = themes.iter().position(|t| t.name == name).unwrap_or(0);
+        self.themes = themes;
+        self.applied_theme = None;
+    }
+
+    /// `owner` is false when another Ettin Edit window already runs and owns the session.
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, owner: bool) -> Self {
         let settings = Settings::load();
-        let themes = theme::load_themes(settings::themes_dir().as_deref());
+        let (themes, theme_errors) = theme::load_themes(settings::themes_dir().as_deref());
         let theme_idx = themes
             .iter()
             .position(|t| t.name == settings.theme)
@@ -133,8 +145,9 @@ impl NixPadApp {
             languages,
             pending: Vec::new(),
             close_queue: None,
-            errors: Vec::new(),
+            errors: theme_errors,
             show_about: false,
+            about_icon: None,
             quitting: false,
             focus_editor: true,
             scroll_to_active_tab: true,
@@ -546,7 +559,7 @@ impl NixPadApp {
                         doc.backup = Some(path);
                         doc.backup_version = version;
                     }
-                    Err(e) => eprintln!("nixpad: backup to {} failed: {e}", path.display()),
+                    Err(e) => eprintln!("ettin-edit: backup to {} failed: {e}", path.display()),
                 }
             } else if let Some(path) = doc.backup.take() {
                 let _ = std::fs::remove_file(path);
@@ -556,7 +569,7 @@ impl NixPadApp {
         if let Some(store) = &mut self.session
             && let Err(e) = store.save(&session)
         {
-            eprintln!("nixpad: could not save the session: {e}");
+            eprintln!("ettin-edit: could not save the session: {e}");
         }
     }
 
@@ -581,7 +594,7 @@ impl NixPadApp {
                 .filter_map(|t| t.backup.as_ref().map(|b| store.backup_dir().join(b)))
                 .collect();
             if let Err(e) = store.save(&session) {
-                eprintln!("nixpad: could not save the session: {e}");
+                eprintln!("ettin-edit: could not save the session: {e}");
             }
             store.remove_stale_backups(&keep);
         }
@@ -618,7 +631,7 @@ impl NixPadApp {
         }
     }
 
-    /// Opens files sent by NixPad started again, and brings the window forward.
+    /// Opens files sent by Ettin Edit started again, and brings the window forward.
     fn poll_instance(&mut self, ctx: &egui::Context) {
         let Some(listener) = &self.instance else {
             return;
@@ -893,6 +906,16 @@ impl NixPadApp {
                         self.errors.push(e);
                     }
                 }
+            }
+            Action::ReloadThemes => self.reload_themes(),
+            Action::RestoreThemes => {
+                if let Some(dir) = settings::themes_dir()
+                    && let Err(e) = theme::install_builtins(&dir, true)
+                {
+                    self.errors
+                        .push(format!("Couldn't restore the built-in themes: {e}"));
+                }
+                self.reload_themes();
             }
             Action::ClearRecent => self.settings.recent_files.clear(),
             Action::ReloadFromDisk => {
@@ -1797,6 +1820,8 @@ impl NixPadApp {
                 }
                 ui.separator();
                 self.menu_item(ui, "Open Themes Folder", Action::OpenThemesFolder);
+                self.menu_item(ui, "Reload Themes", Action::ReloadThemes);
+                self.menu_item(ui, "Restore Built-in Themes", Action::RestoreThemes);
             });
             ui.menu_button("Language", |ui| self.language_menu(ui));
             ui.menu_button("Settings", |ui| {
@@ -1828,7 +1853,7 @@ impl NixPadApp {
                 ui.separator();
                 self.toggle_item(
                     ui,
-                    "Single Window (Open Files in the Running NixPad)",
+                    "Single Window (Open Files in the Running Ettin Edit)",
                     s.single_instance,
                     Action::ToggleSingleInstance,
                 );
@@ -1854,7 +1879,7 @@ impl NixPadApp {
             ui.menu_button("Plugins", |ui| self.plugins_menu(ui));
             ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
-                self.menu_item(ui, "About NixPad", Action::About);
+                self.menu_item(ui, "About Ettin Edit", Action::About);
             });
         });
     }
@@ -2243,7 +2268,7 @@ impl NixPadApp {
             syntax,
             syntaxes: &self.highlighter.syntaxes,
             theme: &theme_def.syntax,
-            theme_name: &theme_def.name,
+            theme_name: &theme_def.key,
             plain: doc.syntax == PLAIN_TEXT,
             request_focus,
             show_whitespace: s.show_whitespace,
@@ -2523,10 +2548,24 @@ impl NixPadApp {
         if self.show_about {
             let response = egui::Modal::new(Id::new("about")).show(ctx, |ui| {
                 ui.set_width(380.0);
+                let icon = self
+                    .about_icon
+                    .get_or_insert_with(|| {
+                        let png = include_bytes!("../assets/icons/ettin-edit-64.png");
+                        let image = eframe::icon_data::from_png_bytes(png).unwrap_or_default();
+                        let size = [image.width as usize, image.height as usize];
+                        ctx.load_texture(
+                            "about-icon",
+                            egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba),
+                            egui::TextureOptions::LINEAR,
+                        )
+                    })
+                    .clone();
                 ui.vertical_centered(|ui| {
                     ui.add_space(4.0);
+                    ui.add(egui::Image::new(&icon).fit_to_exact_size(Vec2::splat(64.0)));
                     ui.label(
-                        RichText::new("NixPad")
+                        RichText::new("Ettin Edit")
                             .size(26.0)
                             .strong()
                             .color(self.palette().accent),
@@ -2572,9 +2611,13 @@ impl NixPadApp {
                     .as_ref()
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| doc.title());
-                format!("{}{} - NixPad", if doc.is_dirty() { "*" } else { "" }, name)
+                format!(
+                    "{}{} - Ettin Edit",
+                    if doc.is_dirty() { "*" } else { "" },
+                    name
+                )
             }
-            None => "NixPad".to_owned(),
+            None => "Ettin Edit".to_owned(),
         };
         if title != self.window_title {
             ctx.send_viewport_cmd(ViewportCommand::Title(title.clone()));
@@ -2583,7 +2626,7 @@ impl NixPadApp {
     }
 }
 
-impl eframe::App for NixPadApp {
+impl eframe::App for EttinApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.apply_style(&ctx);

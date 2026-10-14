@@ -1,0 +1,12 @@
+MSH|^~\&|NOVAEHR|RIVERBEND^2.16.840.1.113883.19.4.1^ISO|LABSYS|NORTHLAB|20261014093215-0700||ORM^O01^ORM_O01|MSG00042817|P|2.5.1|||AL|NE|USA|UNICODE UTF-8
+PID|1||800123456^^^RIVERBEND&2.16.840.1.113883.19.4.1&ISO^MR~999-01-2345^^^SSA&2.16.840.1.113883.4.1&ISO^SS||Quillfeather^Maribel^June^^^^L|Ostrander^^^^^^M|19840312|F||2106-3^White^CDCREC|742 Larkspur Ln^Apt 3B^Fernwood^OR^97000^USA^H||^PRN^PH^^1^555^0142367~^NET^Internet^maribel.q@example.com|^WPN^PH^^1^555^0198812^204|eng^English^ISO639|M^Married^HL70002||ACC5501928^^^RIVERBEND^AN||||2186-5^Not Hispanic or Latino^CDCREC
+PV1|1|O|RCLINIC^204^A^RIVERBEND^^^MAIN^2||||1234567893^Halvorsen^Dana^R^^^MD^^NPI&2.16.840.1.113883.4.6&ISO^L^^^NPI|9876543210^Okonkwo-Reyes^Ada^^^^DO^^NPI^L^^^NPI||MED||||1|||1234567893^Halvorsen^Dana^R^^^MD^^NPI&2.16.840.1.113883.4.6&ISO^L^^^NPI|OP|VN7781203^^^RIVERBEND^VN|||||||||||||||||||||||||20261014090000
+IN1|1|CBX-PPO^Cascade Blue PPO^L|CBC7731^^^^NIIP|Cascade Blue Cross|PO Box 4400^^Fernwood^OR^97001^USA||^WPN^PH^^1^800^5550199|GRP-50921||||20260101|20261231|||Quillfeather^Maribel^June|SEL^Self^HL70063|19840312|742 Larkspur Ln^Apt 3B^Fernwood^OR^97000^USA|||||||||||||||||XQP448120017
+GT1|1||Quillfeather^Maribel^June||742 Larkspur Ln^Apt 3B^Fernwood^OR^97000^USA|^PRN^PH^^1^555^0142367||19840312|F||SEL^Self^HL70063
+ORC|NW|ORD448201^NOVAEHR||GRP448^NOVAEHR|SC||^^^20261014093000^^R||20261014093200|4471^Pemberton^Lucas^^^^RN||1234567893^Halvorsen^Dana^R^^^MD^^NPI&2.16.840.1.113883.4.6&ISO^L^^^NPI|RCLINIC^204^A^RIVERBEND|^WPN^PH^^1^555^0100000|20261014093200||||||Riverbend Family Clinic^L^^^^RIVERBEND^XX^^^1043|1200 Mill Creek Rd^^Fernwood^OR^97000^USA|^WPN^PH^^1^555^0100000
+OBR|1|ORD448201^NOVAEHR||24323-8^Comprehensive metabolic 2000 panel - Serum or Plasma^LN^CMP^Comprehensive Metabolic Panel^L|||20261014093000||||||Annual wellness labs|||1234567893^Halvorsen^Dana^R^^^MD^^NPI&2.16.840.1.113883.4.6&ISO^L^^^NPI|^WPN^PH^^1^555^0100000||||||||||^^^20261014093000^^R||||Z00.00^Encounter for general adult medical examination without abnormal findings^I10
+DG1|1||Z00.00^Encounter for general adult medical examination without abnormal findings^I10||20261014|W
+OBX|1|CE|49541-6^Fasting status - Reported^LN||Y^Yes^HL70136||||||F
+OBX|2|NM|FAST.HRS^Hours fasting^L||12|h^hour^UCUM|||||F
+NTE|1|P|Patient reports fasting since 22:00 \T\ took usual morning meds.\.br\Call results to Dr. Halvorsen \F\ fax 555-0100.|RE^Remark^HL70364
+ZRB|1|EXPRESS^Express courier pickup|Y

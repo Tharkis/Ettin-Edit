@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn saves_and_loads_sessions_and_backups() {
-        let dir = std::env::temp_dir().join(format!("nixpad-session-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ettin-edit-session-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let mut store = SessionStore::new(&dir);
         assert_eq!(store.load(), None);

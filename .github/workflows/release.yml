@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a tag such as v0.3.0 builds NixPad for Linux, Arch and Windows and
+# Pushing a tag such as v0.3.0 builds Ettin Edit for Linux, Arch and Windows and
 # publishes a GitHub release with the builds attached. "Run workflow" on the
 # Actions tab does the same without pushing a tag: give it a tag name and it
 # builds that tag, or creates the tag on the chosen commit (default: the head of
@@ -85,16 +85,16 @@ jobs:
         run: cargo build --release --locked
       - name: Package
         run: |
-          dir="nixpad-$VERSION-linux-x86_64"
+          dir="ettin-edit-$VERSION-linux-x86_64"
           mkdir -p "$dir/icons"
-          cp target/release/nixpad README.md "$dir/"
-          cp packaging/linux/nixpad.desktop "$dir/"
-          cp assets/icons/nixpad.svg assets/icons/nixpad-256.png "$dir/icons/"
+          cp target/release/ettin-edit README.md "$dir/"
+          cp packaging/linux/ettin-edit.desktop "$dir/"
+          cp assets/icons/ettin-edit.svg assets/icons/ettin-edit-256.png "$dir/icons/"
           tar czf "$dir.tar.gz" "$dir"
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: nixpad-*.tar.gz
+          path: ettin-edit-*.tar.gz
 
   arch:
     name: Arch package
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: arch
-          path: packaging/arch/nixpad-*.pkg.tar.zst
+          path: packaging/arch/ettin-edit-*.pkg.tar.zst
 
   windows:
     name: Windows build
@@ -141,14 +141,14 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          $dir = "nixpad-$env:VERSION-windows-x86_64"
+          $dir = "ettin-edit-$env:VERSION-windows-x86_64"
           New-Item -ItemType Directory $dir | Out-Null
-          Copy-Item target/release/nixpad.exe, README.md $dir
+          Copy-Item target/release/ettin-edit.exe, README.md $dir
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: nixpad-*.zip
+          path: ettin-edit-*.zip
 
   publish:
     name: Publish release
@@ -164,19 +164,19 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ needs.version.outputs.sha }}
-          name: NixPad ${{ needs.version.outputs.version }}
+          name: Ettin Edit ${{ needs.version.outputs.version }}
           generate_release_notes: true
           body: |
             ## Install
 
             **CachyOS / Arch:** download the `.pkg.tar.zst` file, then run
-            `sudo pacman -U ./nixpad-${{ needs.version.outputs.version }}-1-x86_64.pkg.tar.zst`.
-            It adds NixPad to your app menu.
+            `sudo pacman -U ./ettin-edit-${{ needs.version.outputs.version }}-1-x86_64.pkg.tar.zst`.
+            It adds Ettin Edit to your app menu.
 
-            **Other Linux:** download the `linux-x86_64.tar.gz`, extract it and run `./nixpad`.
+            **Other Linux:** download the `linux-x86_64.tar.gz`, extract it and run `./ettin-edit`.
             It needs OpenGL and `libxkbcommon-x11`.
 
-            **Windows:** download the `windows-x86_64.zip`, extract it and run `nixpad.exe`.
+            **Windows:** download the `windows-x86_64.zip`, extract it and run `ettin-edit.exe`.
             The build isn't signed yet, so Windows SmartScreen may warn the first time; choose "More info", then "Run anyway".
 
             See [FEATURES.md](https://github.com/Tharkis/NixPad/blob/${{ needs.version.outputs.tag }}/FEATURES.md) for what this version can do.

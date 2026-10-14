@@ -1,4 +1,4 @@
-"""Text Statistics: a sample NixPad plugin in Python.
+"""Text Statistics: a sample Ettin Edit plugin in Python.
 
 Shows live counts for the current tab in a side panel and adds three
 commands to the Plugins menu. Read it alongside the plugin guide
@@ -8,8 +8,8 @@ commands to the Plugins menu. Read it alongside the plugin guide
 import re
 from collections import Counter
 
-import nixpad
-from nixpad import ui
+import ettin
+from ettin import ui
 
 # Words, keeping "don't" and "well-known" together.
 WORD = re.compile(r"[^\W_]+(?:['’-][^\W_]+)*")
@@ -29,9 +29,9 @@ def word_counts(text, skip_short=False):
 def render(doc=None):
     if not state["shown"]:
         return
-    doc = doc or nixpad.active()
+    doc = doc or ettin.active()
     if doc.length > MAX_CHARS:
-        nixpad.show_panel("stats", "Text Statistics", [
+        ettin.show_panel("stats", "Text Statistics", [
             ui.label(doc.title, weak=True),
             ui.label("This tab is too big to count as you type."),
         ])
@@ -53,7 +53,7 @@ def render(doc=None):
         ["Average word length", round(average, 1)],
         ["Reading time (minutes)", round(len(words) / 230, 1)],
     ]
-    nixpad.show_panel("stats", "Text Statistics", [
+    ettin.show_panel("stats", "Text Statistics", [
         ui.label(doc.title, weak=True),
         ui.table("counts", ["Measure", "Value"], rows),
         ui.heading("Most common words"),
@@ -64,46 +64,46 @@ def render(doc=None):
     ])
 
 
-@nixpad.command("Show or Hide Text Statistics", shortcut="Ctrl+Alt+T")
+@ettin.command("Show or Hide Text Statistics", shortcut="Ctrl+Alt+T")
 def toggle():
     state["shown"] = not state["shown"]
     if state["shown"]:
         render()
     else:
-        nixpad.close_panel("stats")
+        ettin.close_panel("stats")
 
 
-@nixpad.command("Word Frequencies to New Tab")
+@ettin.command("Word Frequencies to New Tab")
 def export():
-    doc = nixpad.active()
+    doc = ettin.active()
     counts = word_counts(doc.get_text(), state["skip_short"])
     lines = ["word,count"] + ["%s,%d" % (w, n) for w, n in counts.most_common()]
     # A CSV tab: try Tools > CsvQuery on it.
-    nixpad.new_document("\n".join(lines) + "\n")
-    nixpad.message("%d different words" % len(counts))
+    ettin.new_document("\n".join(lines) + "\n")
+    ettin.message("%d different words" % len(counts))
 
 
-@nixpad.command("Count Words in Selection")
+@ettin.command("Count Words in Selection")
 def count_selection():
-    text = nixpad.active().selected_text()
+    text = ettin.active().selected_text()
     if not text:
-        nixpad.message("Select some text first.", "warning")
+        ettin.message("Select some text first.", "warning")
         return
-    nixpad.message("%d words, %d characters selected" % (len(WORD.findall(text)), len(text)))
+    ettin.message("%d words, %d characters selected" % (len(WORD.findall(text)), len(text)))
 
 
-@nixpad.on("activated")
+@ettin.on("activated")
 def on_activated(doc):
     render(doc)
 
 
-@nixpad.on("changed")
+@ettin.on("changed")
 def on_changed(doc):
-    if doc.id == nixpad.active().id:
+    if doc.id == ettin.active().id:
         render(doc)
 
 
-@nixpad.on_panel("stats")
+@ettin.on_panel("stats")
 def on_panel(event):
     if event["event"] == "close":
         state["shown"] = False
@@ -114,11 +114,11 @@ def on_panel(event):
         export()
     elif event["item"] == "top" and event["event"] == "select":
         word = state["top"][event["value"]][0]
-        doc = nixpad.active()
+        doc = ettin.active()
         match = re.search(r"(?<![\w'’-])%s(?![\w'’-])" % re.escape(word),
                           doc.get_text(), re.IGNORECASE)
         if match:
             doc.select(match.start(), match.end())
 
 
-nixpad.run()
+ettin.run()

@@ -8,13 +8,15 @@ use std::time::{Duration, Instant};
 use egui::{Frame, Margin, Ui};
 use serde_json::{Value, json};
 
-use super::NixPadApp;
+use super::EttinApp;
 use crate::actions::Action;
 use crate::plugins::panel::Position;
 use crate::plugins::ui::{self as plugin_ui, ManagerAction, Permission, TextPrompt};
 use crate::plugins::{Call, CallError, FAILED, INVALID_PARAMS, METHOD_NOT_FOUND, str_param};
 use crate::text_tools_ui::Notice;
 
+/// Seconds to wait after the caret stops moving before sending `caret`.
+const CARET_DELAY: f64 = 0.15;
 /// Seconds to wait after the last edit before sending `changed`.
 const CHANGED_DELAY: f64 = 0.3;
 /// How long one frame may spend answering plugins before drawing.
@@ -39,6 +41,10 @@ pub(crate) struct PluginUi {
     edited: HashMap<u64, f64>,
     /// Documents saved since last frame.
     pub saved: Vec<u64>,
+    /// The active document's primary selection last frame: (doc, anchor, head).
+    caret: Option<(u64, usize, usize)>,
+    /// When the caret last moved, until the `caret` event is sent.
+    caret_moved: Option<f64>,
     /// The paths in Manage Plugins, while being edited.
     python: Option<String>,
     node: Option<String>,
@@ -62,7 +68,7 @@ fn read_only() -> CallError {
     (FAILED, "The document is read-only".to_owned())
 }
 
-impl NixPadApp {
+impl EttinApp {
     /// Starts the plugins, once.
     pub(super) fn start_plugins(&mut self, ctx: &egui::Context) {
         if self.plugins.scanned {
@@ -170,6 +176,24 @@ impl NixPadApp {
         if !self.plugin_ui.edited.is_empty() {
             ctx.request_repaint_after(Duration::from_secs_f64(CHANGED_DELAY));
         }
+        if self.plugins.wants("caret")
+            && let Some(doc) = self.docs.get(self.active)
+        {
+            let sel = doc.editor.selections.primary();
+            let caret = Some((doc.id, sel.anchor, sel.head));
+            if caret != self.plugin_ui.caret {
+                self.plugin_ui.caret = caret;
+                self.plugin_ui.caret_moved = Some(now);
+            }
+            match self.plugin_ui.caret_moved {
+                Some(t) if now - t >= CARET_DELAY => {
+                    self.plugin_ui.caret_moved = None;
+                    events.push(("caret", self.plugin_doc_json(doc.id)));
+                }
+                Some(_) => ctx.request_repaint_after(Duration::from_secs_f64(CARET_DELAY)),
+                None => {}
+            }
+        }
         for (event, doc) in events {
             if self.plugins.wants(event) && !doc.is_null() {
                 self.plugins.event(event, json!({ "doc": doc }));
@@ -202,6 +226,7 @@ impl NixPadApp {
                 "line": line,
                 "column": column,
                 "offset": d.editor.selections.primary().head,
+                "anchor": d.editor.selections.primary().anchor,
             },
             "encoding": d.encoding.name(),
             "lineEnding": d.line_ending.short_label(),
@@ -483,7 +508,7 @@ impl NixPadApp {
             }
             _ => Err((
                 METHOD_NOT_FOUND,
-                format!("NixPad has no method \"{method}\""),
+                format!("Ettin Edit has no method \"{method}\""),
             )),
         }
     }
@@ -498,7 +523,12 @@ impl NixPadApp {
         }
         let palette = self.palette();
         let mut events = Vec::new();
-        for (i, panel) in self.plugins.panels.iter_mut().enumerate() {
+        // Bottom panels first, so they run the full width under the side panels.
+        let mut order: Vec<usize> = (0..self.plugins.panels.len()).collect();
+        order.sort_by_key(|&i| self.plugins.panels[i].position != Position::Bottom);
+        let max_side = ui.available_width() * 0.6;
+        for i in order {
+            let panel = &mut self.plugins.panels[i];
             let id = egui::Id::new(("plugin-panel", &panel.plugin, &panel.id));
             let frame = Frame::new()
                 .fill(palette.chrome_bg)
@@ -513,8 +543,9 @@ impl NixPadApp {
                 Position::Right => {
                     egui::Panel::right(id)
                         .resizable(true)
-                        .default_size(300.0)
+                        .default_size(320.0)
                         .min_size(180.0)
+                        .max_size(max_side)
                         .frame(frame)
                         .show(ui, |ui| show(ui));
                 }
@@ -550,7 +581,7 @@ impl NixPadApp {
                 Some(Permission::Allow) => {
                     self.plugins.prompts.pop_front();
                     self.allow_plugin(&id);
-                    // Remember the answer even if NixPad doesn't close normally.
+                    // Remember the answer even if Ettin Edit doesn't close normally.
                     self.settings.save();
                 }
                 Some(Permission::Deny) => {
@@ -741,7 +772,7 @@ impl NixPadApp {
             Action::InstallSamplePlugins => self.install_samples(now),
             Action::PluginGuide => {
                 // A file, so the tab has a proper name; read-only, as it's
-                // rewritten by each NixPad version.
+                // rewritten by each Ettin Edit version.
                 let Some(dir) = self.plugins.dir.as_ref().map(|d| d.join(".sdk")) else {
                     return;
                 };

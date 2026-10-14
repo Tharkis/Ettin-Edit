@@ -3,7 +3,7 @@
 
 use egui::{Frame, Margin, Ui};
 
-use super::NixPadApp;
+use super::EttinApp;
 use crate::actions::Action;
 use crate::csv_query::{Active, Job, PanelAction, ROW_LIMIT, Source, View};
 use crate::tools::csv;
@@ -14,7 +14,7 @@ const RERUN_DELAY: f64 = 0.5;
 /// Text looked at to guess a tab's format.
 const DETECT_CHARS: usize = 64 * 1024;
 
-impl NixPadApp {
+impl EttinApp {
     /// Every tab's table name, in tab order: its file name made into an SQL
     /// name, with `_2`, `_3`... when two tabs would share one.
     fn csv_table_names(&self) -> Vec<String> {

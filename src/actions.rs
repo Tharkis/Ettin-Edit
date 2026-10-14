@@ -44,6 +44,10 @@ pub enum Action {
     SetLanguage(String),
     SetLineEnding(crate::document::LineEnding),
     OpenThemesFolder,
+    /// Reads the themes folder again, so edited themes take effect.
+    ReloadThemes,
+    /// Writes the original built-in themes back to the themes folder.
+    RestoreThemes,
     ClearRecent,
     About,
     // Files

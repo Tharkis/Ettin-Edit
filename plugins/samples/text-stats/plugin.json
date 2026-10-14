@@ -2,6 +2,6 @@
   "name": "Text Statistics",
   "version": "1.0.0",
   "description": "Live counts for the current tab in a side panel, and word frequencies as CSV. A sample plugin in Python.",
-  "author": "NixPad",
+  "author": "Ettin Edit",
   "main": "main.py"
 }

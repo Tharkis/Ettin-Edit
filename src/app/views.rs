@@ -1,10 +1,10 @@
 //! Split view: tabs live in the main (left) view or the other (right) view,
 //! and a document can be cloned into both. Each view has its own active tab;
-//! `NixPadApp::active` is always the active tab of the view with focus.
+//! `EttinApp::active` is always the active tab of the view with focus.
 
 use egui::{Pos2, Rect, Sense, Stroke, Ui};
 
-use super::NixPadApp;
+use super::EttinApp;
 
 pub(super) struct Split {
     /// Which view has focus: 0 is the main view, 1 the other view.
@@ -31,7 +31,7 @@ impl Default for Split {
 /// Width of the bar between the two views.
 const DIVIDER: f32 = 5.0;
 
-impl NixPadApp {
+impl EttinApp {
     /// True when both views have tabs.
     pub(super) fn is_split(&self) -> bool {
         self.docs.iter().any(|d| d.views[0]) && self.docs.iter().any(|d| d.views[1])

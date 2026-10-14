@@ -1,23 +1,23 @@
-"""NixPad plugin API for Python.
+"""Ettin Edit plugin API for Python.
 
 A plugin imports this module, adds its commands and event handlers, then
-calls ``nixpad.run()``::
+calls ``ettin.run()``::
 
-    import nixpad
+    import ettin
 
-    @nixpad.command("Shout", shortcut="Ctrl+Alt+S")
+    @ettin.command("Shout", shortcut="Ctrl+Alt+S")
     def shout():
-        doc = nixpad.active()
+        doc = ettin.active()
         doc.replace_selections(doc.selected_text().upper())
 
-    nixpad.run()
+    ettin.run()
 
-NixPad starts the plugin as its own process and talks to it over standard
+Ettin Edit starts the plugin as its own process and talks to it over standard
 input and output, so ``print()`` goes to the plugin log instead (Plugins >
 Plugin Log). Text positions count characters (Unicode code points) from the
 start of the document, and lines end with ``\\n``.
 
-The full guide is in NixPad under Plugins > Plugin Guide.
+The full guide is in Ettin Edit under Plugins > Plugin Guide.
 """
 
 import json
@@ -26,7 +26,7 @@ import traceback
 from collections import deque
 
 __all__ = [
-    "NixPadError", "Document", "Selection", "ui",
+    "EttinError", "Document", "Selection", "ui",
     "command", "on", "on_panel", "run",
     "active", "documents", "open_file", "new_document",
     "message", "prompt", "set_clipboard", "run_action", "log",
@@ -43,12 +43,12 @@ _queue = deque()
 _commands = {}
 _handlers = {}
 _panel_handlers = {}
-#: What NixPad sent at start: plugin id, NixPad version, API version.
+#: What Ettin Edit sent at start: plugin id, Ettin Edit version, API version.
 info = {}
 
 
-class NixPadError(Exception):
-    """A call NixPad couldn't do, such as editing a read-only document."""
+class EttinError(Exception):
+    """A call Ettin Edit couldn't do, such as editing a read-only document."""
 
 
 def _send(msg):
@@ -60,7 +60,7 @@ def _send(msg):
 def _read():
     line = _in.readline()
     if not line:
-        # NixPad closed.
+        # Ettin Edit closed.
         raise SystemExit(0)
     return json.loads(line.decode("utf-8"))
 
@@ -70,7 +70,7 @@ def _clean(params):
 
 
 def call(method, **params):
-    """Calls a NixPad API method and returns its result. Raises NixPadError."""
+    """Calls an Ettin Edit API method and returns its result. Raises EttinError."""
     global _next_id
     _next_id += 1
     my_id = _next_id
@@ -82,7 +82,7 @@ def call(method, **params):
             _queue.append(msg)
         elif msg.get("id") == my_id:
             if "error" in msg:
-                raise NixPadError(msg["error"].get("message", "error"))
+                raise EttinError(msg["error"].get("message", "error"))
             return msg.get("result")
 
 
@@ -144,6 +144,11 @@ class Document:
         """(line, column) of the main caret, both from 1."""
         c = self._info.get("caret") or {}
         return (c.get("line", 1), c.get("column", 1))
+
+    @property
+    def caret_offset(self):
+        """Where the main caret is, as a text position."""
+        return (self._info.get("caret") or {}).get("offset", 0)
 
     def refresh(self):
         self._info = call("documents.info", doc=self.id)
@@ -253,7 +258,7 @@ def set_clipboard(text):
 
 
 def run_action(action):
-    """Runs one of NixPad's own commands, like "Duplicate", "SelectAll" or
+    """Runs one of Ettin Edit's own commands, like "Duplicate", "SelectAll" or
     {"SortLines": {"kind": "IgnoreCase", "desc": False}}."""
     call("editor.runAction", action=action)
 
@@ -281,14 +286,15 @@ def command(title, shortcut=None, id=None):
     return decorate
 
 
-EVENTS = ("opened", "saved", "closed", "activated", "changed", "shutdown")
+EVENTS = ("opened", "saved", "closed", "activated", "changed", "caret", "shutdown")
 
 
 def on(event):
     """Decorator: calls the function with a Document when the event happens.
     Events: opened, saved, closed, activated (another tab got focus),
-    changed (the text was edited; sent after a short pause in typing) and
-    shutdown (no argument; NixPad is closing or stopping the plugin)."""
+    changed (the text was edited; sent after a short pause in typing),
+    caret (the caret or selection moved in the active tab; sent after a
+    short pause) and shutdown (no argument; Ettin Edit is closing or stopping the plugin)."""
     if event not in EVENTS:
         raise ValueError("unknown event %r; use one of %s" % (event, ", ".join(EVENTS)))
 
@@ -301,10 +307,12 @@ def on(event):
     return decorate
 
 
-def show_panel(id, title, items, position="right"):
+def show_panel(id, title, items, position="right", scroll_to_top=False):
     """Shows a panel (or updates it, if it's open). items are made with the
-    helpers in ``ui``. position is "right" or "bottom"."""
-    call("panel.show", id=id, title=title, items=items, position=position)
+    helpers in ``ui``. position is "right" or "bottom". scroll_to_top
+    scrolls an open panel back to its start."""
+    call("panel.show", id=id, title=title, items=items, position=position,
+         scrollToTop=scroll_to_top)
 
 
 def close_panel(id):
@@ -361,8 +369,12 @@ class ui:
         return {"type": "row", "items": list(items)}
 
     @staticmethod
-    def tree(id, nodes):
-        return {"type": "tree", "id": id, "nodes": list(nodes)}
+    def tree(id, nodes, selected=None):
+        """``selected`` is a node id to highlight, open and scroll to."""
+        item = {"type": "tree", "id": id, "nodes": list(nodes)}
+        if selected is not None:
+            item["selected"] = selected
+        return item
 
     @staticmethod
     def node(label, id="", detail="", children=None, open=None):
@@ -389,7 +401,7 @@ def _report():
 
 
 def _dispatch(msg):
-    """Handles one message from NixPad. Returns False to stop."""
+    """Handles one message from Ettin Edit. Returns False to stop."""
     method = msg.get("method")
     params = msg.get("params") or {}
     if method == "initialize":
@@ -427,7 +439,7 @@ def _dispatch(msg):
 
 
 def run():
-    """Handles commands and events until NixPad stops the plugin."""
+    """Handles commands and events until Ettin Edit stops the plugin."""
     try:
         while True:
             while _queue:

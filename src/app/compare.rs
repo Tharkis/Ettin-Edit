@@ -4,7 +4,7 @@
 
 use egui::{CornerRadius, FontId, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use super::NixPadApp;
+use super::EttinApp;
 use crate::actions::Action;
 use crate::compare_ui::{CompareAction, CompareView, Side, Source};
 use crate::document::Document;
@@ -15,7 +15,7 @@ const RECOMPARE_DELAY: f64 = 0.3;
 /// Seconds to wait for the clipboard text before giving up.
 const CLIPBOARD_WAIT: f64 = 1.5;
 
-impl NixPadApp {
+impl EttinApp {
     fn doc_side(&self, index: usize) -> Side {
         let doc = &self.docs[index];
         Side::new(

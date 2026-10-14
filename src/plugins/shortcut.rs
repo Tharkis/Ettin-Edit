@@ -3,7 +3,7 @@
 use egui::{Key, KeyboardShortcut, Modifiers};
 
 /// Parses a shortcut such as `Ctrl+Shift+F12` or `Alt+1`. Ctrl means the
-/// Command key on macOS, like NixPad's own shortcuts.
+/// Command key on macOS, like Ettin Edit's own shortcuts.
 pub fn parse(text: &str) -> Result<KeyboardShortcut, String> {
     let text = text.trim();
     // "Ctrl++" ends in the plus key.

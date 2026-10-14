@@ -1,0 +1,8 @@
+{
+  "name": "HL7 Viewer",
+  "version": "1.0.0",
+  "description": "Browse HL7 v2 messages as a tree of segments, fields and components, inspect any field (name, data type, optionality, repeatability) and change its value. Open sample.hl7 to try it. A sample plugin in Python.",
+  "author": "Ettin Edit",
+  "runtime": "python",
+  "main": "main.py"
+}

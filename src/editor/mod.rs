@@ -1,4 +1,4 @@
-//! NixPad's text editor engine: a rope buffer, multiple selections, editing
+//! Ettin Edit's text editor engine: a rope buffer, multiple selections, editing
 //! commands, and a view that only lays out the rows on screen.
 
 pub mod buffer;

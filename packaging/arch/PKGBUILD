@@ -1,7 +1,7 @@
-# Builds NixPad from the checkout this file lives in.
+# Builds Ettin Edit from the checkout this file lives in.
 # Usage: cd packaging/arch && makepkg -si
-pkgname=nixpad
-pkgver=0.9.0
+pkgname=ettin-edit
+pkgver=0.10.0
 pkgrel=1
 pkgdesc="A modern, cross-platform text editor"
 arch=('x86_64' 'aarch64')
@@ -35,8 +35,8 @@ check() {
 
 package() {
   cd "$(_root)"
-  install -Dm755 "$srcdir/target/release/nixpad" "$pkgdir/usr/bin/nixpad"
-  install -Dm644 packaging/linux/nixpad.desktop "$pkgdir/usr/share/applications/nixpad.desktop"
-  install -Dm644 assets/icons/nixpad.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/nixpad.svg"
-  install -Dm644 assets/icons/nixpad-256.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/nixpad.png"
+  install -Dm755 "$srcdir/target/release/ettin-edit" "$pkgdir/usr/bin/ettin-edit"
+  install -Dm644 packaging/linux/ettin-edit.desktop "$pkgdir/usr/share/applications/ettin-edit.desktop"
+  install -Dm644 assets/icons/ettin-edit.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/ettin-edit.svg"
+  install -Dm644 assets/icons/ettin-edit-256.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/ettin-edit.png"
 }

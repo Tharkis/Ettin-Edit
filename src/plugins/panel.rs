@@ -1,5 +1,5 @@
 //! Panels that plugins describe in JSON: text, buttons, form fields, a tree
-//! or a table. NixPad draws them; clicks and changes go back to the plugin.
+//! or a table. Ettin Edit draws them; clicks and changes go back to the plugin.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -67,6 +67,9 @@ pub enum Item {
     Tree {
         id: String,
         nodes: Vec<Node>,
+        /// A node id to highlight, open and scroll to.
+        #[serde(default)]
+        selected: Option<String>,
     },
     Table {
         id: String,
@@ -125,6 +128,10 @@ pub struct Panel {
     selected: HashMap<String, String>,
     /// Table sort, per item: (column, ascending).
     sort: HashMap<String, (usize, bool)>,
+    /// Trees whose selected node the plugin just changed: show it next frame.
+    reveal: HashMap<String, String>,
+    /// Scroll back to the top next frame.
+    to_top: bool,
 }
 
 impl Panel {
@@ -139,6 +146,8 @@ impl Panel {
             sent: BTreeMap::new(),
             selected: HashMap::new(),
             sort: HashMap::new(),
+            reveal: HashMap::new(),
+            to_top: false,
         }
     }
 
@@ -153,7 +162,12 @@ impl Panel {
         }
         self.values.retain(|id, _| sent.contains_key(id));
         self.sent = sent;
+        reveal_selected(&items, &mut self.selected, &mut self.reveal);
         self.items = items;
+    }
+
+    pub fn scroll_to_top(&mut self) {
+        self.to_top = true;
     }
 
     /// Every input, checkbox and select value, by id.
@@ -184,14 +198,17 @@ impl Panel {
         ui.separator();
         let items = std::mem::take(&mut self.items);
         let salt = format!("plugin-panel-{}-{}", self.plugin, self.id);
-        ScrollArea::vertical()
+        let mut scroll = ScrollArea::vertical()
             .id_salt(&salt)
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                for item in &items {
-                    self.item_ui(ui, item, palette, &mut events);
-                }
-            });
+            .auto_shrink([false, false]);
+        if std::mem::take(&mut self.to_top) {
+            scroll = scroll.vertical_scroll_offset(0.0);
+        }
+        scroll.show(ui, |ui| {
+            for item in &items {
+                self.item_ui(ui, item, palette, &mut events);
+            }
+        });
         self.items = items;
         events
     }
@@ -334,13 +351,26 @@ impl Panel {
                     }
                 });
             }
-            Item::Tree { id, nodes } => {
+            Item::Tree { id, nodes, .. } => {
                 let selected = self.selected.get(id).cloned();
+                let reveal = self
+                    .reveal
+                    .remove(id)
+                    .and_then(|key| find_node(nodes, &key));
                 let mut clicked = None;
                 Frame::new().inner_margin(Margin::same(2)).show(ui, |ui| {
                     for (i, node) in nodes.iter().enumerate() {
                         let path = format!("{}/{}/{id}/{i}", self.plugin, self.id);
-                        tree_node(ui, node, &path, selected.as_deref(), palette, &mut clicked);
+                        let reveal = reveal
+                            .as_deref()
+                            .filter(|r| r.first() == Some(&i))
+                            .map(|r| &r[1..]);
+                        let mut tree = Tree {
+                            selected: selected.as_deref(),
+                            palette,
+                            clicked: &mut clicked,
+                        };
+                        tree.node(ui, node, &path, reveal);
                     }
                 });
                 if let Some(key) = clicked {
@@ -474,57 +504,116 @@ impl Panel {
     }
 }
 
-fn tree_node(
-    ui: &mut Ui,
-    node: &Node,
-    path: &str,
-    selected: Option<&str>,
-    palette: &Palette,
-    clicked: &mut Option<String>,
-) {
-    let key = node.key();
-    let mut label = |ui: &mut Ui| {
-        let mut job = egui::text::LayoutJob::default();
-        let font = egui::TextStyle::Body.resolve(ui.style());
-        job.append(
-            &node.label,
-            0.0,
-            egui::TextFormat::simple(font.clone(), ui.visuals().text_color()),
-        );
-        if !node.detail.is_empty() {
+/// What drawing a tree needs at every level.
+struct Tree<'a> {
+    selected: Option<&'a str>,
+    palette: &'a Palette,
+    clicked: &'a mut Option<String>,
+}
+
+impl Tree<'_> {
+    /// Draws a node and its children. `reveal` is the path, below this node,
+    /// to a node to open and scroll to; empty when it is this node.
+    fn node(&mut self, ui: &mut Ui, node: &Node, path: &str, reveal: Option<&[usize]>) {
+        let key = node.key();
+        let palette = self.palette;
+        let selected = self.selected;
+        let clicked = &mut *self.clicked;
+        let mut label = |ui: &mut Ui| {
+            let mut job = egui::text::LayoutJob::default();
+            let font = egui::TextStyle::Body.resolve(ui.style());
             job.append(
-                &node.detail,
-                8.0,
-                egui::TextFormat::simple(font, palette.text_dim),
+                &node.label,
+                0.0,
+                egui::TextFormat::simple(font.clone(), ui.visuals().text_color()),
             );
-        }
-        if ui.selectable_label(selected == Some(key), job).clicked() {
-            *clicked = Some(key.to_owned());
-        }
-    };
-    if node.children.is_empty() {
-        ui.horizontal(|ui| {
-            ui.add_space(ui.spacing().icon_width + ui.spacing().icon_spacing);
-            label(ui);
-        });
-        return;
-    }
-    let id = ui.make_persistent_id(path);
-    let open = node.open.unwrap_or(false);
-    egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, open)
-        .show_header(ui, label)
-        .body(|ui| {
-            for (i, child) in node.children.iter().enumerate() {
-                tree_node(
-                    ui,
-                    child,
-                    &format!("{path}/{i}"),
-                    selected,
-                    palette,
-                    clicked,
+            if !node.detail.is_empty() {
+                job.append(
+                    &node.detail,
+                    8.0,
+                    egui::TextFormat::simple(font, palette.text_dim),
                 );
             }
+            // Long labels end in … at the panel's edge; hovering shows all of it.
+            // (Laid out here: a button would lay a job out again without the limit.)
+            let padding = ui.spacing().button_padding.x * 2.0 + 2.0;
+            job.wrap = egui::text::TextWrapping::truncate_at_width(ui.available_width() - padding);
+            let galley = ui.fonts_mut(|f| f.layout_job(job));
+            let mut response = ui.selectable_label(selected == Some(key), galley);
+            if node.label.chars().count() + node.detail.chars().count() > 40 {
+                response = response.on_hover_text(if node.detail.is_empty() {
+                    node.label.clone()
+                } else {
+                    format!("{}\n{}", node.label, node.detail)
+                });
+            }
+            if reveal.is_some_and(<[usize]>::is_empty) {
+                response.scroll_to_me(Some(Align::Center));
+            }
+            if response.clicked() {
+                *clicked = Some(key.to_owned());
+            }
+        };
+        if node.children.is_empty() {
+            ui.horizontal(|ui| {
+                ui.add_space(ui.spacing().icon_width + ui.spacing().icon_spacing);
+                label(ui);
+            });
+            return;
+        }
+        let id = ui.make_persistent_id(path);
+        let open = node.open.unwrap_or(false);
+        let mut state =
+            egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, open);
+        if reveal.is_some_and(|r| !r.is_empty()) {
+            state.set_open(true);
+        }
+        state.show_header(ui, label).body(|ui| {
+            for (i, child) in node.children.iter().enumerate() {
+                let reveal = reveal.filter(|r| r.first() == Some(&i)).map(|r| &r[1..]);
+                self.node(ui, child, &format!("{path}/{i}"), reveal);
+            }
         });
+    }
+}
+
+/// The indexes leading to the node with this key, from the top level.
+fn find_node(nodes: &[Node], key: &str) -> Option<Vec<usize>> {
+    for (i, node) in nodes.iter().enumerate() {
+        if node.key() == key {
+            return Some(vec![i]);
+        }
+        if let Some(mut rest) = find_node(&node.children, key) {
+            rest.insert(0, i);
+            return Some(rest);
+        }
+    }
+    None
+}
+
+/// Takes each tree's `selected` from the plugin, and marks it to be shown
+/// when it changed.
+fn reveal_selected(
+    items: &[Item],
+    selected: &mut HashMap<String, String>,
+    reveal: &mut HashMap<String, String>,
+) {
+    for item in items {
+        match item {
+            Item::Tree {
+                id,
+                selected: Some(key),
+                ..
+            } => {
+                if selected.get(id) != Some(key) {
+                    selected.insert(id.clone(), key.clone());
+                    reveal.insert(id.clone(), key.clone());
+                }
+            }
+            Item::Row { items } => reveal_selected(items, selected, reveal),
+            _ => {}
+        }
+    }
 }
 
 fn collect_values(items: &[Item], out: &mut BTreeMap<String, Value>) {

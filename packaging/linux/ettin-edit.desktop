@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=NixPad
+Name=Ettin Edit
 GenericName=Text Editor
 Comment=Edit text and source code files
-Exec=nixpad %F
-Icon=nixpad
+Exec=ettin-edit %F
+Icon=ettin-edit
 Terminal=false
 Categories=Utility;TextEditor;Development;
 MimeType=text/plain;text/x-csrc;text/x-chdr;text/x-c++src;text/x-python;text/x-rust;text/xml;application/xml;application/json;text/csv;text/markdown;text/html;text/css;application/javascript;application/x-shellscript;
-StartupWMClass=nixpad
+StartupWMClass=ettin-edit
 Keywords=text;editor;code;notepad;
