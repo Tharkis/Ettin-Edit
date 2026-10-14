@@ -146,3 +146,58 @@ mod tests {
         );
     }
 }
+
+/// Runs git in `dir` and returns what it printed, or its error message.
+fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(dir).args(args);
+    #[cfg(windows)]
+    let mut cmd = hidden(cmd);
+    let out = cmd.output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            "Git isn't installed (or isn't on the PATH).".to_owned()
+        } else {
+            format!("Couldn't run git: {e}")
+        }
+    })?;
+    if out.status.success() {
+        Ok(out.stdout)
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_owned())
+    }
+}
+
+/// The text of `file` in the last commit (Git HEAD) of the repository it is in.
+pub fn git_head_text(file: &Path) -> Result<String, String> {
+    let dir = file
+        .parent()
+        .ok_or_else(|| format!("{} has no folder", file.display()))?;
+    let root = git(dir, &["rev-parse", "--show-toplevel"])
+        .map_err(|_| format!("{} isn't in a Git repository.", file.display()))?;
+    let root = std::path::PathBuf::from(String::from_utf8_lossy(&root).trim());
+    let root = root.canonicalize().unwrap_or(root);
+    let file = file.canonicalize().unwrap_or_else(|_| file.to_path_buf());
+    let rel = file.strip_prefix(&root).map_err(|_| {
+        format!(
+            "{} isn't in the repository at {}.",
+            file.display(),
+            root.display()
+        )
+    })?;
+    // Git wants forward slashes, also on Windows.
+    let rel: Vec<String> = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    let spec = format!("HEAD:{}", rel.join("/"));
+    let bytes = git(&root, &["show", &spec]).map_err(|e| {
+        if e.contains("exists on disk, but not in") || e.contains("does not exist in") {
+            "This file isn't in the last commit yet.".to_owned()
+        } else if e.contains("invalid object name") || e.contains("bad revision") {
+            "The repository has no commits yet.".to_owned()
+        } else {
+            e
+        }
+    })?;
+    Ok(String::from_utf8_lossy(&bytes).replace("\r\n", "\n"))
+}

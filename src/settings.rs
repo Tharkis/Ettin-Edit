@@ -51,6 +51,8 @@ pub struct Settings {
     pub close_tags: bool,
     /// Check that XML is well-formed each time it's saved.
     pub xml_check_on_save: bool,
+    /// How Compare matches lines.
+    pub compare: crate::compare::CompareOptions,
 }
 
 impl Default for Settings {
@@ -88,6 +90,7 @@ impl Default for Settings {
             auto_reload: false,
             close_tags: true,
             xml_check_on_save: false,
+            compare: crate::compare::CompareOptions::default(),
         }
     }
 }

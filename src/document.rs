@@ -113,6 +113,12 @@ pub struct Document {
     /// The buffer version the backup holds.
     pub backup_version: u64,
     pub untitled_number: usize,
+    /// Which views of a split show this tab: `[main, other]`. Both for a
+    /// document cloned into the other view.
+    pub views: [bool; 2],
+    /// The view whose carets are live in `editor`; the other view's are kept
+    /// aside (see `Editor::swap_view`).
+    pub live_view: usize,
 }
 
 impl Document {
@@ -131,6 +137,8 @@ impl Document {
             backup: None,
             backup_version: 0,
             untitled_number: number,
+            views: [true, false],
+            live_view: 0,
         }
     }
 

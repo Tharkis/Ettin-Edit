@@ -136,6 +136,20 @@ fn map_bookmarks(marks: &BTreeSet<usize>, edits: &[LineEdit]) -> BTreeSet<usize>
 }
 
 /// Moves marked ranges through char edits; a mark an edit touches is dropped.
+/// Where char `pos` ends up after `edits` (applied in order). A position
+/// inside replaced text moves to the end of the new text.
+fn map_pos(mut pos: usize, edits: &[CharEdit]) -> usize {
+    for e in edits {
+        let end = e.start + e.removed;
+        if pos >= end {
+            pos = pos + e.inserted - e.removed;
+        } else if pos > e.start {
+            pos = e.start + e.inserted;
+        }
+    }
+    pos
+}
+
 fn map_marks(marks: &[Range<usize>], edits: &[CharEdit]) -> Vec<Range<usize>> {
     let mut out = marks.to_vec();
     for e in edits {
@@ -213,6 +227,19 @@ impl Editor {
             }
         }
         let char_edits = self.buffer.take_char_edits();
+        if !char_edits.is_empty()
+            && let Some(other) = self.other_view.as_deref_mut()
+        {
+            // The other view's carets move with edits made in this one.
+            other.selections.map(|sel| {
+                Selection::new(
+                    map_pos(sel.anchor, &char_edits),
+                    map_pos(sel.head, &char_edits),
+                )
+            });
+            other.column = None;
+            other.completion = None;
+        }
         if !char_edits.is_empty() && !self.marks.is_empty() {
             if char_edits.len().saturating_mul(self.marks.len()) > 5_000_000 {
                 self.marks.clear();
@@ -1604,8 +1631,8 @@ impl Editor {
                 }
             };
             let mut sels = self.selections.clone();
-            if modifiers.alt && sels.len() > 1 {
-                // Alt-drag edits the newest caret only.
+            if (modifiers.alt || modifiers.command) && sels.len() > 1 {
+                // Ctrl- or Alt-drag edits the newest selection only.
                 let primary = sels.primary_index();
                 let mut v: Vec<Selection> = sels.iter().copied().collect();
                 v[primary] = sel;

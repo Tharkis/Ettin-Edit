@@ -77,24 +77,24 @@ impl NixPadApp {
         let entries = if tools {
             self.tools_menu(&mut m)
         } else {
-            self.edit_menu(&mut m)
+            self.edit_menu(&mut m, self.active)
         };
         if let Some(action) = menu::show(ui, &entries).and_then(|id| m.action(id)) {
             self.pending.push(action);
         }
     }
 
-    /// The editor's right-click menu: the Edit menu, then Tools.
-    pub(super) fn context_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
-        let mut entries = self.edit_menu(m);
+    /// The right-click menu of tab `index`'s editor: the Edit menu, then Tools.
+    pub(super) fn context_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
+        let mut entries = self.edit_menu(m, index);
         entries.push(MenuEntry::Separator);
         entries.push(submenu("Tools", self.tools_menu(m)));
         entries
     }
 
-    /// The Edit menu.
-    fn edit_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
-        let editor = self.docs.get(self.active).map(|d| &d.editor);
+    /// The Edit menu, enabled for tab `index`.
+    fn edit_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
+        let editor = self.docs.get(index).map(|d| &d.editor);
         let read_only = editor.is_some_and(|e| e.buffer.read_only);
         let can_undo = editor.is_some_and(|e| e.buffer.can_undo());
         let can_redo = editor.is_some_and(|e| e.buffer.can_redo());
@@ -286,9 +286,60 @@ impl NixPadApp {
             ),
         ];
         vec![
+            submenu("Compare", self.compare_menu(m)),
+            MenuEntry::Separator,
             submenu("MIME Tools", mime),
             submenu("JSON and JavaScript", json),
             submenu("XML Tools", xml),
         ]
+    }
+
+    /// Tools > Compare.
+    fn compare_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
+        use crate::compare::CompareOpt;
+        let saved = self.docs.get(self.active).is_some_and(|d| d.path.is_some());
+        let open = self.compare.is_some();
+        let label = if self.is_split() {
+            "Compare the Two Views"
+        } else {
+            "Compare with Previous Tab"
+        };
+        let others: Vec<MenuEntry> = (0..self.docs.len())
+            .filter(|&i| i != self.active)
+            .map(|i| m.item(&self.docs[i].title(), Action::CompareWith(i)))
+            .collect();
+        let opts = self.settings.compare;
+        let mut entries = vec![m.item(label, Action::CompareTabs)];
+        if others.is_empty() {
+            entries.push(m.item_if("Compare With", false, Action::CompareTabs));
+        } else {
+            entries.push(submenu("Compare With", others));
+        }
+        entries.extend([
+            m.item_if("Compare to Last Save", saved, Action::CompareToSaved),
+            m.item("Compare to Clipboard", Action::CompareToClipboard),
+            m.item_if(
+                "Compare to Last Commit (Git)",
+                saved,
+                Action::CompareToGitHead,
+            ),
+            m.item("Compare Selections", Action::CompareSelections),
+            MenuEntry::Separator,
+            m.item_if("Next Difference", open, Action::NextDifference),
+            m.item_if("Previous Difference", open, Action::PrevDifference),
+            m.item_if("Show Comparison", open, Action::ShowComparison),
+            m.item_if("Export as Patch", open, Action::ExportComparePatch),
+            m.item_if("Close Comparison", open, Action::CloseComparison),
+            MenuEntry::Separator,
+        ]);
+        for (label, opt) in [
+            ("Ignore Spaces and Tabs", CompareOpt::IgnoreWhitespace),
+            ("Ignore Case", CompareOpt::IgnoreCase),
+            ("Ignore Empty Lines", CompareOpt::IgnoreEmptyLines),
+            ("Detect Moved Lines", CompareOpt::DetectMoves),
+        ] {
+            entries.push(m.toggle(label, opts.get(opt), Action::ToggleCompareOption(opt)));
+        }
+        entries
     }
 }

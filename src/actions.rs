@@ -26,6 +26,14 @@ pub enum Action {
     NextTab,
     PrevTab,
     SelectTab(usize),
+    // Split view (tab index, view: 0 main, 1 other)
+    SelectTabInView(usize, usize),
+    CloseTabInView(usize, usize),
+    MoveToOtherView(usize, usize),
+    CloneToOtherView(usize, usize),
+    MoveActiveToOtherView,
+    CloneActiveToOtherView,
+    FocusOtherView,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -152,6 +160,22 @@ pub enum Action {
     CopyXPath,
     ToggleCloseTags,
     ToggleXmlCheckOnSave,
+    // Compare
+    /// Compare the tabs of the two views, or the tab with the one used before it.
+    CompareTabs,
+    /// Compare the active tab with this one.
+    CompareWith(usize),
+    CompareToSaved,
+    CompareToClipboard,
+    CompareToGitHead,
+    /// Compare two selections: two in one tab, or one in each view.
+    CompareSelections,
+    NextDifference,
+    PrevDifference,
+    ShowComparison,
+    CloseComparison,
+    ExportComparePatch,
+    ToggleCompareOption(crate::compare::CompareOpt),
     // Macros
     ToggleMacroRecording,
     PlayMacro,
@@ -282,6 +306,9 @@ pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD_ALT, Key::M), Action::Json(JsonOp::Format)),
         (s(CMD_ALT, Key::N), Action::Json(JsonOp::Minify)),
         (s(CMD_ALT, Key::J), Action::ToggleJsonTree),
+        (s(CMD_ALT, Key::D), Action::CompareTabs),
+        (s(SHIFT, Key::F7), Action::PrevDifference),
+        (s(NONE, Key::F7), Action::NextDifference),
         (s(CMD, Key::N), Action::NewTab),
         (s(CMD, Key::O), Action::Open),
         (s(CMD_SHIFT, Key::S), Action::SaveAll),
@@ -312,6 +339,7 @@ pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD, Key::F2), Action::ToggleBookmark),
         (s(SHIFT, Key::F2), Action::PrevBookmark),
         (s(NONE, Key::F2), Action::NextBookmark),
+        (s(NONE, Key::F8), Action::FocusOtherView),
         // Edit
         (s(CMD_SHIFT, Key::D), Action::SelectNextOccurrence),
         (s(CMD, Key::D), Action::Duplicate),

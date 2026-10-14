@@ -32,6 +32,9 @@ pub struct SessionTab {
     /// Caret position in characters.
     #[serde(default)]
     pub caret: usize,
+    /// The view the tab is in: 0 main, 1 other, 2 both.
+    #[serde(default)]
+    pub view: u8,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -177,6 +180,7 @@ mod tests {
                 pinned: true,
                 read_only: false,
                 caret: 3,
+                view: 1,
             }],
             active: 0,
         };
