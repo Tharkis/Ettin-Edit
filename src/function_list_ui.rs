@@ -12,15 +12,18 @@ use crate::theme::Palette;
 /// Seconds to wait after an edit before reading the document again.
 const REFRESH_DELAY: f64 = 0.4;
 
+/// A document's id and text version.
+type DocVersion = (u64, u64);
+
 #[derive(Default)]
 pub struct FunctionList {
     /// The document and version the list was made from.
-    source: Option<(u64, u64)>,
+    source: Option<DocVersion>,
     symbols: Vec<Symbol>,
     language: String,
     filter: String,
     /// A list being made in the background, and what it's for.
-    pending: Option<((u64, u64), Receiver<Vec<Symbol>>)>,
+    pending: Option<(DocVersion, Receiver<Vec<Symbol>>)>,
     /// When the document last changed, to wait for typing to pause.
     changed_at: f64,
     /// Scroll the caret's symbol into view on the next draw.
@@ -49,7 +52,7 @@ impl FunctionList {
     pub fn update(
         &mut self,
         ctx: &egui::Context,
-        doc: (u64, u64),
+        doc: DocVersion,
         language: &str,
         text: impl FnOnce() -> Arc<String>,
     ) -> bool {
