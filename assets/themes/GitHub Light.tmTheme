@@ -3,7 +3,7 @@
 <plist version="1.0"><dict>
 <key>name</key><string>GitHub Light</string>
 <key>settings</key><array>
-<dict><key>settings</key><dict><key>background</key><string>#FFFFFF</string><key>foreground</key><string>#323232</string><key>caret</key><string>#323232</string><key>selection</key><string>#F8EEC7</string><key>lineHighlight</key><string>#F5F5F5</string><key>gutter</key><string>#FFFFFF</string><key>gutterForeground</key><string>#B3B3B3</string><key>guide</key><string>#E8E8E8</string><key>findHighlight</key><string>#F8EEC7</string><key>accent</key><string>#0969DA</string></dict></dict>
+<dict><key>settings</key><dict><key>background</key><string>#FFFFFF</string><key>foreground</key><string>#323232</string><key>caret</key><string>#323232</string><key>selection</key><string>#F8EEC7</string><key>lineHighlight</key><string>#F5F5F5</string><key>gutter</key><string>#FFFFFF</string><key>gutterForeground</key><string>#B3B3B3</string><key>accent</key><string>#0969DA</string></dict></dict>
 <dict><key>scope</key><string>comment</string><key>settings</key><dict><key>foreground</key><string>#969896</string><key>fontStyle</key><string>italic</string></dict></dict>
 <dict><key>scope</key><string>string</string><key>settings</key><dict><key>foreground</key><string>#183691</string></dict></dict>
 <dict><key>scope</key><string>regexp-operator</string><key>settings</key><dict><key>foreground</key><string>#A71D5D</string></dict></dict>

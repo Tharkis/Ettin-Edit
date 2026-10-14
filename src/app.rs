@@ -106,6 +106,7 @@ pub struct EttinApp {
     prefs: crate::prefs_ui::PrefsDialog,
     shortcut_mapper: crate::shortcut_ui::ShortcutMapper,
     command_palette: crate::palette_ui::Picker,
+    style_editor: crate::style_ui::StyleEditor,
     tab_picker: crate::palette_ui::Picker,
 }
 
@@ -123,6 +124,63 @@ impl EttinApp {
         self.theme_idx = themes.iter().position(|t| t.name == name).unwrap_or(0);
         self.themes = themes;
         self.applied_theme = None;
+    }
+
+    /// A theme's `.tmTheme` text: its file in the themes folder, or the built-in copy.
+    fn theme_source(&self, name: &str) -> String {
+        settings::themes_dir()
+            .and_then(|dir| std::fs::read_to_string(theme::theme_path(&dir, name)).ok())
+            .or_else(|| {
+                theme::BUILTIN
+                    .iter()
+                    .find(|(n, _)| *n == name)
+                    .map(|(_, s)| (*s).to_owned())
+            })
+            .unwrap_or_default()
+    }
+
+    /// Acts on what the theme colour editor did.
+    fn style_events(&mut self, ctx: &egui::Context, events: Vec<crate::style_ui::StyleEvent>) {
+        use crate::style_ui::StyleEvent;
+        for event in events {
+            match event {
+                StyleEvent::Preview { name, source } => {
+                    if let Some(i) = self.themes.iter().position(|t| t.name == name) {
+                        match theme::from_source(&name, &source, self.themes[i].custom) {
+                            Ok(def) => {
+                                self.themes[i] = def;
+                                self.applied_theme = None;
+                            }
+                            Err(e) => self.errors.push(format!("The theme has a problem: {e}")),
+                        }
+                    }
+                }
+                StyleEvent::Save { name, source } => {
+                    let Some(dir) = settings::themes_dir() else {
+                        continue;
+                    };
+                    let path = theme::theme_path(&dir, &name);
+                    match std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, source))
+                    {
+                        Ok(()) => {
+                            self.reload_themes();
+                            self.run(ctx, Action::SetTheme(name));
+                        }
+                        Err(e) => self.errors.push(format!(
+                            "Couldn't save the theme to {}: {e}",
+                            path.display()
+                        )),
+                    }
+                }
+                StyleEvent::Discard => self.reload_themes(),
+                StyleEvent::Switch(name) => {
+                    self.run(ctx, Action::SetTheme(name.clone()));
+                    let source = self.theme_source(&name);
+                    self.style_editor.load(&name, &source);
+                }
+            }
+        }
+        self.apply_style(ctx);
     }
 
     /// `owner` is false when another Ettin Edit window already runs and owns the session.
@@ -191,6 +249,7 @@ impl EttinApp {
             prefs: crate::prefs_ui::PrefsDialog::default(),
             shortcut_mapper: crate::shortcut_ui::ShortcutMapper::default(),
             command_palette: crate::palette_ui::Picker::default(),
+            style_editor: crate::style_ui::StyleEditor::default(),
             tab_picker: crate::palette_ui::Picker::default(),
         };
         app.fif.dir = app.settings.fif_dir.clone();
@@ -1019,6 +1078,12 @@ impl EttinApp {
             }
             Action::ShortcutMapper => {
                 self.shortcut_mapper.show();
+                drop_focus(ctx);
+            }
+            Action::StyleConfigurator => {
+                let name = self.themes[self.theme_idx].name.clone();
+                let source = self.theme_source(&name);
+                self.style_editor.show(&name, &source);
                 drop_focus(ctx);
             }
             Action::CommandPalette => {
@@ -2568,6 +2633,15 @@ impl EttinApp {
             }
         }
         crate::editor::layout::set_tab_width(self.settings.tab_width);
+        if self.style_editor.open {
+            let names: Vec<(String, bool)> = self
+                .themes
+                .iter()
+                .map(|t| (t.name.clone(), t.custom))
+                .collect();
+            let events = self.style_editor.ui(ctx, &names, &palette);
+            self.style_events(ctx, events);
+        }
         if self.command_palette.open {
             let items: Vec<crate::palette_ui::Item<Action>> = self
                 .command_catalog(ctx)

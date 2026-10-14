@@ -24,6 +24,7 @@ mod search_ui;
 mod session;
 mod settings;
 mod shortcut_ui;
+mod style_ui;
 mod system;
 mod text_tools_ui;
 mod theme;
