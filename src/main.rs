@@ -6,19 +6,46 @@ mod actions;
 mod app;
 mod document;
 mod editor;
+mod encoding;
+mod file_ui;
 mod fonts;
 mod highlight;
+mod instance;
 mod macros;
 mod search;
 mod search_ui;
+mod session;
 mod settings;
+mod system;
 mod theme;
 mod tools_ui;
 
 use std::path::PathBuf;
 
 fn main() -> eframe::Result {
-    let files: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
+    let mut multi_instance = false;
+    let mut files: Vec<PathBuf> = Vec::new();
+    for arg in std::env::args_os().skip(1) {
+        if arg == "--multi-instance" || arg == "-multiInst" {
+            multi_instance = true;
+        } else {
+            files.push(PathBuf::from(arg));
+        }
+    }
+
+    // Hand the files to a NixPad that is already running, if there is one.
+    // `owner` is the window that keeps the session and backups.
+    let mut owner = true;
+    if let Some(dir) = settings::config_dir() {
+        let single = settings::Settings::load().single_instance && !multi_instance;
+        if single {
+            if instance::send_to_running(&dir, &files) {
+                return Ok(());
+            }
+        } else if instance::is_running(&dir) {
+            owner = false;
+        }
+    }
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -37,6 +64,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "NixPad",
         options,
-        Box::new(move |cc| Ok(Box::new(app::NixPadApp::new(cc, files)))),
+        Box::new(move |cc| Ok(Box::new(app::NixPadApp::new(cc, files, owner)))),
     )
 }

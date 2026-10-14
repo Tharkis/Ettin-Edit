@@ -682,10 +682,19 @@ impl Editor {
                     content_h.max(viewport.height()),
                 );
                 let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-                let response = ui
-                    .interact(rect, id, Sense::click_and_drag())
-                    .on_hover_cursor(CursorIcon::Text);
+                let response = ui.interact(rect, id, Sense::click_and_drag());
                 let origin = rect.min;
+                // An arrow over the gutter (fold arrows, bookmarks, line numbers),
+                // a text cursor over the text.
+                let gutter_right = origin.x + viewport.min.x + gutter_w;
+                if let Some(p) = response.hover_pos() {
+                    ui.ctx()
+                        .set_cursor_icon(if p.x < gutter_right && !response.dragged() {
+                            CursorIcon::Default
+                        } else {
+                            CursorIcon::Text
+                        });
+                }
                 let text_x = origin.x + gutter_w + TEXT_PAD;
                 let visible_cols = (viewport.min.x - gutter_w, viewport.max.x - gutter_w);
                 self.page_rows = ((viewport.height() / metrics.row_h) as usize)
@@ -705,7 +714,7 @@ impl Editor {
                     metrics,
                     origin,
                     text_x,
-                    origin.x + viewport.min.x + gutter_w,
+                    gutter_right,
                     visible_cols,
                     &mut budget,
                 );

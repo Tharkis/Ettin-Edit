@@ -10,16 +10,21 @@ use egui::{
 };
 
 use crate::actions::{self, Action};
-use crate::document::{Document, LineEnding};
+use crate::document::{DiskChange, DiskStamp, Document, LineEnding};
 use crate::editor::lines::{CaseKind, SortKind, TrimKind, comment_tokens};
 use crate::editor::{EditOptions, FindOutcome, MAX_HIGHLIGHTS, ViewConfig};
+use crate::encoding::TextEncoding;
+use crate::file_ui::{self, RenameDialog, Summary};
 use crate::highlight::{Highlighter, PLAIN_TEXT};
+use crate::instance;
 use crate::macros::{MacroStep, Recorder, SavedMacro};
 use crate::search::{self, FileSearch, Query};
 use crate::search_ui::{
     FifDialog, FifRequest, FileJob, FindBar, GotoDialog, Jump, Results, Source,
 };
+use crate::session::{Session, SessionStore, SessionTab};
 use crate::settings::{self, Settings};
+use crate::system;
 use crate::theme::{self, Palette, ThemeDef};
 use crate::tools_ui::{ColumnDialog, RunMacroDialog, RunTimes, SaveMacroDialog};
 
@@ -60,10 +65,27 @@ pub struct NixPadApp {
     run_macro: RunMacroDialog,
     save_macro: SaveMacroDialog,
     recorder: Recorder,
+    /// Session and backups; only the first NixPad window keeps them.
+    session: Option<SessionStore>,
+    instance: Option<instance::Listener>,
+    last_backup: f64,
+    last_disk_check: f64,
+    was_focused: bool,
+    /// The tab being dragged to a new place.
+    drag_tab: Option<u64>,
+    rename: RenameDialog,
+    trash_confirm: Option<u64>,
+    summary: Option<Summary>,
 }
 
+/// Seconds between backups of unsaved changes.
+const BACKUP_INTERVAL: f64 = 7.0;
+/// Seconds between checks for files changed on disk.
+const DISK_CHECK_INTERVAL: f64 = 2.0;
+
 impl NixPadApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>) -> Self {
+    /// `owner` is false when another NixPad window already runs and owns the session.
+    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, owner: bool) -> Self {
         let settings = Settings::load();
         let themes = theme::load_themes(settings::themes_dir().as_deref());
         let theme_idx = themes
@@ -100,6 +122,15 @@ impl NixPadApp {
             run_macro: RunMacroDialog::default(),
             save_macro: SaveMacroDialog::default(),
             recorder: Recorder::default(),
+            session: None,
+            instance: None,
+            last_backup: 0.0,
+            last_disk_check: 0.0,
+            was_focused: true,
+            drag_tab: None,
+            rename: RenameDialog::default(),
+            trash_confirm: None,
+            summary: None,
         };
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
@@ -108,15 +139,32 @@ impl NixPadApp {
         crate::fonts::install_fallbacks(&cc.egui_ctx);
         app.apply_style(&cc.egui_ctx);
 
-        if app.settings.restore_session {
-            let session = std::mem::take(&mut app.settings.session_files);
-            for path in session.iter().filter(|p| p.is_file()) {
-                app.open_path(path, false);
-            }
-            app.active = app
-                .settings
-                .session_active
-                .min(app.docs.len().saturating_sub(1));
+        if owner && let Some(dir) = settings::config_dir() {
+            let ctx = cc.egui_ctx.clone();
+            app.instance = instance::listen(&dir, move || ctx.request_repaint());
+            let store = SessionStore::new(&dir);
+            let session = store.load().unwrap_or_else(|| Session {
+                // Sessions from before 0.5 were a list of files in the settings.
+                tabs: app
+                    .settings
+                    .session_files
+                    .iter()
+                    .map(|p| SessionTab {
+                        path: Some(p.clone()),
+                        backup: None,
+                        untitled_number: 0,
+                        encoding: None,
+                        line_ending: None,
+                        syntax: None,
+                        pinned: false,
+                        read_only: false,
+                        caret: 0,
+                    })
+                    .collect(),
+                active: app.settings.session_active,
+            });
+            app.session = Some(store);
+            app.restore_session(session);
         }
         for path in files {
             app.open_path(&path, true);
@@ -167,15 +215,16 @@ impl NixPadApp {
             return;
         }
         let id = self.alloc_id();
-        match Document::open(id, &path) {
+        match Document::open(id, &path, None) {
             Ok(mut doc) => {
                 doc.syntax = self
                     .highlighter
                     .detect(doc.path.as_deref(), &doc.editor.buffer.line_text(0));
                 if doc.lossy {
                     self.errors.push(format!(
-                        "{} is not valid UTF-8. Invalid bytes are shown as \u{FFFD} and will be replaced if you save.",
-                        path.display()
+                        "{} has bytes that aren't valid {}. They are shown as \u{FFFD} and will be replaced if you save. If the text looks wrong, pick its encoding in Encoding > Reopen With.",
+                        path.display(),
+                        doc.encoding.name()
                     ));
                 }
                 // Opening a file replaces an untouched "new" tab, like most editors.
@@ -258,7 +307,10 @@ impl NixPadApp {
 
     fn remove_doc(&mut self, id: u64) {
         if let Some(i) = self.docs.iter().position(|d| d.id == id) {
-            self.docs.remove(i);
+            let doc = self.docs.remove(i);
+            if let Some(backup) = doc.backup {
+                let _ = std::fs::remove_file(backup);
+            }
             if self.active > i || self.active >= self.docs.len() {
                 self.active = self.active.saturating_sub(1);
             }
@@ -278,15 +330,341 @@ impl NixPadApp {
         }
     }
 
-    fn capture_session(&mut self) {
-        self.settings.session_files = self.docs.iter().filter_map(|d| d.path.clone()).collect();
-        let before_active = self
+    // ---------------------------------------------------------------------
+    // Session, backups and files changed on disk
+
+    fn restore_session(&mut self, session: Session) {
+        let mut active = None;
+        for (i, tab) in session.tabs.into_iter().enumerate() {
+            // Without session restore, only unsaved work left by a crash comes back.
+            if !self.settings.restore_session && tab.backup.is_none() {
+                continue;
+            }
+            if let Some(index) = self.restore_tab(tab)
+                && (i <= session.active || active.is_none())
+            {
+                active = Some(index);
+            }
+        }
+        if let Some(a) = active {
+            self.active = a;
+        }
+    }
+
+    fn restore_tab(&mut self, tab: SessionTab) -> Option<usize> {
+        let store = self.session.as_ref()?;
+        let backup_text = tab.backup.as_ref().and_then(|b| store.read_backup(b).ok());
+        let backup_path = tab.backup.as_ref().map(|b| store.backup_dir().join(b));
+        let encoding = tab.encoding.as_deref().and_then(TextEncoding::from_name);
+        let id = self.alloc_id();
+        let mut doc = match (&tab.path, backup_text) {
+            (_, Some(text)) => {
+                let mut doc = Document::new_untitled(id, tab.untitled_number);
+                doc.editor = crate::editor::Editor::new(&text);
+                doc.editor.buffer.mark_modified();
+                if let Some(p) = &tab.path {
+                    doc.path = Some(p.clone());
+                    doc.disk = DiskStamp::read(p).ok();
+                }
+                if let Some(e) = encoding {
+                    doc.encoding = e;
+                }
+                if let Some(le) = tab.line_ending {
+                    doc.line_ending = le;
+                }
+                doc.backup = backup_path;
+                doc.backup_version = doc.editor.buffer.version();
+                doc
+            }
+            (Some(p), None) if p.is_file() => Document::open(id, p, encoding).ok()?,
+            _ => return None,
+        };
+        doc.syntax = tab.syntax.unwrap_or_else(|| {
+            self.highlighter
+                .detect(doc.path.as_deref(), &doc.editor.buffer.line_text(0))
+        });
+        doc.pinned = tab.pinned;
+        doc.editor.buffer.read_only = tab.read_only;
+        doc.editor.selections = crate::editor::selection::Selections::caret(
+            tab.caret.min(doc.editor.buffer.len_chars()),
+        );
+        if doc.path.is_none() {
+            self.untitled_counter = self.untitled_counter.max(doc.untitled_number);
+        }
+        // Pinned tabs stay in front.
+        let at = if doc.pinned {
+            self.docs.iter().filter(|d| d.pinned).count()
+        } else {
+            self.docs.len()
+        };
+        self.docs.insert(at, doc);
+        Some(at)
+    }
+
+    /// The open tabs as a session. Unsaved changes are included only with
+    /// `with_backups`; tabs that exist only as unsaved text need a backup.
+    fn session_snapshot(&self, with_backups: bool) -> Session {
+        let mut tabs = Vec::new();
+        let mut active = 0;
+        for (i, doc) in self.docs.iter().enumerate() {
+            let backup = (with_backups && doc.is_dirty())
+                .then(|| doc.backup.as_ref()?.file_name())
+                .flatten()
+                .map(|n| n.to_string_lossy().into_owned());
+            if doc.path.is_none() && backup.is_none() {
+                continue;
+            }
+            if i <= self.active {
+                active = tabs.len();
+            }
+            tabs.push(SessionTab {
+                path: doc.path.clone(),
+                backup,
+                untitled_number: doc.untitled_number,
+                encoding: Some(doc.encoding.name()),
+                line_ending: Some(doc.line_ending),
+                syntax: Some(doc.syntax.clone()),
+                pinned: doc.pinned,
+                read_only: doc.editor.buffer.read_only,
+                caret: doc.editor.selections.primary().head,
+            });
+        }
+        Session { tabs, active }
+    }
+
+    /// Backs up every tab with unsaved changes that changed since its last
+    /// backup, drops backups of tabs that are saved again, and records the session.
+    fn write_backups(&mut self) {
+        let Some(store) = &self.session else {
+            return;
+        };
+        for doc in &mut self.docs {
+            if doc.is_dirty() {
+                let version = doc.editor.buffer.version();
+                if doc.backup.is_some() && doc.backup_version == version {
+                    continue;
+                }
+                let path = doc
+                    .backup
+                    .clone()
+                    .unwrap_or_else(|| store.new_backup_path(&doc.title()));
+                match store.write_backup(&path, doc.editor.buffer.rope().chunks()) {
+                    Ok(()) => {
+                        doc.backup = Some(path);
+                        doc.backup_version = version;
+                    }
+                    Err(e) => eprintln!("nixpad: backup to {} failed: {e}", path.display()),
+                }
+            } else if let Some(path) = doc.backup.take() {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+        let session = self.session_snapshot(true);
+        if let Some(store) = &mut self.session
+            && let Err(e) = store.save(&session)
+        {
+            eprintln!("nixpad: could not save the session: {e}");
+        }
+    }
+
+    /// Writes the session for the next start and clears out backups it doesn't
+    /// need. `remember` keeps unsaved changes for next time.
+    fn finish_session(&mut self, remember: bool) {
+        if self.session.is_none() {
+            return;
+        }
+        if remember {
+            self.write_backups();
+        }
+        let mut session = self.session_snapshot(remember);
+        if !self.settings.restore_session {
+            session.tabs.retain(|t| t.backup.is_some());
+            session.active = session.active.min(session.tabs.len().saturating_sub(1));
+        }
+        if let Some(store) = &mut self.session {
+            let keep: Vec<PathBuf> = session
+                .tabs
+                .iter()
+                .filter_map(|t| t.backup.as_ref().map(|b| store.backup_dir().join(b)))
+                .collect();
+            if let Err(e) = store.save(&session) {
+                eprintln!("nixpad: could not save the session: {e}");
+            }
+            store.remove_stale_backups(&keep);
+        }
+    }
+
+    /// Looks for open files that other programs changed or deleted. Runs
+    /// every couple of seconds while the window has focus, and when it gets focus.
+    fn check_disk(&mut self, ctx: &egui::Context) {
+        let (now, focused) = ctx.input(|i| (i.time, i.viewport().focused.unwrap_or(true)));
+        let regained = focused && !self.was_focused;
+        self.was_focused = focused;
+        if !focused {
+            return;
+        }
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(DISK_CHECK_INTERVAL));
+        if !regained && now - self.last_disk_check < DISK_CHECK_INTERVAL {
+            return;
+        }
+        self.last_disk_check = now;
+        for doc in &mut self.docs {
+            if doc.disk_change.is_some() {
+                continue;
+            }
+            match doc.check_disk() {
+                Some(DiskChange::Modified) if self.settings.auto_reload && !doc.is_dirty() => {
+                    if let Err(e) = doc.reload(None) {
+                        self.errors
+                            .push(format!("Could not reload {}: {e}", doc.title()));
+                    }
+                }
+                Some(change) => doc.disk_change = Some(change),
+                None => {}
+            }
+        }
+    }
+
+    /// Opens files sent by NixPad started again, and brings the window forward.
+    fn poll_instance(&mut self, ctx: &egui::Context) {
+        let Some(listener) = &self.instance else {
+            return;
+        };
+        let batches: Vec<Vec<PathBuf>> = listener.files.try_iter().collect();
+        if batches.is_empty() {
+            return;
+        }
+        for path in batches.into_iter().flatten() {
+            self.open_path(&path, true);
+        }
+        ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(ViewportCommand::Focus);
+        ctx.send_viewport_cmd(ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Informational,
+        ));
+    }
+
+    /// Moves a tab, keeping the same document active.
+    fn move_doc(&mut self, from: usize, to: usize) {
+        if from == to || from >= self.docs.len() || to >= self.docs.len() {
+            return;
+        }
+        let active_id = self.docs[self.active].id;
+        let doc = self.docs.remove(from);
+        self.docs.insert(to, doc);
+        self.active = self
             .docs
             .iter()
-            .take(self.active)
-            .filter(|d| d.path.is_some())
-            .count();
-        self.settings.session_active = before_active;
+            .position(|d| d.id == active_id)
+            .unwrap_or(0);
+    }
+
+    fn toggle_pin(&mut self, index: usize) {
+        let Some(doc) = self.docs.get_mut(index) else {
+            return;
+        };
+        doc.pinned = !doc.pinned;
+        // Pinned tabs come first: a pinned tab joins the end of that group,
+        // an unpinned one the start of the rest.
+        let pinned_total = self.docs.iter().filter(|d| d.pinned).count();
+        let to = if self.docs[index].pinned {
+            pinned_total - 1
+        } else {
+            pinned_total
+        };
+        self.move_doc(index, to.min(self.docs.len() - 1));
+    }
+
+    fn rename_file(&mut self, id: u64, name: &str) -> Result<(), String> {
+        let Some(i) = self.docs.iter().position(|d| d.id == id) else {
+            return Ok(());
+        };
+        let Some(old) = self.docs[i].path.clone() else {
+            return Ok(());
+        };
+        if name.contains(['/', '\\']) {
+            return Err("The name can't contain / or \\.".into());
+        }
+        let new = old.with_file_name(name);
+        if new == old {
+            return Ok(());
+        }
+        let only_case =
+            old.to_string_lossy().to_lowercase() == new.to_string_lossy().to_lowercase();
+        if new.exists() && !only_case {
+            return Err(format!("\"{name}\" already exists in this folder."));
+        }
+        std::fs::rename(&old, &new).map_err(|e| format!("Couldn't rename the file: {e}"))?;
+        let doc = &mut self.docs[i];
+        doc.path = Some(new.clone());
+        doc.disk = DiskStamp::read(&new).ok();
+        doc.syntax = self
+            .highlighter
+            .detect(Some(&new), &doc.editor.buffer.line_text(0));
+        for p in &mut self.settings.recent_files {
+            if *p == old {
+                *p = new.clone();
+            }
+        }
+        Ok(())
+    }
+
+    fn summary(&self) -> Option<Summary> {
+        let doc = self.docs.get(self.active)?;
+        let rope = doc.editor.buffer.rope();
+        let newlines: usize = rope.chunks().map(|c| c.matches('\n').count()).sum();
+        let text = doc.editor.buffer.text();
+        let words = unicode_segmentation::UnicodeSegmentation::unicode_words(text.as_str()).count();
+        let eol_len = match doc.line_ending {
+            LineEnding::CrLf => 2,
+            _ => 1,
+        };
+        let bytes = if doc.encoding.is_utf8() {
+            let bom = if doc.encoding == (TextEncoding::Utf8 { bom: true }) {
+                3
+            } else {
+                0
+            };
+            Some(rope.len_bytes() + newlines * (eol_len - 1) + bom)
+        } else {
+            let text = if eol_len == 2 {
+                text.replace('\n', "\r\n")
+            } else {
+                text
+            };
+            doc.encoding.encode(&text).ok().map(|b| b.len())
+        };
+        let meta = doc.path.as_ref().and_then(|p| std::fs::metadata(p).ok());
+        let time = |t: std::io::Result<std::time::SystemTime>| {
+            t.ok().map(|t| {
+                chrono::DateTime::<chrono::Local>::from(t)
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+            })
+        };
+        let primary = doc.editor.selections.primary();
+        let sel = primary.start()..primary.end();
+        let selected_lines = if sel.is_empty() {
+            0
+        } else {
+            rope.char_to_line(sel.end) - rope.char_to_line(sel.start) + 1
+        };
+        Some(Summary {
+            path: doc
+                .path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| format!("{} (not saved yet)", doc.title())),
+            created: meta.as_ref().and_then(|m| time(m.created())),
+            modified: meta.as_ref().and_then(|m| time(m.modified())),
+            encoding: doc.encoding.name(),
+            chars: rope.len_chars() - newlines,
+            words,
+            lines: doc.line_count(),
+            bytes,
+            selected_chars: doc.editor.selected_chars(),
+            selected_lines,
+        })
     }
 
     // ---------------------------------------------------------------------
@@ -323,12 +701,21 @@ impl NixPadApp {
                     self.request_close(vec![d.id], false);
                 }
             }
-            Action::CloseAll => self.request_close(self.docs.iter().map(|d| d.id).collect(), false),
+            // Pinned tabs stay open when closing many at once.
+            Action::CloseAll => self.request_close(
+                self.docs
+                    .iter()
+                    .filter(|d| !d.pinned)
+                    .map(|d| d.id)
+                    .collect(),
+                false,
+            ),
             Action::CloseOthers => {
                 let keep = self.docs[self.active].id;
                 self.request_close(
                     self.docs
                         .iter()
+                        .filter(|d| !d.pinned)
                         .map(|d| d.id)
                         .filter(|&id| id != keep)
                         .collect(),
@@ -336,15 +723,21 @@ impl NixPadApp {
                 );
             }
             Action::Quit => {
-                self.capture_session();
-                self.request_close(
-                    self.docs
-                        .iter()
-                        .filter(|d| d.is_dirty())
-                        .map(|d| d.id)
-                        .collect(),
-                    true,
-                );
+                if self.session.is_some() && self.settings.remember_unsaved {
+                    // Unsaved changes are backed up and come back next time.
+                    self.finish_session(true);
+                    self.quitting = true;
+                    ctx.send_viewport_cmd(ViewportCommand::Close);
+                } else {
+                    self.request_close(
+                        self.docs
+                            .iter()
+                            .filter(|d| d.is_dirty())
+                            .map(|d| d.id)
+                            .collect(),
+                        true,
+                    );
+                }
             }
             Action::NextTab => self.select((self.active + 1) % self.docs.len()),
             Action::PrevTab => self.select((self.active + self.docs.len() - 1) % self.docs.len()),
@@ -383,10 +776,83 @@ impl NixPadApp {
             Action::OpenThemesFolder => {
                 if let Some(dir) = settings::themes_dir() {
                     let _ = std::fs::create_dir_all(&dir);
-                    ctx.open_url(egui::OpenUrl::new_tab(format!("file://{}", dir.display())));
+                    if let Err(e) = system::open_folder(&dir) {
+                        self.errors.push(e);
+                    }
                 }
             }
             Action::ClearRecent => self.settings.recent_files.clear(),
+            Action::ReloadFromDisk => {
+                let doc = &mut self.docs[self.active];
+                if doc.path.is_some()
+                    && let Err(e) = doc.reload(None)
+                {
+                    self.errors
+                        .push(format!("Could not reload {}: {e}", doc.title()));
+                }
+            }
+            Action::IgnoreDiskChange => {
+                let doc = &mut self.docs[self.active];
+                doc.disk = doc.path.as_deref().and_then(|p| DiskStamp::read(p).ok());
+                doc.disk_change = None;
+                doc.editor.buffer.mark_modified();
+            }
+            Action::RenameFile => {
+                let doc = &self.docs[self.active];
+                if doc.path.is_some() {
+                    self.rename.show_dialog(doc.id, &doc.title());
+                } else {
+                    self.save(self.active, true);
+                }
+            }
+            Action::MoveToTrash => {
+                let doc = &self.docs[self.active];
+                if doc.path.is_some() {
+                    self.trash_confirm = Some(doc.id);
+                }
+            }
+            Action::OpenContainingFolder => {
+                if let Some(path) = &self.docs[self.active].path
+                    && let Err(e) = system::reveal_file(path)
+                {
+                    self.errors.push(e);
+                }
+            }
+            Action::OpenTerminalHere => {
+                let dir = self.docs[self.active]
+                    .path
+                    .as_ref()
+                    .and_then(|p| p.parent().map(Path::to_path_buf))
+                    .or_else(dirs::home_dir)
+                    .unwrap_or_else(|| PathBuf::from("."));
+                if let Err(e) = system::open_terminal(&dir) {
+                    self.errors.push(e);
+                }
+            }
+            Action::Summary => self.summary = self.summary(),
+            Action::TogglePin(i) => self.toggle_pin(i),
+            Action::ConvertEncoding(name) => {
+                if let Some(e) = TextEncoding::from_name(&name) {
+                    self.docs[self.active].set_encoding(e);
+                }
+            }
+            Action::ReopenWithEncoding(name) => {
+                if let Some(e) = TextEncoding::from_name(&name) {
+                    let doc = &mut self.docs[self.active];
+                    if doc.path.is_none() {
+                        doc.set_encoding(e);
+                    } else if let Err(e) = doc.reload(Some(e)) {
+                        self.errors
+                            .push(format!("Could not reload {}: {e}", doc.title()));
+                    } else if doc.lossy {
+                        self.errors.push(format!(
+                            "Some bytes in {} aren't valid {}. They are shown as \u{FFFD}.",
+                            doc.title(),
+                            doc.encoding.name()
+                        ));
+                    }
+                }
+            }
             Action::About => self.show_about = true,
             Action::Find | Action::Replace => {
                 let (seed, multi_line) = self.selection_seed();
@@ -554,6 +1020,13 @@ impl NixPadApp {
             Action::ToggleCompletion => {
                 self.settings.word_completion = !self.settings.word_completion
             }
+            Action::ToggleSingleInstance => {
+                self.settings.single_instance = !self.settings.single_instance
+            }
+            Action::ToggleRememberUnsaved => {
+                self.settings.remember_unsaved = !self.settings.remember_unsaved
+            }
+            Action::ToggleAutoReload => self.settings.auto_reload = !self.settings.auto_reload,
             Action::ToggleMacroRecording => self.recorder.toggle(),
             Action::PlayMacro => {
                 if !self.recorder.is_recording() {
@@ -686,6 +1159,9 @@ impl NixPadApp {
             || self.column.open
             || self.run_macro.open
             || self.save_macro.open
+            || self.rename.open
+            || self.trash_confirm.is_some()
+            || self.summary.is_some()
     }
 
     // ---------------------------------------------------------------------
@@ -1023,6 +1499,15 @@ impl NixPadApp {
                 self.menu_item(ui, "Save", Action::Save);
                 self.menu_item(ui, "Save As…", Action::SaveAs);
                 self.menu_item(ui, "Save All", Action::SaveAll);
+                let has_file = self.docs.get(self.active).is_some_and(|d| d.path.is_some());
+                ui.add_enabled_ui(has_file, |ui| {
+                    self.menu_item(ui, "Reload from Disk", Action::ReloadFromDisk);
+                    self.menu_item(ui, "Rename…", Action::RenameFile);
+                    self.menu_item(ui, "Move to Trash…", Action::MoveToTrash);
+                    ui.separator();
+                    self.menu_item(ui, "Open Containing Folder", Action::OpenContainingFolder);
+                });
+                self.menu_item(ui, "Open Terminal Here", Action::OpenTerminalHere);
                 ui.separator();
                 self.menu_item(ui, "Close", Action::CloseTab);
                 self.menu_item(ui, "Close All", Action::CloseAll);
@@ -1119,7 +1604,10 @@ impl NixPadApp {
                 self.menu_item(ui, "Zoom In", Action::ZoomIn);
                 self.menu_item(ui, "Zoom Out", Action::ZoomOut);
                 self.menu_item(ui, "Reset Zoom", Action::ZoomReset);
+                ui.separator();
+                self.menu_item(ui, "Summary…", Action::Summary);
             });
+            ui.menu_button("Encoding", |ui| self.encoding_menu(ui));
             ui.menu_button("Theme", |ui| {
                 let current = self.theme_idx;
                 let names: Vec<(String, bool, bool)> = self
@@ -1172,6 +1660,25 @@ impl NixPadApp {
                     "Word Completion",
                     s.word_completion,
                     Action::ToggleCompletion,
+                );
+                ui.separator();
+                self.toggle_item(
+                    ui,
+                    "Single Window (Open Files in the Running NixPad)",
+                    s.single_instance,
+                    Action::ToggleSingleInstance,
+                );
+                self.toggle_item(
+                    ui,
+                    "Remember Unsaved Changes on Exit",
+                    s.remember_unsaved,
+                    Action::ToggleRememberUnsaved,
+                );
+                self.toggle_item(
+                    ui,
+                    "Reload Files Changed on Disk Automatically",
+                    s.auto_reload,
+                    Action::ToggleAutoReload,
                 );
                 ui.separator();
                 ui.horizontal(|ui| {
@@ -1296,6 +1803,27 @@ impl NixPadApp {
         self.toggle_item(ui, "Read-Only", read_only, Action::ToggleReadOnly);
     }
 
+    /// Convert the encoding used when saving, or read the file again in another one.
+    fn encoding_menu(&mut self, ui: &mut Ui) {
+        let Some(doc) = self.docs.get(self.active) else {
+            return;
+        };
+        let current = doc.encoding;
+        let has_file = doc.path.is_some();
+        let mut picked = None;
+        ui.label(RichText::new("Save as").small().weak());
+        file_ui::encoding_menu(ui, current, Action::ConvertEncoding, &mut picked);
+        ui.separator();
+        ui.add_enabled_ui(has_file, |ui| {
+            ui.menu_button("Reopen With", |ui| {
+                file_ui::encoding_menu(ui, current, Action::ReopenWithEncoding, &mut picked);
+            })
+            .response
+            .on_disabled_hover_text("Only for files that are saved on disk");
+        });
+        self.pending.extend(picked);
+    }
+
     fn macro_menu(&mut self, ui: &mut Ui) {
         let recording = self.recorder.is_recording();
         let has_macro = !self.recorder.current.is_empty();
@@ -1377,9 +1905,10 @@ impl NixPadApp {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 1.0;
-                    for i in 0..self.docs.len() {
-                        self.tab(ui, i, tab_height, &palette);
-                    }
+                    let rects: Vec<Rect> = (0..self.docs.len())
+                        .map(|i| self.tab(ui, i, tab_height, &palette))
+                        .collect();
+                    self.drag_tabs(ui, &rects);
                     ui.add_space(4.0);
                     let plus = ui.add_sized(
                         [28.0, tab_height - 6.0],
@@ -1394,7 +1923,33 @@ impl NixPadApp {
         self.scroll_to_active_tab = false;
     }
 
-    fn tab(&mut self, ui: &mut Ui, index: usize, height: f32, palette: &Palette) {
+    /// Moves the tab being dragged to where the pointer is. Pinned tabs stay
+    /// among pinned ones, and the others after them.
+    fn drag_tabs(&mut self, ui: &Ui, rects: &[Rect]) {
+        let Some(id) = self.drag_tab else {
+            return;
+        };
+        let (down, pointer) = ui.input(|i| (i.pointer.primary_down(), i.pointer.hover_pos()));
+        let from = self.docs.iter().position(|d| d.id == id);
+        let (Some(from), Some(pointer), true) = (from, pointer, down) else {
+            self.drag_tab = None;
+            return;
+        };
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        let pinned = self.docs[from].pinned;
+        let same = |i: usize| self.docs[i].pinned == pinned;
+        // Move past every neighbour whose middle the pointer has crossed.
+        let target = (from + 1..rects.len())
+            .rev()
+            .find(|&i| same(i) && pointer.x > rects[i].center().x)
+            .or_else(|| (0..from).find(|&i| same(i) && pointer.x < rects[i].center().x));
+        if let Some(to) = target {
+            self.move_doc(from, to);
+        }
+    }
+
+    /// Draws one tab and returns where it is.
+    fn tab(&mut self, ui: &mut Ui, index: usize, height: f32, palette: &Palette) -> Rect {
         let doc = &self.docs[index];
         let active = index == self.active;
         let title = doc.title();
@@ -1409,7 +1964,11 @@ impl NixPadApp {
         let close_size = 18.0;
         let width = (pad + galley.size().x + 8.0 + close_size + 8.0).max(90.0);
 
-        let (rect, response) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
+        let (rect, response) =
+            ui.allocate_exact_size(Vec2::new(width, height), Sense::click_and_drag());
+        if response.drag_started() {
+            self.drag_tab = Some(doc.id);
+        }
         let close_rect = Rect::from_center_size(
             Pos2::new(rect.right() - 8.0 - close_size / 2.0, rect.center().y),
             Vec2::splat(close_size),
@@ -1448,6 +2007,7 @@ impl NixPadApp {
         );
 
         // Unsaved tabs show a dot that turns into a close button on hover.
+        // Pinned tabs show a pin instead; clicking it unpins the tab.
         let show_close =
             close_response.hovered() || response.hovered() || active || !doc.is_dirty();
         if close_response.hovered() {
@@ -1457,7 +2017,16 @@ impl NixPadApp {
                 palette.tab_hover_bg.gamma_multiply(1.6),
             );
         }
-        if doc.is_dirty() && !close_response.hovered() {
+        if doc.pinned {
+            let color = if doc.is_dirty() {
+                palette.modified
+            } else if close_response.hovered() {
+                palette.text
+            } else {
+                palette.text_dim
+            };
+            draw_pin(painter, close_rect.center(), color);
+        } else if doc.is_dirty() && !close_response.hovered() {
             painter.circle_filled(close_rect.center(), 4.0, palette.modified);
         } else if show_close {
             let c = close_rect.center();
@@ -1477,7 +2046,10 @@ impl NixPadApp {
         if active && self.scroll_to_active_tab {
             response.scroll_to_me(None);
         }
-        if close_response.clicked() || response.middle_clicked() {
+        let pinned = doc.pinned;
+        if close_response.clicked() && pinned {
+            self.pending.push(Action::TogglePin(index));
+        } else if close_response.clicked() || (response.middle_clicked() && !pinned) {
             self.pending.push(Action::CloseTabAt(index));
         } else if response.clicked() {
             self.pending.push(Action::SelectTab(index));
@@ -1495,7 +2067,26 @@ impl NixPadApp {
                 self.pending.push(Action::SelectTab(index));
                 self.pending.push(Action::CloseOthers);
             }
+            if ui
+                .button(if pinned { "Unpin Tab" } else { "Pin Tab" })
+                .clicked()
+            {
+                self.pending.push(Action::TogglePin(index));
+            }
             if let Some(p) = &path {
+                ui.separator();
+                for (label, action) in [
+                    ("Reload from Disk", Action::ReloadFromDisk),
+                    ("Rename…", Action::RenameFile),
+                    ("Move to Trash…", Action::MoveToTrash),
+                    ("Open Containing Folder", Action::OpenContainingFolder),
+                    ("Open Terminal Here", Action::OpenTerminalHere),
+                ] {
+                    if ui.button(label).clicked() {
+                        self.pending.push(Action::SelectTab(index));
+                        self.pending.push(action);
+                    }
+                }
                 ui.separator();
                 if ui.button("Copy Full Path").clicked() {
                     ui.ctx().copy_text(p.display().to_string());
@@ -1510,6 +2101,7 @@ impl NixPadApp {
                 }
             }
         });
+        rect
     }
 
     fn editor(&mut self, ui: &mut Ui) {
@@ -1564,7 +2156,7 @@ impl NixPadApp {
         let carets = doc.editor.caret_count();
         let syntax = doc.syntax.clone();
         let line_ending = doc.line_ending;
-        let encoding = if doc.has_bom { "UTF-8 BOM" } else { "UTF-8" };
+        let encoding = doc.encoding.name();
         let length = doc.editor.buffer.len_chars();
         let lines = doc.line_count();
         let zoom = (self.settings.font_size / DEFAULT_FONT * 100.0).round();
@@ -1605,7 +2197,7 @@ impl NixPadApp {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(4.0);
                 ui.label(dim(format!("{zoom}%")));
-                ui.label(dim(encoding.to_owned()));
+                ui.menu_button(dim(encoding), |ui| self.encoding_menu(ui));
                 ui.menu_button(dim(line_ending.label().to_owned()), |ui| {
                     for le in [LineEnding::CrLf, LineEnding::Lf, LineEnding::Cr] {
                         self.toggle_item(
@@ -1644,6 +2236,7 @@ impl NixPadApp {
                 let quit = queue.quit_after;
                 self.close_queue = None;
                 if quit {
+                    self.finish_session(false);
                     self.quitting = true;
                     ctx.send_viewport_cmd(ViewportCommand::Close);
                 }
@@ -1744,6 +2337,46 @@ impl NixPadApp {
             self.focus_editor = true;
         }
 
+        if let Some(name) = self.rename.ui(ctx, &palette) {
+            match self.rename_file(self.rename.doc_id, &name) {
+                Ok(()) => {
+                    self.rename.open = false;
+                    self.focus_editor = true;
+                }
+                Err(e) => self.rename.error = Some(e),
+            }
+        }
+        if let Some(id) = self.trash_confirm
+            && let Some(doc) = self.docs.iter().find(|d| d.id == id)
+        {
+            let name = doc.title();
+            let path = doc.path.clone();
+            match file_ui::confirm_trash(ctx, &name, &palette) {
+                Some(true) => {
+                    self.trash_confirm = None;
+                    if let Some(path) = path {
+                        match trash::delete(&path) {
+                            Ok(()) => self.remove_doc(id),
+                            Err(e) => self
+                                .errors
+                                .push(format!("Couldn't move {name} to the trash: {e}")),
+                        }
+                    }
+                }
+                Some(false) => {
+                    self.trash_confirm = None;
+                    self.focus_editor = true;
+                }
+                None => {}
+            }
+        }
+        if let Some(summary) = &self.summary
+            && !file_ui::summary_ui(ctx, summary)
+        {
+            self.summary = None;
+            self.focus_editor = true;
+        }
+
         if self.show_about {
             let response = egui::Modal::new(Id::new("about")).show(ctx, |ui| {
                 ui.set_width(380.0);
@@ -1811,6 +2444,18 @@ impl eframe::App for NixPadApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.apply_style(&ctx);
+        self.poll_instance(&ctx);
+        self.check_disk(&ctx);
+        if self.session.is_some() {
+            let now = ctx.input(|i| i.time);
+            if now - self.last_backup >= BACKUP_INTERVAL {
+                self.last_backup = now;
+                self.write_backups();
+            }
+            if self.docs.iter().any(|d| d.is_dirty()) {
+                ctx.request_repaint_after(std::time::Duration::from_secs_f64(BACKUP_INTERVAL));
+            }
+        }
         self.handle_input(&ctx);
         let palette = self.palette();
 
@@ -1879,6 +2524,23 @@ impl eframe::App for NixPadApp {
             self.pending.extend(actions);
             self.update_search_hits();
         }
+        if let Some(doc) = self.docs.get(self.active)
+            && let Some(change) = doc.disk_change
+        {
+            let dirty = doc.is_dirty();
+            let mut picked = None;
+            egui::Panel::top("disk-notice")
+                .frame(
+                    Frame::new()
+                        .fill(palette.chrome_bg)
+                        .inner_margin(Margin::symmetric(10, 5)),
+                )
+                .show_separator_line(false)
+                .show(ui, |ui| {
+                    picked = file_ui::disk_notice(ui, change, dirty, &palette)
+                });
+            self.pending.extend(picked);
+        }
         self.record_editor_input(&ctx);
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
@@ -1895,8 +2557,19 @@ impl eframe::App for NixPadApp {
 
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {
         if !self.quitting {
-            self.capture_session();
+            self.write_backups();
         }
         self.settings.save();
     }
+}
+
+/// A small push-pin, drawn where a pinned tab's close button would be.
+fn draw_pin(painter: &egui::Painter, c: Pos2, color: egui::Color32) {
+    let head = c + Vec2::new(1.5, -1.5);
+    painter.circle_filled(head, 3.0, color);
+    painter.line_segment(
+        [head + Vec2::new(-3.2, -3.2), head + Vec2::new(3.2, 3.2)],
+        Stroke::new(1.6, color),
+    );
+    painter.line_segment([head, c + Vec2::new(-4.5, 4.5)], Stroke::new(1.4, color));
 }

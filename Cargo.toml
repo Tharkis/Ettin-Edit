@@ -1,6 +1,6 @@
 [package]
 name = "nixpad"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 
@@ -17,6 +17,9 @@ regex = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 unicode-segmentation = "1"
 unicode-width = "0.2"
+encoding_rs = "0.8.42"
+chardetng = "1.0.0"
+trash = "5.2.9"
 
 [profile.release]
 opt-level = 3

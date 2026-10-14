@@ -21,7 +21,7 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] Recent files list (File > Open Recent)
 - [x] Session restore: reopens the files that were open last time
 - [x] Line endings detected (LF, CRLF, CR), preserved on save, switchable from the status bar
-- [x] UTF-8 with and without BOM, preserved on save; warning for files that aren't valid UTF-8
+- [x] UTF-8 with and without BOM, preserved on save; warning for files that aren't valid UTF-8 (other encodings added in 0.5)
 
 ### Editing and view
 - [x] Line numbers gutter (stays aligned with word wrap on), toggle in View menu
@@ -124,6 +124,38 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] Run a macro N times or until the end of the file
 - [x] Save macros by name; saved macros appear in the Macro menu and survive restarts
 
+## Release 0.5: files, encodings and safety (done)
+
+### Encodings
+- [x] Encoding detected on open: byte-order marks, UTF-8, UTF-16 without a BOM, then a guess for legacy encodings (Windows-1252, Windows-1251, Shift_JIS and others)
+- [x] Encoding menu (also on the status bar): save as UTF-8, UTF-8 BOM, UTF-16 LE/BE, or about 35 other encodings grouped by region (Windows code pages, ISO-8859-x, KOI8, Mac Roman, GBK, Big5, Shift_JIS, EUC-KR...)
+- [x] Reopen With: read the file again in an encoding you pick, when the guess is wrong
+- [x] Saving refuses a character the chosen encoding can't hold, and says which one, instead of losing it
+
+### Unsaved work and files changed on disk
+- [x] Unsaved changes, including new untitled tabs, are backed up every few seconds and come back after a crash
+- [x] Quitting keeps unsaved changes for next time without asking (Settings > Remember Unsaved Changes on Exit; turn it off to be asked instead)
+- [x] Session remembers each tab's encoding, line ending, language, caret, pin and read-only state
+- [x] A bar above the editor when another program changes or deletes the open file: Reload (undoable) or Keep My Version
+- [x] Optional automatic reload of changed files that have no unsaved changes (Settings menu)
+- [x] File > Reload from Disk
+
+### Window and tabs
+- [x] Single window: opening a file while NixPad runs sends it to the open window (turn off in Settings, or start with `--multi-instance`)
+- [x] Drag tabs to reorder them
+- [x] Pin tabs: pinned tabs stay at the front, show a pin, and are skipped by Close All and Close Others
+
+### File commands (File menu and tab right-click menu)
+- [x] Rename the file on disk
+- [x] Move the file to the Recycle Bin / trash
+- [x] Open Containing Folder (selects the file where the file manager supports it)
+- [x] Open Terminal Here (Windows Terminal or cmd on Windows; `$TERMINAL`, Konsole, GNOME Terminal and others on Linux)
+- [x] Summary dialog: path, dates, encoding, characters, words, lines, size on disk, selection
+
+### Fixes
+- [x] The mouse pointer is an arrow over the gutter (fold arrows, bookmarks, line numbers), not a text cursor
+- [x] Theme > Open Themes Folder works on Windows (and on Linux it uses the desktop's file manager)
+
 ## Core editor features still missing
 
 ### Editing
@@ -136,19 +168,11 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [ ] Function list panel
 - [ ] Folder as workspace (file tree side panel)
 - [ ] Distraction-free / full-screen mode
-- [ ] Tab drag to reorder, pin tabs, tabs list dropdown
-- [ ] Summary dialog (words, characters, lines, selection)
+- [ ] Tabs list dropdown
 
 ### Files and encodings
-- [ ] Encoding conversion: ANSI/Windows-1252, ISO-8859-x, UTF-16 LE/BE, and others (open and save as)
-- [ ] Encoding auto-detection beyond UTF-8
-- [ ] Detect files changed on disk and offer to reload
-- [ ] Periodic backup and recovery of unsaved work (including untitled tabs)
-- [ ] Restore unsaved untitled tabs on restart
-- [ ] Rename / delete current file, open containing folder, open terminal here
 - [ ] Print and print preview
 - [x] Very large file mode (incremental highlighting so 2 MB+ files keep colours), done in 0.2
-- [ ] Reload from disk
 
 ### Settings and customisation
 - [ ] Preferences dialog (fonts, tab width, spaces vs tabs, default encoding/EOL, new-document defaults)
@@ -158,7 +182,6 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [ ] User-defined languages (custom keywords, comments, operators)
 - [ ] More grammars (TOML, INI, TypeScript, PowerShell, Dockerfile, etc.), and loading `.sublime-syntax` files from the user folder
 - [ ] Localisation / translations
-- [ ] Single-instance mode (opening a file sends it to the running window)
 
 ### Platform and distribution
 - [~] Application icon and desktop integration: icon and Linux `.desktop` file done in 0.2; Windows file associations still to come
