@@ -1,0 +1,162 @@
+name: Release
+
+# Pushing a tag such as v0.3.0 builds NixPad for Linux, Arch and Windows and
+# publishes a GitHub release with the builds attached. "Run workflow" on the
+# Actions tab does the same for an existing tag. Pull requests that touch the
+# packaging only build, so packaging changes are checked before a release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish, for example v0.2.0
+        required: true
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - packaging/**
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  REF: ${{ inputs.tag || github.ref }}
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REF }}
+      - id: v
+        name: Read the version from Cargo.toml
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ] && [ "${{ github.ref_type }}" = tag ]; then tag="${{ github.ref_name }}"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -n "$tag" ] && [ "$tag" != "v$version" ]; then
+            echo "::error::Tag $tag does not match the version in Cargo.toml ($version)"
+            exit 1
+          fi
+
+  linux:
+    name: Linux build
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REF }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --locked
+      - name: Package
+        run: |
+          dir="nixpad-$VERSION-linux-x86_64"
+          mkdir -p "$dir/icons"
+          cp target/release/nixpad README.md "$dir/"
+          cp packaging/linux/nixpad.desktop "$dir/"
+          cp assets/icons/nixpad.svg assets/icons/nixpad-256.png "$dir/icons/"
+          tar czf "$dir.tar.gz" "$dir"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: nixpad-*.tar.gz
+
+  arch:
+    name: Arch package
+    needs: version
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed rust libxkbcommon libxkbcommon-x11 libglvnd \
+            xdg-desktop-portal hicolor-icon-theme
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REF }}
+      - name: Build with makepkg
+        run: |
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/arch/PKGBUILD
+          cd packaging/arch
+          runuser -u builder -- makepkg --noconfirm --nodeps
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: packaging/arch/nixpad-*.pkg.tar.zst
+
+  windows:
+    name: Windows build
+    needs: version
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REF }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --locked
+      - name: Package
+        shell: pwsh
+        run: |
+          $dir = "nixpad-$env:VERSION-windows-x86_64"
+          New-Item -ItemType Directory $dir | Out-Null
+          Copy-Item target/release/nixpad.exe, README.md $dir
+          Compress-Archive -Path $dir -DestinationPath "$dir.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: nixpad-*.zip
+
+  publish:
+    name: Publish release
+    needs: [version, linux, arch, windows]
+    if: needs.version.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: NixPad ${{ needs.version.outputs.version }}
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            **CachyOS / Arch:** download the `.pkg.tar.zst` file, then run
+            `sudo pacman -U ./nixpad-${{ needs.version.outputs.version }}-1-x86_64.pkg.tar.zst`.
+            It adds NixPad to your app menu.
+
+            **Other Linux:** download the `linux-x86_64.tar.gz`, extract it and run `./nixpad`.
+            It needs OpenGL and `libxkbcommon-x11`.
+
+            **Windows:** download the `windows-x86_64.zip`, extract it and run `nixpad.exe`.
+            The build isn't signed yet, so Windows SmartScreen may warn the first time; choose "More info", then "Run anyway".
+
+            See [FEATURES.md](https://github.com/Tharkis/NixPad/blob/${{ needs.version.outputs.tag }}/FEATURES.md) for what this version can do.
+          files: dist/*
