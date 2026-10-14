@@ -45,6 +45,14 @@ pub struct LineEdit {
     pub new_lines: usize,
 }
 
+/// A char-level change: `removed` chars at `start` were replaced by `inserted` chars.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CharEdit {
+    pub start: usize,
+    pub removed: usize,
+    pub inserted: usize,
+}
+
 /// One replacement requested by an editing command.
 pub struct Replacement {
     pub range: Range<usize>,
@@ -62,6 +70,9 @@ pub struct Buffer {
     next_id: u64,
     saved_id: u64,
     line_edits: Vec<LineEdit>,
+    char_edits: Vec<CharEdit>,
+    /// Bumped on every change, so caches of the text know when they are stale.
+    version: u64,
 }
 
 impl Buffer {
@@ -73,6 +84,8 @@ impl Buffer {
             next_id: 1,
             saved_id: 0,
             line_edits: Vec::new(),
+            char_edits: Vec::new(),
+            version: 0,
         }
     }
 
@@ -149,6 +162,15 @@ impl Buffer {
         std::mem::take(&mut self.line_edits)
     }
 
+    /// Char ranges changed since the last call, oldest first.
+    pub fn take_char_edits(&mut self) -> Vec<CharEdit> {
+        std::mem::take(&mut self.char_edits)
+    }
+
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
@@ -210,6 +232,12 @@ impl Buffer {
             old_lines: removed.matches('\n').count() + 1,
             new_lines: text.matches('\n').count() + 1,
         });
+        self.char_edits.push(CharEdit {
+            start,
+            removed: end - start,
+            inserted: text.chars().count(),
+        });
+        self.version += 1;
         Change {
             start,
             removed,

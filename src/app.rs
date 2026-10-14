@@ -1,6 +1,8 @@
 //! The NixPad window: menu bar, tab strip, editor and status bar.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use egui::{
     Align, CornerRadius, FontId, Frame, Id, Key, Layout, Margin, Pos2, Rect, RichText, ScrollArea,
@@ -9,8 +11,12 @@ use egui::{
 
 use crate::actions::{self, Action};
 use crate::document::{Document, LineEnding};
-use crate::editor::ViewConfig;
+use crate::editor::{FindOutcome, MAX_HIGHLIGHTS, ViewConfig};
 use crate::highlight::{Highlighter, PLAIN_TEXT};
+use crate::search::{self, FileSearch, Query};
+use crate::search_ui::{
+    FifDialog, FifRequest, FileJob, FindBar, GotoDialog, Jump, Results, Source,
+};
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette, ThemeDef};
 
@@ -43,6 +49,10 @@ pub struct NixPadApp {
     focus_editor: bool,
     scroll_to_active_tab: bool,
     window_title: String,
+    find_bar: FindBar,
+    results: Results,
+    goto: GotoDialog,
+    fif: FifDialog,
 }
 
 impl NixPadApp {
@@ -75,7 +85,15 @@ impl NixPadApp {
             focus_editor: true,
             scroll_to_active_tab: true,
             window_title: String::new(),
+            find_bar: FindBar::default(),
+            results: Results::default(),
+            goto: GotoDialog::default(),
+            fif: FifDialog::default(),
         };
+        app.fif.dir = app.settings.fif_dir.clone();
+        app.fif.filters = app.settings.fif_filters.clone();
+        app.fif.subfolders = app.settings.fif_subfolders;
+        app.fif.hidden = app.settings.fif_hidden;
         crate::fonts::install_fallbacks(&cc.egui_ctx);
         app.apply_style(&cc.egui_ctx);
 
@@ -264,6 +282,7 @@ impl NixPadApp {
     // Actions
 
     fn run(&mut self, ctx: &egui::Context, action: Action) {
+        let focus_editor = action.focuses_editor();
         match action {
             Action::NewTab => self.new_tab(),
             Action::Open => self.open_dialog(),
@@ -355,8 +374,319 @@ impl NixPadApp {
             }
             Action::ClearRecent => self.settings.recent_files.clear(),
             Action::About => self.show_about = true,
+            Action::Find | Action::Replace => {
+                let (seed, multi_line) = self.selection_seed();
+                self.find_bar
+                    .show_bar(action == Action::Replace, seed, multi_line);
+                let doc = &self.docs[self.active];
+                self.find_bar.origin = Some((doc.id, doc.editor.selections.primary().start()));
+            }
+            Action::FindNext => self.find_step(true),
+            Action::FindPrev => self.find_step(false),
+            Action::FindSelectedNext | Action::FindSelectedPrev => {
+                if let Some(word) = self.docs[self.active].editor.selection_or_word() {
+                    self.find_bar.find = word;
+                }
+                self.find_step(action == Action::FindSelectedNext);
+            }
+            Action::ReplaceOne => self.replace_one(ctx),
+            Action::ReplaceAll => self.replace_all(ctx),
+            Action::FindAllInDoc => self.find_all(false),
+            Action::FindAllInTabs => self.find_all(true),
+            Action::SelectAllMatches => {
+                if let Some(q) = self.query() {
+                    let n = self.docs[self.active].editor.select_all_matches(&q);
+                    self.find_bar.message = Some(match n {
+                        0 => "No results".to_owned(),
+                        n => format!("{n} selected"),
+                    });
+                }
+            }
+            Action::MarkAll { bookmark } => {
+                if let Some(q) = self.query() {
+                    let n = self.docs[self.active].editor.mark_all(&q, bookmark);
+                    self.find_bar.message = Some(match n {
+                        0 => "No results".to_owned(),
+                        n => format!("{n} marked"),
+                    });
+                }
+            }
+            Action::ClearMarks => self.docs[self.active].editor.clear_marks(),
+            Action::CloseFindBar => {
+                self.find_bar.close();
+                for doc in &mut self.docs {
+                    doc.editor.search_hits = Arc::default();
+                }
+            }
+            Action::FindInFiles => {
+                let (seed, _) = self.selection_seed();
+                let seed = seed.or_else(|| {
+                    (!self.find_bar.find.is_empty()).then(|| self.find_bar.find.clone())
+                });
+                let dir = if self.fif.dir.is_empty() {
+                    self.docs[self.active]
+                        .path
+                        .as_ref()
+                        .and_then(|p| p.parent().map(Path::to_path_buf))
+                        .or_else(dirs::home_dir)
+                } else {
+                    None
+                };
+                self.fif.show_dialog(seed, dir);
+            }
+            Action::GoToLine => self.goto.show_dialog(),
+            Action::ToggleBookmark => self.docs[self.active].editor.toggle_bookmark_at_caret(),
+            Action::NextBookmark => {
+                self.docs[self.active].editor.goto_bookmark(true);
+            }
+            Action::PrevBookmark => {
+                self.docs[self.active].editor.goto_bookmark(false);
+            }
+            Action::ClearBookmarks => self.docs[self.active].editor.bookmarks.clear(),
+            Action::CopyBookmarkedLines | Action::CutBookmarkedLines => {
+                let editor = &mut self.docs[self.active].editor;
+                if !editor.bookmarks.is_empty() {
+                    ctx.copy_text(editor.bookmarked_text());
+                    if action == Action::CutBookmarkedLines {
+                        editor.remove_lines(ctx, false);
+                    }
+                }
+            }
+            Action::RemoveBookmarkedLines => self.docs[self.active].editor.remove_lines(ctx, false),
+            Action::RemoveUnbookmarkedLines => {
+                self.docs[self.active].editor.remove_lines(ctx, true)
+            }
+            Action::InverseBookmarks => self.docs[self.active].editor.inverse_bookmarks(),
         }
-        self.focus_editor = true;
+        if focus_editor {
+            self.focus_editor = true;
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Search
+
+    /// The selection to seed a search with (if it is on one line), and whether
+    /// the selection spans several lines.
+    fn selection_seed(&self) -> (Option<String>, bool) {
+        let Some(doc) = self.docs.get(self.active) else {
+            return (None, false);
+        };
+        let sel = doc.editor.selections.primary();
+        if sel.is_empty() {
+            return (None, false);
+        }
+        let text = doc.editor.buffer.slice_string(sel.range());
+        if text.contains('\n') {
+            (None, true)
+        } else {
+            (Some(text), false)
+        }
+    }
+
+    fn query(&mut self) -> Option<Query> {
+        let opts = self.settings.search;
+        if self.find_bar.find.is_empty() {
+            return None;
+        }
+        self.find_bar.query(&opts)
+    }
+
+    fn find_step(&mut self, forward: bool) {
+        if self.find_bar.find.is_empty() {
+            self.run_find_bar_open();
+            return;
+        }
+        self.find_bar.message = None;
+        let Some(q) = self.query() else {
+            self.find_bar.open = true;
+            return;
+        };
+        let wrap = self.settings.search.wrap;
+        let doc = &mut self.docs[self.active];
+        let outcome = doc.editor.find_next(&q, forward, wrap);
+        self.find_bar.message = match outcome {
+            FindOutcome::Found => None,
+            FindOutcome::Wrapped if forward => Some("Wrapped to the top".to_owned()),
+            FindOutcome::Wrapped => Some("Wrapped to the bottom".to_owned()),
+            FindOutcome::NotFound => Some("Not found".to_owned()),
+        };
+        self.find_bar.origin = Some((doc.id, doc.editor.selections.primary().start()));
+    }
+
+    fn run_find_bar_open(&mut self) {
+        let (seed, multi_line) = self.selection_seed();
+        self.find_bar.show_bar(false, seed, multi_line);
+    }
+
+    /// Search as you type: select the first match from where the search started.
+    fn find_incremental(&mut self) {
+        self.find_bar.message = None;
+        if self.find_bar.in_selection || self.find_bar.find.is_empty() {
+            return;
+        }
+        let Some(q) = self.query() else { return };
+        let wrap = self.settings.search.wrap;
+        let doc = &mut self.docs[self.active];
+        let origin = match self.find_bar.origin {
+            Some((id, pos)) if id == doc.id => pos,
+            _ => {
+                let pos = doc.editor.selections.primary().start();
+                self.find_bar.origin = Some((doc.id, pos));
+                pos
+            }
+        };
+        doc.editor.find_incremental(&q, origin, wrap);
+    }
+
+    fn replace_one(&mut self, ctx: &egui::Context) {
+        self.find_bar.message = None;
+        let Some(q) = self.query() else { return };
+        let wrap = self.settings.search.wrap;
+        let template = self.find_bar.replace.clone();
+        let (_, outcome) = self.docs[self.active]
+            .editor
+            .replace_current(ctx, &q, &template, wrap);
+        if outcome == FindOutcome::NotFound {
+            self.find_bar.message = Some("No more matches".to_owned());
+        }
+    }
+
+    fn replace_all(&mut self, ctx: &egui::Context) {
+        let Some(q) = self.query() else { return };
+        let template = self.find_bar.replace.clone();
+        let in_selection = self.find_bar.in_selection;
+        let n = self.docs[self.active]
+            .editor
+            .replace_all(ctx, &q, &template, in_selection);
+        self.find_bar.message = Some(match n {
+            0 => "No results".to_owned(),
+            1 => "1 replaced".to_owned(),
+            n => format!("{n} replaced"),
+        });
+    }
+
+    /// Lists every matching line in the results panel.
+    fn find_all(&mut self, all_tabs: bool) {
+        let Some(q) = self.query() else { return };
+        let title = format!("\"{}\"", self.find_bar.find);
+        self.results.start(title);
+        let mut remaining = search::MAX_HITS;
+        let indices: Vec<usize> = if all_tabs {
+            (0..self.docs.len()).collect()
+        } else {
+            vec![self.active]
+        };
+        for i in indices {
+            let doc = &mut self.docs[i];
+            let (hits, cut) = doc.editor.line_hits(&q, remaining);
+            remaining -= hits.iter().map(|h| h.matches).sum::<usize>();
+            if !hits.is_empty() {
+                let label = doc
+                    .path
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| doc.title());
+                self.results.add_group(Source::Doc(doc.id), label, hits);
+            }
+            if cut || remaining == 0 {
+                self.results.truncated = true;
+                break;
+            }
+        }
+    }
+
+    fn start_file_search(&mut self, req: FifRequest) {
+        self.settings.fif_dir = req.dir.display().to_string();
+        self.settings.fif_filters = req.filters.clone();
+        self.settings.fif_subfolders = req.subfolders;
+        self.settings.fif_hidden = req.hidden;
+        self.settings.search = req.opts;
+        let Ok(Some(query)) = Query::new(&req.find, &req.opts) else {
+            return;
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let search = FileSearch {
+            dir: req.dir.clone(),
+            filters: req.filters,
+            subfolders: req.subfolders,
+            hidden: req.hidden,
+        };
+        let worker_cancel = cancel.clone();
+        let spawned = std::thread::Builder::new()
+            .name("find-in-files".into())
+            .spawn(move || search::search_files(search, query, worker_cancel, tx));
+        if let Err(e) = spawned {
+            self.errors.push(format!("Could not start the search: {e}"));
+            return;
+        }
+        self.results
+            .start(format!("\"{}\" in {}", req.find, req.dir.display()));
+        self.results.job = Some(FileJob { rx, cancel });
+    }
+
+    /// Opens a search result.
+    fn jump_to(&mut self, jump: Jump) {
+        let index = match &jump.source {
+            Source::Doc(id) => self.docs.iter().position(|d| d.id == *id),
+            Source::File(path) => {
+                self.open_path(path, true);
+                let path = path.canonicalize().unwrap_or_else(|_| path.clone());
+                self.docs
+                    .iter()
+                    .position(|d| d.path.as_deref() == Some(path.as_path()))
+            }
+        };
+        if let Some(i) = index {
+            self.select(i);
+            self.docs[i].editor.select_at(jump.line, jump.col, jump.len);
+        }
+    }
+
+    /// Keeps the find bar's match highlights and count up to date.
+    fn update_search_hits(&mut self) {
+        if !self.find_bar.open {
+            return;
+        }
+        let opts = self.settings.search;
+        let Some(doc) = self.docs.get(self.active) else {
+            return;
+        };
+        let (id, version) = (doc.id, doc.editor.buffer.version());
+        if self.find_bar.hits_stale(id, version, &opts) {
+            let query = if self.find_bar.find.is_empty() {
+                None
+            } else {
+                match Query::new(&self.find_bar.find, &opts) {
+                    Ok(q) => q,
+                    Err(e) => {
+                        self.find_bar.message = Some(format!("Invalid regex: {e}"));
+                        None
+                    }
+                }
+            };
+            let editor = &mut self.docs[self.active].editor;
+            match query {
+                Some(q) => {
+                    let (ranges, more) = editor.match_ranges(&q, MAX_HIGHLIGHTS);
+                    self.find_bar.count = Some((ranges.len(), more));
+                    editor.search_hits = Arc::new(ranges);
+                }
+                None => {
+                    self.find_bar.count = None;
+                    editor.search_hits = Arc::default();
+                }
+            }
+            self.find_bar.set_hits_key(id, version, opts);
+        }
+        let editor = &self.docs[self.active].editor;
+        let sel = editor.selections.primary();
+        self.find_bar.current = editor
+            .search_hits
+            .binary_search_by_key(&sel.start(), |r| r.start)
+            .ok()
+            .filter(|&i| editor.search_hits[i].end == sel.end());
     }
 
     fn apply_style(&mut self, ctx: &egui::Context) {
@@ -381,7 +711,7 @@ impl NixPadApp {
     }
 
     fn handle_input(&mut self, ctx: &egui::Context) {
-        if self.close_queue.is_none() && !self.show_about {
+        if self.close_queue.is_none() && !self.show_about && !self.goto.open && !self.fif.open {
             let mut fired = Vec::new();
             ctx.input_mut(|i| {
                 for (shortcut, action) in actions::shortcuts() {
@@ -464,6 +794,39 @@ impl NixPadApp {
                 self.menu_item(ui, "Close Others", Action::CloseOthers);
                 ui.separator();
                 self.menu_item(ui, "Exit", Action::Quit);
+            });
+            ui.menu_button("Search", |ui| {
+                self.menu_item(ui, "Find…", Action::Find);
+                self.menu_item(ui, "Replace…", Action::Replace);
+                self.menu_item(ui, "Find Next", Action::FindNext);
+                self.menu_item(ui, "Find Previous", Action::FindPrev);
+                self.menu_item(ui, "Find Selected Next", Action::FindSelectedNext);
+                self.menu_item(ui, "Find Selected Previous", Action::FindSelectedPrev);
+                self.menu_item(ui, "Find in Files…", Action::FindInFiles);
+                ui.separator();
+                self.menu_item(ui, "Find All in Current Document", Action::FindAllInDoc);
+                self.menu_item(ui, "Find All in Open Tabs", Action::FindAllInTabs);
+                self.menu_item(ui, "Select All Matches", Action::SelectAllMatches);
+                self.menu_item(ui, "Mark All", Action::MarkAll { bookmark: false });
+                self.menu_item(ui, "Clear All Marks", Action::ClearMarks);
+                ui.separator();
+                self.menu_item(ui, "Go to Line…", Action::GoToLine);
+                ui.menu_button("Bookmark", |ui| {
+                    self.menu_item(ui, "Toggle Bookmark", Action::ToggleBookmark);
+                    self.menu_item(ui, "Next Bookmark", Action::NextBookmark);
+                    self.menu_item(ui, "Previous Bookmark", Action::PrevBookmark);
+                    self.menu_item(ui, "Clear All Bookmarks", Action::ClearBookmarks);
+                    ui.separator();
+                    self.menu_item(ui, "Cut Bookmarked Lines", Action::CutBookmarkedLines);
+                    self.menu_item(ui, "Copy Bookmarked Lines", Action::CopyBookmarkedLines);
+                    self.menu_item(ui, "Remove Bookmarked Lines", Action::RemoveBookmarkedLines);
+                    self.menu_item(
+                        ui,
+                        "Remove Unbookmarked Lines",
+                        Action::RemoveUnbookmarkedLines,
+                    );
+                    self.menu_item(ui, "Inverse Bookmarks", Action::InverseBookmarks);
+                });
             });
             ui.menu_button("View", |ui| {
                 let s = self.settings.clone();
@@ -704,7 +1067,9 @@ impl NixPadApp {
         let theme_def = &self.themes[self.theme_idx];
         let request_focus = std::mem::take(&mut self.focus_editor)
             && self.close_queue.is_none()
-            && !self.show_about;
+            && !self.show_about
+            && !self.goto.open
+            && !self.fif.open;
         let Some(doc) = self.docs.get_mut(self.active) else {
             return;
         };
@@ -777,7 +1142,13 @@ impl NixPadApp {
                 if carets > 1 {
                     position += &format!("   {carets} carets");
                 }
-                ui.label(dim(position));
+                if ui
+                    .add(egui::Label::new(dim(position)).sense(Sense::click()))
+                    .on_hover_text("Go to line (Ctrl+G)")
+                    .clicked()
+                {
+                    self.pending.push(Action::GoToLine);
+                }
             });
         });
     }
@@ -863,6 +1234,18 @@ impl NixPadApp {
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        let palette = self.palette();
+        if let Some(doc) = self.docs.get(self.active) {
+            let lines = doc.line_count();
+            if let Some((line, col)) = self.goto.ui(ctx, lines, &palette) {
+                self.docs[self.active].editor.go_to(line, col);
+                self.focus_editor = true;
+            }
+        }
+        if let Some(req) = self.fif.ui(ctx, &mut self.settings.search, &palette) {
+            self.start_file_search(req);
+        }
+
         if self.show_about {
             let response = egui::Modal::new(Id::new("about")).show(ctx, |ui| {
                 ui.set_width(380.0);
@@ -958,6 +1341,46 @@ impl eframe::App for NixPadApp {
             )
             .show_separator_line(false)
             .show(ui, |ui| self.status_bar(ui));
+        if self.results.open {
+            if self.results.poll() {
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            }
+            let mut jump = None;
+            egui::Panel::bottom("results")
+                .resizable(true)
+                .default_size(220.0)
+                .min_size(80.0)
+                .frame(
+                    Frame::new()
+                        .fill(palette.chrome_bg)
+                        .inner_margin(Margin::symmetric(8, 4)),
+                )
+                .show(ui, |ui| jump = self.results.ui(ui, &palette));
+            if let Some(j) = jump {
+                self.jump_to(j);
+            }
+        }
+        if self.find_bar.open {
+            let mut actions = Vec::new();
+            let mut changed = false;
+            egui::Panel::top("find-bar")
+                .frame(
+                    Frame::new()
+                        .fill(palette.chrome_bg)
+                        .inner_margin(Margin::symmetric(8, 5)),
+                )
+                .show_separator_line(false)
+                .show(ui, |ui| {
+                    changed =
+                        self.find_bar
+                            .ui(ui, &mut self.settings.search, &palette, &mut actions)
+                });
+            if changed {
+                self.find_incremental();
+            }
+            self.pending.extend(actions);
+            self.update_search_hits();
+        }
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
             .show(ui, |ui| self.editor(ui));

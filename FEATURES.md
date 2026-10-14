@@ -64,16 +64,28 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] CI builds and tests for Linux and Windows on every pull request
 - [~] Word wrap on huge files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines
 
-## Core editor features still missing
+## Release 0.3: search and navigation (done)
 
-### Search
-- [ ] Find / Replace bar (match case, whole word, wrap around)
-- [ ] Regular expression search and replace, with capture groups
-- [ ] Find in all open documents
-- [ ] Find in Files (folder, filters, results panel)
-- [ ] Mark all occurrences / highlight other occurrences of the selected word
-- [ ] Incremental search
-- [ ] Go to line (Ctrl+G)
+### Find and replace
+- [x] Find bar (Ctrl+F) and Replace (Ctrl+H) with match case, whole word, wrap around and regular expressions
+- [x] Regex replace with capture groups (`$1`, `${name}` or `\1`) and `\n` / `\t` in the replacement
+- [x] Search as you type, with every match highlighted and an "N of M" count
+- [x] Find Next / Previous (F3 / Shift+F3), Find Selected Next / Previous (Ctrl+F3 / Ctrl+Shift+F3)
+- [x] Replace one, Replace All (one undo step), Replace All in selection
+- [x] Select All Matches: puts a caret on every match for multi-caret editing
+- [x] Find All in Current Document and Find All in Open Tabs, listed in a results panel
+- [x] Find in Files (Ctrl+Shift+F): folder, file filters (`*.rs *.toml`, `!name` to skip), subfolders, hidden files; runs in the background with a Stop button; skips binary files
+- [x] Results panel: hits grouped by file with the matches highlighted; click a line to jump there; collapse and expand groups
+- [x] Mark All (optionally bookmarking the matching lines) and Clear All Marks
+- [x] Other occurrences of the selected word are highlighted
+- [x] Big files: search, highlighting and Replace All stay fast on a 50 MB file (282,000 replacements in about a second)
+
+### Navigation
+- [x] Go to Line (Ctrl+G, or click Ln/Col in the status bar); accepts `line` or `line:column`
+- [x] Bookmarks: toggle with Ctrl+F2 or a click in the gutter, F2 / Shift+F2 to jump, Clear All
+- [x] Cut, copy or remove bookmarked lines, remove unbookmarked lines, inverse bookmarks
+
+## Core editor features still missing
 
 ### Editing
 - [~] Multiple cursors and multi-selection (basics in 0.2; select next occurrence still to come)
@@ -91,7 +103,6 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [ ] Insert date/time
 - [ ] Read-only mode
 - [ ] Code folding
-- [ ] Bookmarks (toggle, next/prev, copy/cut/remove bookmarked lines)
 
 ### View
 - [ ] Show whitespace and end-of-line symbols

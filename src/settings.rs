@@ -6,6 +6,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::search::SearchOptions;
+
 pub const MAX_RECENT: usize = 12;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,6 +22,11 @@ pub struct Settings {
     pub session_files: Vec<PathBuf>,
     pub session_active: usize,
     pub recent_files: Vec<PathBuf>,
+    pub search: SearchOptions,
+    pub fif_dir: String,
+    pub fif_filters: String,
+    pub fif_subfolders: bool,
+    pub fif_hidden: bool,
 }
 
 impl Default for Settings {
@@ -34,6 +41,14 @@ impl Default for Settings {
             session_files: Vec::new(),
             session_active: 0,
             recent_files: Vec::new(),
+            search: SearchOptions {
+                wrap: true,
+                ..Default::default()
+            },
+            fif_dir: String::new(),
+            fif_filters: String::new(),
+            fif_subfolders: true,
+            fif_hidden: false,
         }
     }
 }
