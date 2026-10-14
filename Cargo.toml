@@ -1,0 +1,20 @@
+[package]
+name = "nixpad"
+version = "0.1.0"
+edition = "2024"
+description = "A modern, cross-platform text editor for Linux and Windows"
+
+[dependencies]
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "persistence"] }
+egui = "0.36"
+syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy", "parsing", "plist-load"] }
+rfd = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true
+

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>name</key><string>NixPad Dark</string>
+<key>settings</key><array>
+<dict><key>settings</key><dict><key>background</key><string>#1B1F27</string><key>foreground</key><string>#D4D8E0</string><key>caret</key><string>#7AA2F7</string><key>selection</key><string>#2E3A52</string><key>lineHighlight</key><string>#222834</string><key>gutterForeground</key><string>#4C5566</string></dict></dict>
+<dict><key>name</key><string>Comment</string><key>scope</key><string>comment, punctuation.definition.comment</string><key>settings</key><dict><key>foreground</key><string>#6B7689</string><key>fontStyle</key><string>italic</string></dict></dict>
+<dict><key>name</key><string>String</string><key>scope</key><string>string, punctuation.definition.string</string><key>settings</key><dict><key>foreground</key><string>#9CCF7F</string></dict></dict>
+<dict><key>name</key><string>Escape</string><key>scope</key><string>constant.character.escape</string><key>settings</key><dict><key>foreground</key><string>#7FD1D9</string></dict></dict>
+<dict><key>name</key><string>Number</string><key>scope</key><string>constant.numeric</string><key>settings</key><dict><key>foreground</key><string>#F0A35E</string></dict></dict>
+<dict><key>name</key><string>Constant</string><key>scope</key><string>constant.language, constant.other, variable.other.constant, support.constant</string><key>settings</key><dict><key>foreground</key><string>#F07C82</string></dict></dict>
+<dict><key>name</key><string>Keyword</string><key>scope</key><string>keyword, storage, keyword.control</string><key>settings</key><dict><key>foreground</key><string>#B58CF5</string></dict></dict>
+<dict><key>name</key><string>Operator</string><key>scope</key><string>keyword.operator</string><key>settings</key><dict><key>foreground</key><string>#7FD1D9</string></dict></dict>
+<dict><key>name</key><string>Function</string><key>scope</key><string>entity.name.function, support.function, meta.function-call variable.function</string><key>settings</key><dict><key>foreground</key><string>#6FB3F2</string></dict></dict>
+<dict><key>name</key><string>Type</string><key>scope</key><string>entity.name.type, entity.name.class, support.type, support.class, storage.type.primitive</string><key>settings</key><dict><key>foreground</key><string>#E8C46A</string></dict></dict>
+<dict><key>name</key><string>Tag</string><key>scope</key><string>entity.name.tag, meta.tag punctuation.definition.tag</string><key>settings</key><dict><key>foreground</key><string>#F07C82</string></dict></dict>
+<dict><key>name</key><string>Attribute</string><key>scope</key><string>entity.other.attribute-name</string><key>settings</key><dict><key>foreground</key><string>#E8C46A</string></dict></dict>
+<dict><key>name</key><string>Variable</string><key>scope</key><string>variable.parameter, variable.language</string><key>settings</key><dict><key>foreground</key><string>#F07C82</string><key>fontStyle</key><string>italic</string></dict></dict>
+<dict><key>name</key><string>Heading</string><key>scope</key><string>markup.heading, entity.name.section</string><key>settings</key><dict><key>foreground</key><string>#6FB3F2</string><key>fontStyle</key><string>bold</string></dict></dict>
+<dict><key>name</key><string>Link</string><key>scope</key><string>markup.underline.link</string><key>settings</key><dict><key>foreground</key><string>#7FD1D9</string><key>fontStyle</key><string>underline</string></dict></dict>
+<dict><key>name</key><string>Invalid</string><key>scope</key><string>invalid</string><key>settings</key><dict><key>foreground</key><string>#F07C82</string><key>fontStyle</key><string>underline</string></dict></dict>
+</array></dict></plist>
