@@ -20,7 +20,11 @@ fn main() -> eframe::Result {
             .with_app_id("nixpad")
             .with_inner_size([1100.0, 720.0])
             .with_min_inner_size([480.0, 320.0])
-            .with_drag_and_drop(true),
+            .with_drag_and_drop(true)
+            .with_icon(std::sync::Arc::new(
+                eframe::icon_data::from_png_bytes(include_bytes!("../assets/icons/nixpad-256.png"))
+                    .expect("bundled icon is a valid PNG"),
+            )),
         ..Default::default()
     };
 

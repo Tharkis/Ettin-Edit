@@ -31,7 +31,9 @@ pub struct Highlighter {
 
 impl Highlighter {
     pub fn new() -> Self {
-        Self { syntaxes: SyntaxSet::load_defaults_newlines() }
+        Self {
+            syntaxes: SyntaxSet::load_defaults_newlines(),
+        }
     }
 
     /// Language names for the Language menu, sorted case-insensitively.
@@ -66,7 +68,9 @@ impl Highlighter {
             let first_line = text.lines().next().unwrap_or("");
             self.syntaxes.find_syntax_by_first_line(first_line)
         });
-        syntax.map(|s| s.name.clone()).unwrap_or_else(|| PLAIN_TEXT.to_owned())
+        syntax
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| PLAIN_TEXT.to_owned())
     }
 
     /// Common extensions the bundled grammars don't claim, mapped to a close match.

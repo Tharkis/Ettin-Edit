@@ -32,7 +32,11 @@ impl LineEnding {
     }
 
     pub fn platform_default() -> Self {
-        if cfg!(windows) { LineEnding::CrLf } else { LineEnding::Lf }
+        if cfg!(windows) {
+            LineEnding::CrLf
+        } else {
+            LineEnding::Lf
+        }
     }
 
     /// Picks the most common line ending in `text`.

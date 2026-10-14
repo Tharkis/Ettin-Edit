@@ -53,14 +53,26 @@ impl Palette {
     /// Derives chrome colours from a syntax theme so any `.tmTheme` gives a coherent window.
     fn derive(theme: &SyntectTheme, accent: Option<Color32>) -> Self {
         let s = &theme.settings;
-        let editor_bg = s.background.map(to_egui).unwrap_or(Color32::from_rgb(30, 30, 30));
-        let editor_fg = s.foreground.map(to_egui).unwrap_or(Color32::from_rgb(220, 220, 220));
+        let editor_bg = s
+            .background
+            .map(to_egui)
+            .unwrap_or(Color32::from_rgb(30, 30, 30));
+        let editor_fg = s
+            .foreground
+            .map(to_egui)
+            .unwrap_or(Color32::from_rgb(220, 220, 220));
         let dark = luminance(editor_bg) < 0.5;
-        let (toward, away) = if dark { (Color32::BLACK, Color32::WHITE) } else { (Color32::from_rgb(214, 218, 224), Color32::BLACK) };
+        let (toward, away) = if dark {
+            (Color32::BLACK, Color32::WHITE)
+        } else {
+            (Color32::from_rgb(214, 218, 224), Color32::BLACK)
+        };
 
-        let accent = accent
-            .or(s.caret.map(to_egui))
-            .unwrap_or(if dark { Color32::from_rgb(122, 162, 247) } else { Color32::from_rgb(26, 98, 199) });
+        let accent = accent.or(s.caret.map(to_egui)).unwrap_or(if dark {
+            Color32::from_rgb(122, 162, 247)
+        } else {
+            Color32::from_rgb(26, 98, 199)
+        });
         let selection = s
             .selection
             .map(to_egui)
@@ -69,7 +81,13 @@ impl Palette {
         let line_highlight = s
             .line_highlight
             .map(to_egui)
-            .map(|c| mix(editor_bg, Color32::from_rgb(c.r(), c.g(), c.b()), c.a() as f32 / 255.0))
+            .map(|c| {
+                mix(
+                    editor_bg,
+                    Color32::from_rgb(c.r(), c.g(), c.b()),
+                    c.a() as f32 / 255.0,
+                )
+            })
             .unwrap_or_else(|| mix(editor_bg, away, 0.04));
 
         Self {
@@ -87,12 +105,20 @@ impl Palette {
             text: editor_fg,
             text_dim: mix(editor_bg, editor_fg, 0.6),
             accent,
-            modified: if dark { Color32::from_rgb(240, 163, 94) } else { Color32::from_rgb(196, 98, 0) },
+            modified: if dark {
+                Color32::from_rgb(240, 163, 94)
+            } else {
+                Color32::from_rgb(196, 98, 0)
+            },
         }
     }
 
     pub fn visuals(&self) -> Visuals {
-        let mut v = if self.dark { Visuals::dark() } else { Visuals::light() };
+        let mut v = if self.dark {
+            Visuals::dark()
+        } else {
+            Visuals::light()
+        };
         v.panel_fill = self.chrome_bg;
         v.window_fill = self.chrome_bg;
         v.faint_bg_color = self.tab_bg;
@@ -124,7 +150,13 @@ impl Palette {
         w.active.bg_fill = mix(self.chrome_bg, self.accent, 0.3);
         w.active.fg_stroke = Stroke::new(1.0, self.text);
         w.open.weak_bg_fill = mix(self.chrome_bg, self.accent, 0.18);
-        for state in [&mut w.noninteractive, &mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
+        for state in [
+            &mut w.noninteractive,
+            &mut w.inactive,
+            &mut w.hovered,
+            &mut w.active,
+            &mut w.open,
+        ] {
             state.corner_radius = CornerRadius::same(5);
         }
         v
@@ -141,19 +173,60 @@ pub fn load_themes(user_dir: Option<&Path>) -> Vec<ThemeDef> {
     let mut themes = Vec::new();
     let mut add = |name: &str, syntax: SyntectTheme, accent: Option<Color32>| {
         let palette = Palette::derive(&syntax, accent);
-        themes.push(ThemeDef { name: name.to_owned(), syntax, palette, custom: false });
+        themes.push(ThemeDef {
+            name: name.to_owned(),
+            syntax,
+            palette,
+            custom: false,
+        });
     };
 
-    add("NixPad Dark", load_embedded(include_str!("../assets/themes/nixpad-dark.tmTheme")), None);
-    add("NixPad Light", load_embedded(include_str!("../assets/themes/nixpad-light.tmTheme")), None);
+    add(
+        "NixPad Dark",
+        load_embedded(include_str!("../assets/themes/nixpad-dark.tmTheme")),
+        None,
+    );
+    add(
+        "NixPad Light",
+        load_embedded(include_str!("../assets/themes/nixpad-light.tmTheme")),
+        None,
+    );
     let bundled = [
-        ("Ocean Dark", "base16-ocean.dark", Color32::from_rgb(143, 161, 179)),
-        ("Ocean Light", "base16-ocean.light", Color32::from_rgb(79, 91, 102)),
-        ("Eighties", "base16-eighties.dark", Color32::from_rgb(102, 153, 204)),
-        ("Mocha", "base16-mocha.dark", Color32::from_rgb(138, 166, 162)),
-        ("Solarized Dark", "Solarized (dark)", Color32::from_rgb(38, 139, 210)),
-        ("Solarized Light", "Solarized (light)", Color32::from_rgb(38, 139, 210)),
-        ("GitHub Light", "InspiredGitHub", Color32::from_rgb(9, 105, 218)),
+        (
+            "Ocean Dark",
+            "base16-ocean.dark",
+            Color32::from_rgb(143, 161, 179),
+        ),
+        (
+            "Ocean Light",
+            "base16-ocean.light",
+            Color32::from_rgb(79, 91, 102),
+        ),
+        (
+            "Eighties",
+            "base16-eighties.dark",
+            Color32::from_rgb(102, 153, 204),
+        ),
+        (
+            "Mocha",
+            "base16-mocha.dark",
+            Color32::from_rgb(138, 166, 162),
+        ),
+        (
+            "Solarized Dark",
+            "Solarized (dark)",
+            Color32::from_rgb(38, 139, 210),
+        ),
+        (
+            "Solarized Light",
+            "Solarized (light)",
+            Color32::from_rgb(38, 139, 210),
+        ),
+        (
+            "GitHub Light",
+            "InspiredGitHub",
+            Color32::from_rgb(9, 105, 218),
+        ),
     ];
     for (name, key, accent) in bundled {
         if let Some(t) = defaults.remove(key) {
@@ -162,24 +235,37 @@ pub fn load_themes(user_dir: Option<&Path>) -> Vec<ThemeDef> {
     }
 
     if let Some(dir) = user_dir
-        && let Ok(entries) = std::fs::read_dir(dir) {
-            let mut paths: Vec<_> = entries
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("tmTheme")))
-                .collect();
-            paths.sort();
-            for path in paths {
-                match ThemeSet::get_theme(&path) {
-                    Ok(syntax) => {
-                        let name = path.file_stem().unwrap_or_default().to_string_lossy().into_owned();
-                        let palette = Palette::derive(&syntax, None);
-                        themes.push(ThemeDef { name, syntax, palette, custom: true });
-                    }
-                    Err(e) => eprintln!("nixpad: skipping theme {}: {e}", path.display()),
+        && let Ok(entries) = std::fs::read_dir(dir)
+    {
+        let mut paths: Vec<_> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("tmTheme"))
+            })
+            .collect();
+        paths.sort();
+        for path in paths {
+            match ThemeSet::get_theme(&path) {
+                Ok(syntax) => {
+                    let name = path
+                        .file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned();
+                    let palette = Palette::derive(&syntax, None);
+                    themes.push(ThemeDef {
+                        name,
+                        syntax,
+                        palette,
+                        custom: true,
+                    });
                 }
+                Err(e) => eprintln!("nixpad: skipping theme {}: {e}", path.display()),
             }
         }
+    }
     themes
 }
 

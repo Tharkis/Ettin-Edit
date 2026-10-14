@@ -1,0 +1,42 @@
+# Builds NixPad from the checkout this file lives in.
+# Usage: cd packaging/arch && makepkg -si
+pkgname=nixpad
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="A modern, cross-platform text editor"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Tharkis/NixPad"
+license=('custom')
+depends=('gcc-libs' 'glibc' 'libxkbcommon' 'libxkbcommon-x11' 'libgl' 'xdg-desktop-portal' 'hicolor-icon-theme')
+makedepends=('cargo')
+options=('!lto')
+
+_root() { realpath "$startdir/../.."; }
+
+prepare() {
+  cd "$(_root)"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$(_root)"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --frozen --release
+}
+
+check() {
+  cd "$(_root)"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo test --frozen --release
+}
+
+package() {
+  cd "$(_root)"
+  install -Dm755 "$srcdir/target/release/nixpad" "$pkgdir/usr/bin/nixpad"
+  install -Dm644 packaging/linux/nixpad.desktop "$pkgdir/usr/share/applications/nixpad.desktop"
+  install -Dm644 assets/icons/nixpad.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/nixpad.svg"
+  install -Dm644 assets/icons/nixpad-256.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/nixpad.png"
+}
