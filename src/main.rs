@@ -6,6 +6,7 @@ mod actions;
 mod app;
 mod compare;
 mod compare_ui;
+mod csv_query;
 mod document;
 mod editor;
 mod encoding;

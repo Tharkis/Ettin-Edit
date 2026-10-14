@@ -285,8 +285,24 @@ impl NixPadApp {
                 Action::ToggleCloseTags,
             ),
         ];
+        let csv = vec![
+            m.toggle("CsvQuery Panel", self.csv.open, Action::ToggleCsvQuery),
+            m.item("Run Query", Action::RunCsvQuery),
+            MenuEntry::Separator,
+            m.item_if(
+                "Copy Results",
+                self.csv.result.is_some(),
+                Action::CopyCsvResults,
+            ),
+            m.item_if(
+                "Results to New Tab",
+                self.csv.result.is_some(),
+                Action::CsvResultsToNewTab,
+            ),
+        ];
         vec![
             submenu("Compare", self.compare_menu(m)),
+            submenu("CsvQuery", csv),
             MenuEntry::Separator,
             submenu("MIME Tools", mime),
             submenu("JSON and JavaScript", json),

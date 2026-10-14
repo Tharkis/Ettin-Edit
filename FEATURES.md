@@ -194,6 +194,20 @@ ticked off too; this section covers what sits around them.
 - [x] Moved blocks are coloured apart from added and removed lines
 - [x] Very large or very different files stay responsive (the diff has a time limit and the view only draws the visible rows)
 
+## Release 0.8: CsvQuery (done)
+
+Tools > CsvQuery, or Ctrl+Alt+Q, opens a panel under the editor. The plugin
+list further down is ticked off too; this section covers what sits around it.
+
+- [x] The current tab is the table `this`; every other tab is a table named after its file (`orders 2024.csv` is `orders_2024`), loaded when a query names it
+- [x] Delimiters: comma, semicolon, tab, pipe and space; decimal commas (`3,50`) count as numbers in semicolon files
+- [x] Values with leading zeros (zip codes, ids) stay text; empty fields are NULL
+- [x] Queries run in the background and re-run as you edit the tab or switch tabs; Ctrl+Enter runs the SQL box
+- [x] Results: click a column header to sort, right-click a cell to copy it or its row, first 100,000 rows shown
+- [x] Columns view: each column's type (changeable), filled, empty and distinct counts, min, max and average
+- [x] Recent queries menu, and a Tables menu that inserts table names
+- [x] UPDATE, DELETE and CREATE work on the query copy; the file itself never changes
+
 ## Core editor features still missing
 
 ### Editing
@@ -242,14 +256,14 @@ ticked off too; this section covers what sits around them.
 These can ship built in or as first-party plugins once the plugin system exists.
 
 ### CsvQuery (SQL over CSV)
-- [ ] Parse the current document as CSV/TSV with automatic delimiter, quote and header detection
-- [ ] Manual override for delimiter, quote character, header row and column types
-- [ ] Load the data into an in-memory SQLite table named after the document
-- [ ] SQL query box with results in a sortable grid panel
-- [ ] Default query (`SELECT * FROM this`) on open
-- [ ] Copy results, or write results to a new tab as CSV
-- [ ] Query across several open CSV files (joins)
-- [ ] Column statistics (count, distinct, min, max, empty values)
+- [x] Parse the current document as CSV/TSV with automatic delimiter, quote and header detection
+- [x] Manual override for delimiter, quote character, header row and column types
+- [x] Load the data into an in-memory SQLite table named after the document
+- [x] SQL query box with results in a sortable grid panel
+- [x] Default query (`SELECT * FROM this`) on open
+- [x] Copy results, or write results to a new tab as CSV
+- [x] Query across several open CSV files (joins)
+- [x] Column statistics (count, distinct, min, max, empty values)
 
 ### JSTool (JavaScript and JSON)
 - [x] JS/JSON format (beautify), using the tab's indent setting

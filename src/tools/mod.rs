@@ -1,11 +1,14 @@
 //! The built-in text tools: MIME Tools (Base64, URL, quoted-printable, HTML
-//! entities, SAML), JSON and JavaScript tools, and XML Tools with XPath.
+//! entities, SAML), JSON and JavaScript tools, XML Tools with XPath, and
+//! CsvQuery (reading delimited text and querying it with SQL).
 //! Everything here works on plain strings; the app applies the results to
 //! the editor.
 
+pub mod csv;
 pub mod js;
 pub mod json;
 pub mod mime;
+pub mod sql;
 pub mod xml;
 pub mod xpath;
 

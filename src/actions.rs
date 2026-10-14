@@ -155,6 +155,11 @@ pub enum Action {
     Json(JsonOp),
     Xml(XmlOp),
     ToggleJsonTree,
+    // CsvQuery
+    ToggleCsvQuery,
+    RunCsvQuery,
+    CopyCsvResults,
+    CsvResultsToNewTab,
     ToggleXPathPanel,
     /// Copy the XPath of the element at the caret.
     CopyXPath,
@@ -306,6 +311,7 @@ pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD_ALT, Key::M), Action::Json(JsonOp::Format)),
         (s(CMD_ALT, Key::N), Action::Json(JsonOp::Minify)),
         (s(CMD_ALT, Key::J), Action::ToggleJsonTree),
+        (s(CMD_ALT, Key::Q), Action::ToggleCsvQuery),
         (s(CMD_ALT, Key::D), Action::CompareTabs),
         (s(SHIFT, Key::F7), Action::PrevDifference),
         (s(NONE, Key::F7), Action::NextDifference),

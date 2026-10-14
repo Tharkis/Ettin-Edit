@@ -7,7 +7,9 @@ NixPad is an original, clean-room implementation written in Rust: it shares no c
 
 ## Status
 
-Release 0.7 adds split view (two tabs side by side, or one document in both views)
+Release 0.8 adds CsvQuery: SQL over the CSV or TSV file you have open, with joins
+across open tabs, a sortable results grid, column statistics, and results to a new tab.
+Release 0.7 added split view (two tabs side by side, or one document in both views)
 and Compare, a built-in take on ComparePlus: compare two tabs, the last save, the
 clipboard, the last Git commit or two selections, with word-level highlights, moved
 blocks, an overview bar and patch export. Release 0.6 added the Tools menu, with built-in versions of three favourite Notepad++
@@ -72,7 +74,8 @@ appears under **Theme > Custom** on the next start:
 | `src/search.rs` | Search queries (plain, whole word, regex), replacement templates, and Find in Files |
 | `src/search_ui.rs` | The find bar, results panel, and the Go to Line and Find in Files dialogs |
 | `src/tools_ui.rs` | The Column Editor and macro dialogs |
-| `src/tools/` | The Tools menu's text tools: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0) |
+| `src/tools/` | The Tools menu's text tools: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0), `csv.rs` (reading delimited text), `sql.rs` (CsvQuery's SQLite tables and queries) |
+| `src/csv_query.rs`, `src/app/csv_query.rs` | The CsvQuery panel, its background query thread, and which tabs are tables |
 | `src/text_tools_ui.rs` | The JSON tree and XPath panels, and the notices tools show |
 | `src/menu.rs`, `src/app/menus.rs` | Menus as data, so the Edit and Tools menus are drawn in both the menu bar and the right-click menu |
 | `src/app/text_tools.rs` | Runs the text tools on the current document |
