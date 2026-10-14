@@ -4,6 +4,7 @@ mod commands;
 mod compare;
 mod csv_query;
 mod menus;
+mod panels;
 mod plugins;
 mod text_tools;
 mod views;
@@ -108,6 +109,9 @@ pub struct EttinApp {
     command_palette: crate::palette_ui::Picker,
     style_editor: crate::style_ui::StyleEditor,
     tab_picker: crate::palette_ui::Picker,
+    folders: crate::folder_ui::FolderPanel,
+    /// Full screen with only the text showing.
+    distraction_free: bool,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -251,7 +255,12 @@ impl EttinApp {
             command_palette: crate::palette_ui::Picker::default(),
             style_editor: crate::style_ui::StyleEditor::default(),
             tab_picker: crate::palette_ui::Picker::default(),
+            folders: crate::folder_ui::FolderPanel::default(),
+            distraction_free: false,
         };
+        if let Some(dir) = app.settings.workspace.clone() {
+            app.folders.set_root(&dir);
+        }
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
         app.fif.subfolders = app.settings.fif_subfolders;
@@ -1285,6 +1294,50 @@ impl EttinApp {
                 self.settings.indent_guides = !self.settings.indent_guides
             }
             Action::ToggleEdge => self.settings.show_edge = !self.settings.show_edge,
+            Action::ToggleDocMap => self.settings.doc_map = !self.settings.doc_map,
+            Action::ToggleFunctionList => {
+                self.settings.function_list = !self.settings.function_list
+            }
+            Action::ToggleFolderPanel => {
+                if self.settings.workspace.is_none() && !self.settings.folder_panel {
+                    self.pending.push(Action::OpenFolderAsWorkspace);
+                } else {
+                    self.settings.folder_panel = !self.settings.folder_panel;
+                }
+            }
+            Action::OpenFolderAsWorkspace => {
+                let start = self.settings.workspace.clone().or_else(|| {
+                    self.docs
+                        .get(self.active)
+                        .and_then(|d| d.path.as_ref()?.parent().map(Path::to_path_buf))
+                });
+                let mut dialog = rfd::FileDialog::new().set_title("Open Folder as Workspace");
+                if let Some(dir) = start {
+                    dialog = dialog.set_directory(dir);
+                }
+                if let Some(dir) = dialog.pick_folder() {
+                    self.folders.set_root(&dir);
+                    self.settings.workspace = Some(dir);
+                    self.settings.folder_panel = true;
+                }
+            }
+            Action::CloseWorkspace => {
+                self.settings.workspace = None;
+                self.settings.folder_panel = false;
+                self.folders = crate::folder_ui::FolderPanel::default();
+            }
+            Action::ToggleDistractionFree => {
+                self.distraction_free = !self.distraction_free;
+                ctx.send_viewport_cmd(ViewportCommand::Fullscreen(self.distraction_free));
+                if self.distraction_free {
+                    self.notice = Some(Notice {
+                        text: "Distraction-free mode. Press F11 to leave it.".to_owned(),
+                        error: false,
+                        since: None,
+                        jump: None,
+                    });
+                }
+            }
             Action::ToggleAutoClose => self.settings.auto_close = !self.settings.auto_close,
             Action::ToggleSmartIndent => self.settings.smart_indent = !self.settings.smart_indent,
             Action::ToggleUseSpaces => self.settings.use_spaces = !self.settings.use_spaces,
@@ -1798,6 +1851,15 @@ impl EttinApp {
                 });
                 self.menu_item(ui, "Open Terminal Here", Action::OpenTerminalHere);
                 ui.separator();
+                self.menu_item(
+                    ui,
+                    "Open Folder as Workspace…",
+                    Action::OpenFolderAsWorkspace,
+                );
+                if self.settings.workspace.is_some() {
+                    self.menu_item(ui, "Close Workspace", Action::CloseWorkspace);
+                }
+                ui.separator();
                 self.menu_item(ui, "Close", Action::CloseTab);
                 self.menu_item(ui, "Close All", Action::CloseAll);
                 self.menu_item(ui, "Close Others", Action::CloseOthers);
@@ -1875,6 +1937,28 @@ impl EttinApp {
                     s.show_edge,
                     Action::ToggleEdge,
                 );
+                ui.separator();
+                self.toggle_item(
+                    ui,
+                    "Function List",
+                    s.function_list,
+                    Action::ToggleFunctionList,
+                );
+                self.toggle_item(ui, "Document Map", s.doc_map, Action::ToggleDocMap);
+                self.toggle_item(
+                    ui,
+                    "Folder as Workspace",
+                    s.folder_panel,
+                    Action::ToggleFolderPanel,
+                );
+                self.toggle_item(
+                    ui,
+                    "Distraction-Free Mode",
+                    self.distraction_free,
+                    Action::ToggleDistractionFree,
+                );
+                self.menu_item(ui, "Tab List…", Action::TabList);
+                self.menu_item(ui, "Command Palette…", Action::CommandPalette);
                 ui.separator();
                 self.menu_item(ui, "Move to Other View", Action::MoveActiveToOtherView);
                 self.menu_item(ui, "Clone to Other View", Action::CloneActiveToOtherView);
@@ -2872,33 +2956,38 @@ impl eframe::App for EttinApp {
         self.plugins_frame(&ctx);
         let palette = self.palette();
 
-        egui::Panel::top("menu-bar")
-            .frame(
-                Frame::new()
-                    .fill(palette.chrome_bg)
-                    .inner_margin(Margin::symmetric(6, 4)),
-            )
-            .show_separator_line(false)
-            .show(ui, |ui| self.menu_bar(ui));
-        egui::Panel::top("tab-bar")
-            .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
-                left: 6,
-                right: 6,
-                top: 2,
-                bottom: 0,
-            }))
-            .show_separator_line(false)
-            .show(ui, |ui| self.tab_bars(ui));
-        egui::Panel::bottom("status-bar")
-            .frame(
-                Frame::new()
-                    .fill(palette.chrome_bg)
-                    .inner_margin(Margin::symmetric(10, 3)),
-            )
-            .show_separator_line(false)
-            .show(ui, |ui| self.status_bar(ui));
-        self.xpath_panel(ui, &ctx);
-        if self.results.open {
+        if !self.distraction_free {
+            egui::Panel::top("menu-bar")
+                .frame(
+                    Frame::new()
+                        .fill(palette.chrome_bg)
+                        .inner_margin(Margin::symmetric(6, 4)),
+                )
+                .show_separator_line(false)
+                .show(ui, |ui| self.menu_bar(ui));
+            egui::Panel::top("tab-bar")
+                .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
+                    left: 6,
+                    right: 6,
+                    top: 2,
+                    bottom: 0,
+                }))
+                .show_separator_line(false)
+                .show(ui, |ui| self.tab_bars(ui));
+            egui::Panel::bottom("status-bar")
+                .frame(
+                    Frame::new()
+                        .fill(palette.chrome_bg)
+                        .inner_margin(Margin::symmetric(10, 3)),
+                )
+                .show_separator_line(false)
+                .show(ui, |ui| self.status_bar(ui));
+        }
+        let panels = !self.distraction_free;
+        if panels {
+            self.xpath_panel(ui, &ctx);
+        }
+        if panels && self.results.open {
             if self.results.poll() {
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
@@ -2955,13 +3044,32 @@ impl eframe::App for EttinApp {
                 });
             self.pending.extend(picked);
         }
-        self.plugin_panels(ui);
-        self.json_tree_panel(ui, &ctx);
-        self.csv_query_panel(ui, &ctx);
+        if panels {
+            self.plugin_panels(ui);
+            self.json_tree_panel(ui, &ctx);
+            self.csv_query_panel(ui, &ctx);
+            self.folder_panel(ui);
+            self.doc_map_panel(ui);
+        }
         self.record_editor_input(&ctx);
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
-            .show(ui, |ui| self.editor_area(ui));
+            .show(ui, |ui| {
+                if self.distraction_free {
+                    // A centred column about 100 characters wide.
+                    let font = FontId::monospace(self.settings.font_size);
+                    let char_w = ui.fonts_mut(|f| f.glyph_width(&font, 'M'));
+                    let rect = ui.max_rect();
+                    let width = (char_w * 100.0 + 80.0).min(rect.width());
+                    let column =
+                        Rect::from_center_size(rect.center(), Vec2::new(width, rect.height()));
+                    ui.scope_builder(egui::UiBuilder::new().max_rect(column), |ui| {
+                        self.editor_area(ui)
+                    });
+                } else {
+                    self.editor_area(ui)
+                }
+            });
 
         self.close_queue_ui(&ctx);
         self.dialogs(&ctx);

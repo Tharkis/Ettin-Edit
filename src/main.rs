@@ -11,6 +11,7 @@ mod document;
 mod editor;
 mod encoding;
 mod file_ui;
+mod folder_ui;
 mod fonts;
 mod highlight;
 mod instance;

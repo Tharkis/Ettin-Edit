@@ -7,6 +7,7 @@ mod fold;
 pub mod highlight;
 pub mod layout;
 pub mod lines;
+mod map;
 pub mod selection;
 mod smart;
 mod view;
@@ -65,6 +66,10 @@ pub struct Editor {
     /// The carets and scrolling of the other view, when the document is shown
     /// in both views of a split. Swapped in with [`Editor::swap_view`].
     other_view: Option<Box<ViewState>>,
+    /// The first visible row (fractional) and how many rows fit, for the document map.
+    map_view: (f32, f32),
+    /// A row the document map asked the view to scroll to.
+    map_scroll: Option<f32>,
 }
 
 /// What each view of a document keeps for itself: carets, scrolling and
@@ -133,6 +138,8 @@ impl Editor {
             column_drag: None,
             folds: BTreeMap::new(),
             other_view: None,
+            map_view: (0.0, 1.0),
+            map_scroll: None,
         }
     }
 

@@ -423,6 +423,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(NONE, Key::F7), Action::NextDifference),
         (s(CMD, Key::Comma), Action::Preferences),
         (s(NONE, Key::F1), Action::CommandPalette),
+        (s(NONE, Key::F11), Action::ToggleDistractionFree),
         (s(CMD, Key::N), Action::NewTab),
         (s(CMD, Key::O), Action::Open),
         (s(CMD_SHIFT, Key::S), Action::SaveAll),
