@@ -172,6 +172,11 @@ ticked off too; this section covers what sits around them.
 - [x] Shortcuts: Ctrl+Alt+M format JSON/JS, Ctrl+Alt+N minify, Ctrl+Alt+Shift+B pretty print XML, Ctrl+Alt+Shift+L linearize, Ctrl+Alt+Shift+M check XML, Ctrl+Alt+Shift+P copy XPath
 - [ ] XPath variables and the namespace axis (rarely used; not planned yet)
 
+## Release 0.6.1: right-click menu (done)
+
+- [x] The editor's right-click menu has the whole Edit menu (Undo through Read-Only, with every submenu) and the Tools menu
+- [x] Undo, Redo, Cut and Copy are greyed out when there is nothing to undo, redo or copy (in the Edit menu too)
+
 ## Core editor features still missing
 
 ### Editing

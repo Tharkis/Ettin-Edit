@@ -21,6 +21,7 @@ use super::layout::{char_cols, wrap_points};
 use super::selection::{Selection, Selections};
 use super::smart::ColumnSel;
 use super::{DragMode, Editor};
+use crate::menu::{self, MenuEntry};
 use crate::theme::Palette;
 
 /// Lines longer than this (in chars) are drawn a window at a time when not wrapping.
@@ -55,6 +56,8 @@ pub struct ViewConfig<'a> {
     pub indent_guides: bool,
     /// Draw a vertical line at this column.
     pub edge_column: Option<usize>,
+    /// The right-click menu; when empty, a built-in Undo/Cut/Copy/Paste menu.
+    pub context_menu: &'a [MenuEntry],
 }
 
 /// One laid-out visual row.
@@ -607,8 +610,10 @@ impl Editor {
         layout
     }
 
-    /// Draws the editor and handles its input. Call once per frame.
-    pub fn show(&mut self, ui: &mut Ui, id: Id, cfg: &ViewConfig) {
+    /// Draws the editor and handles its input. Call once per frame. Returns
+    /// the id of a clicked `cfg.context_menu` item.
+    pub fn show(&mut self, ui: &mut Ui, id: Id, cfg: &ViewConfig) -> Option<usize> {
+        let mut menu_clicked = None;
         let palette = cfg.palette;
         let metrics = Metrics {
             row_h: ui.fonts_mut(|f| f.row_height(&cfg.font)),
@@ -1146,7 +1151,7 @@ impl Editor {
                     });
                 }
 
-                self.context_menu(&response);
+                menu_clicked = self.context_menu(&response, cfg.context_menu);
             });
         let _ = scroll;
         if let Some(at) = popup_at {
@@ -1156,6 +1161,7 @@ impl Editor {
         if needs_repaint || self.buffer.version() != version_before {
             ui.ctx().request_repaint();
         }
+        menu_clicked
     }
 
     /// The word-completion list under the caret.
@@ -1200,8 +1206,13 @@ impl Editor {
         }
     }
 
-    fn context_menu(&mut self, response: &egui::Response) {
+    fn context_menu(&mut self, response: &egui::Response, extra: &[MenuEntry]) -> Option<usize> {
+        let mut clicked = None;
         response.context_menu(|ui| {
+            if !extra.is_empty() {
+                clicked = menu::show(ui, extra);
+                return;
+            }
             let has_sel = self.selections.has_selection();
             let ctx = ui.ctx().clone();
             if ui
@@ -1235,6 +1246,7 @@ impl Editor {
                 self.select_all();
             }
         });
+        clicked
     }
 
     /// Returns true if the text changed.

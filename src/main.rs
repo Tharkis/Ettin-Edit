@@ -12,6 +12,7 @@ mod fonts;
 mod highlight;
 mod instance;
 mod macros;
+mod menu;
 mod search;
 mod search_ui;
 mod session;

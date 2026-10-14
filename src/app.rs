@@ -1,5 +1,6 @@
 //! The NixPad window: menu bar, tab strip, editor and status bar.
 
+mod menus;
 mod text_tools;
 
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ use egui::{
 
 use crate::actions::{self, Action};
 use crate::document::{DiskChange, DiskStamp, Document, LineEnding};
-use crate::editor::lines::{CaseKind, SortKind, TrimKind, comment_tokens};
+use crate::editor::lines::comment_tokens;
 use crate::editor::{EditOptions, FindOutcome, MAX_HIGHLIGHTS, ViewConfig};
 use crate::encoding::TextEncoding;
 use crate::file_ui::{self, RenameDialog, Summary};
@@ -1541,7 +1542,7 @@ impl NixPadApp {
                 ui.separator();
                 self.menu_item(ui, "Exit", Action::Quit);
             });
-            ui.menu_button("Edit", |ui| self.edit_menu(ui));
+            ui.menu_button("Edit", |ui| self.shared_menu(ui, false));
             ui.menu_button("Search", |ui| {
                 self.menu_item(ui, "Find…", Action::Find);
                 self.menu_item(ui, "Replace…", Action::Replace);
@@ -1712,122 +1713,12 @@ impl NixPadApp {
                     ui.add(egui::DragValue::new(&mut self.settings.edge_column).range(10..=400));
                 });
             });
-            ui.menu_button("Tools", |ui| self.tools_menu(ui));
+            ui.menu_button("Tools", |ui| self.shared_menu(ui, true));
             ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
                 self.menu_item(ui, "About NixPad", Action::About);
             });
         });
-    }
-
-    fn edit_menu(&mut self, ui: &mut Ui) {
-        let read_only = self
-            .docs
-            .get(self.active)
-            .is_some_and(|d| d.editor.buffer.read_only);
-        self.menu_item(ui, "Undo", Action::Undo);
-        self.menu_item(ui, "Redo", Action::Redo);
-        ui.separator();
-        self.menu_item(ui, "Cut", Action::Cut);
-        self.menu_item(ui, "Copy", Action::Copy);
-        self.menu_item(ui, "Paste", Action::Paste);
-        self.menu_item(ui, "Select All", Action::SelectAll);
-        ui.separator();
-        ui.menu_button("Line Operations", |ui| {
-            self.menu_item(ui, "Duplicate", Action::Duplicate);
-            self.menu_item(ui, "Delete Lines", Action::DeleteLines);
-            self.menu_item(ui, "Move Up", Action::MoveLinesUp);
-            self.menu_item(ui, "Move Down", Action::MoveLinesDown);
-            self.menu_item(ui, "Join Lines", Action::JoinLines);
-            self.menu_item(ui, "Split Lines at Long-Line Column", Action::SplitLines);
-            self.menu_item(ui, "Insert Blank Line Above", Action::InsertBlankAbove);
-            self.menu_item(ui, "Insert Blank Line Below", Action::InsertBlankBelow);
-            ui.separator();
-            for (label, kind) in [
-                ("Lexicographically", SortKind::Lexical),
-                ("Ignoring Case", SortKind::IgnoreCase),
-                ("As Integers", SortKind::Integer),
-                ("As Decimals", SortKind::Decimal),
-                ("By Length", SortKind::Length),
-            ] {
-                self.menu_item(
-                    ui,
-                    &format!("Sort {label} Ascending"),
-                    Action::SortLines { kind, desc: false },
-                );
-                self.menu_item(
-                    ui,
-                    &format!("Sort {label} Descending"),
-                    Action::SortLines { kind, desc: true },
-                );
-            }
-            self.menu_item(ui, "Reverse Line Order", Action::ReverseLines);
-            ui.separator();
-            self.menu_item(ui, "Remove Duplicate Lines", Action::RemoveDuplicateLines);
-            self.menu_item(
-                ui,
-                "Remove Consecutive Duplicate Lines",
-                Action::RemoveConsecutiveDuplicates,
-            );
-            self.menu_item(
-                ui,
-                "Remove Empty Lines",
-                Action::RemoveEmptyLines { blank: false },
-            );
-            self.menu_item(
-                ui,
-                "Remove Empty Lines (Including Blank Ones)",
-                Action::RemoveEmptyLines { blank: true },
-            );
-        });
-        ui.menu_button("Convert Case To", |ui| {
-            self.menu_item(ui, "UPPERCASE", Action::ConvertCase(CaseKind::Upper));
-            self.menu_item(ui, "lowercase", Action::ConvertCase(CaseKind::Lower));
-            self.menu_item(ui, "Title Case", Action::ConvertCase(CaseKind::Title));
-            self.menu_item(ui, "Sentence case", Action::ConvertCase(CaseKind::Sentence));
-            self.menu_item(ui, "iNVERT cASE", Action::ConvertCase(CaseKind::Invert));
-        });
-        ui.menu_button("Comment", |ui| {
-            self.menu_item(ui, "Toggle Line Comment", Action::ToggleLineComment);
-            self.menu_item(ui, "Toggle Block Comment", Action::ToggleBlockComment);
-        });
-        ui.menu_button("Blank Operations", |ui| {
-            self.menu_item(ui, "Trim Trailing Space", Action::Trim(TrimKind::Trailing));
-            self.menu_item(ui, "Trim Leading Space", Action::Trim(TrimKind::Leading));
-            self.menu_item(
-                ui,
-                "Trim Leading and Trailing Space",
-                Action::Trim(TrimKind::Both),
-            );
-            self.menu_item(ui, "EOL to Space", Action::EolToSpace);
-            ui.separator();
-            self.menu_item(ui, "Tabs to Spaces", Action::TabsToSpaces);
-            self.menu_item(
-                ui,
-                "Leading Spaces to Tabs",
-                Action::SpacesToTabs { all: false },
-            );
-            self.menu_item(ui, "All Spaces to Tabs", Action::SpacesToTabs { all: true });
-        });
-        ui.menu_button("Insert", |ui| {
-            self.menu_item(
-                ui,
-                "Date and Time (Short)",
-                Action::InsertDateTime { long: false },
-            );
-            self.menu_item(
-                ui,
-                "Date and Time (Long)",
-                Action::InsertDateTime { long: true },
-            );
-        });
-        ui.menu_button("Multi-Select", |ui| {
-            self.menu_item(ui, "Select Next Occurrence", Action::SelectNextOccurrence);
-            self.menu_item(ui, "Select All Occurrences", Action::SelectAllOccurrences);
-        });
-        self.menu_item(ui, "Column Editor…", Action::ColumnEditor);
-        ui.separator();
-        self.toggle_item(ui, "Read-Only", read_only, Action::ToggleReadOnly);
     }
 
     /// Convert the encoding used when saving, or read the file again in another one.
@@ -2135,6 +2026,9 @@ impl NixPadApp {
         let palette = self.palette();
         let theme_def = &self.themes[self.theme_idx];
         let request_focus = std::mem::take(&mut self.focus_editor) && !self.any_dialog_open();
+        let ctx = ui.ctx().clone();
+        let mut menu_model = menus::MenuModel::new(&ctx);
+        let context_menu = self.context_menu(&mut menu_model);
         let Some(doc) = self.docs.get_mut(self.active) else {
             return;
         };
@@ -2174,8 +2068,12 @@ impl NixPadApp {
             eol_label,
             indent_guides: s.indent_guides,
             edge_column: s.show_edge.then_some(s.edge_column),
+            context_menu: &context_menu,
         };
-        doc.editor.show(ui, Id::new(("editor", doc.id)), &cfg);
+        let clicked = doc.editor.show(ui, Id::new(("editor", doc.id)), &cfg);
+        if let Some(action) = clicked.and_then(|id| menu_model.action(id)) {
+            self.pending.push(action);
+        }
     }
 
     fn status_bar(&mut self, ui: &mut Ui) {
