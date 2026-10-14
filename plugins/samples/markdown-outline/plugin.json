@@ -1,0 +1,7 @@
+{
+  "name": "Markdown Outline",
+  "version": "1.0.0",
+  "description": "A clickable outline of Markdown headings, plus Insert UUID and Wrap Lines. A sample plugin in JavaScript.",
+  "author": "NixPad",
+  "main": "main.js"
+}

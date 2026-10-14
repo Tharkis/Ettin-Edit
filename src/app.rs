@@ -3,6 +3,7 @@
 mod compare;
 mod csv_query;
 mod menus;
+mod plugins;
 mod text_tools;
 mod views;
 
@@ -98,6 +99,8 @@ pub struct NixPadApp {
     previous_tab: Option<u64>,
     /// When Compare to Clipboard asked for the clipboard text.
     clipboard_compare: Option<f64>,
+    plugins: crate::plugins::PluginHost,
+    plugin_ui: plugins::PluginUi,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -163,6 +166,11 @@ impl NixPadApp {
             compare: None,
             previous_tab: None,
             clipboard_compare: None,
+            plugins: crate::plugins::PluginHost::new({
+                let ctx = cc.egui_ctx.clone();
+                std::sync::Arc::new(move || ctx.request_repaint())
+            }),
+            plugin_ui: plugins::PluginUi::default(),
         };
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
@@ -350,6 +358,7 @@ impl NixPadApp {
                 }
                 self.settings.push_recent(path);
                 self.check_after_save(index);
+                self.plugin_ui.saved.push(self.docs[index].id);
                 true
             }
             Err(e) => {
@@ -1063,6 +1072,13 @@ impl NixPadApp {
             | Action::RunCsvQuery
             | Action::CopyCsvResults
             | Action::CsvResultsToNewTab => self.run_csv_action(ctx, action),
+            Action::PluginCommand { .. }
+            | Action::ManagePlugins
+            | Action::ShowPluginLog
+            | Action::OpenPluginsFolder
+            | Action::ReloadPlugins
+            | Action::InstallSamplePlugins
+            | Action::PluginGuide => self.run_plugin_action(ctx, action),
             _ => self.run_edit(ctx, action),
         }
         if focus_editor {
@@ -1292,6 +1308,7 @@ impl NixPadApp {
             || self.rename.open
             || self.trash_confirm.is_some()
             || self.summary.is_some()
+            || self.plugin_modal_open()
     }
 
     // ---------------------------------------------------------------------
@@ -1553,8 +1570,18 @@ impl NixPadApp {
     fn handle_input(&mut self, ctx: &egui::Context) {
         if !self.any_dialog_open() {
             let mut fired = Vec::new();
+            let mut shortcuts = actions::shortcuts();
+            let extra = self.plugins.shortcuts();
+            if !extra.is_empty() {
+                // Shift and Alt may be held for a shortcut without them, so
+                // the ones with more modifiers must be tried first.
+                shortcuts.extend(extra);
+                shortcuts.sort_by_key(|(s, _)| {
+                    std::cmp::Reverse(crate::plugins::shortcut::modifier_count(s))
+                });
+            }
             ctx.input_mut(|i| {
-                for (shortcut, action) in actions::shortcuts() {
+                for (shortcut, action) in shortcuts {
                     // A key can repeat more than once in a frame.
                     while i.consume_shortcut(&shortcut) {
                         fired.push(action.clone());
@@ -1824,6 +1851,7 @@ impl NixPadApp {
                 });
             });
             ui.menu_button("Tools", |ui| self.shared_menu(ui, true));
+            ui.menu_button("Plugins", |ui| self.plugins_menu(ui));
             ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
                 self.menu_item(ui, "About NixPad", Action::About);
@@ -2574,6 +2602,8 @@ impl eframe::App for NixPadApp {
         self.fix_views();
         self.handle_input(&ctx);
         self.take_clipboard(&ctx);
+        self.start_plugins(&ctx);
+        self.plugins_frame(&ctx);
         let palette = self.palette();
 
         egui::Panel::top("menu-bar")
@@ -2659,6 +2689,7 @@ impl eframe::App for NixPadApp {
                 });
             self.pending.extend(picked);
         }
+        self.plugin_panels(ui);
         self.json_tree_panel(ui, &ctx);
         self.csv_query_panel(ui, &ctx);
         self.record_editor_input(&ctx);
@@ -2668,6 +2699,7 @@ impl eframe::App for NixPadApp {
 
         self.close_queue_ui(&ctx);
         self.dialogs(&ctx);
+        self.plugin_dialogs(&ctx);
         self.notice_ui(&ctx);
 
         for action in std::mem::take(&mut self.pending) {
@@ -2681,6 +2713,10 @@ impl eframe::App for NixPadApp {
             self.write_backups();
         }
         self.settings.save();
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.plugins.shutdown();
     }
 }
 

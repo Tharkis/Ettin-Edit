@@ -696,6 +696,122 @@ impl Editor {
         self.scroll_to_caret = false;
     }
 
+    // ------------------------------------------------------------------
+    // Edits from plugins
+
+    /// Replaces char ranges as one undo step; ranges must not overlap.
+    /// Carets move with the text. False if the text is read-only.
+    pub fn edit_ranges(
+        &mut self,
+        ctx: &egui::Context,
+        mut edits: Vec<(Range<usize>, String)>,
+    ) -> bool {
+        if self.buffer.read_only {
+            return false;
+        }
+        let len = self.buffer.len_chars();
+        for (r, _) in &mut edits {
+            r.end = r.end.min(len);
+            r.start = r.start.min(r.end);
+        }
+        edits.sort_by_key(|(r, _)| (r.start, r.end));
+        let sizes: Vec<(Range<usize>, usize)> = edits
+            .iter()
+            .map(|(r, t)| (r.clone(), t.chars().count()))
+            .collect();
+        let before = self.selections.clone();
+        let mut after = before.clone();
+        after.map(|s| Selection {
+            anchor: map_through(s.anchor, &sizes),
+            head: map_through(s.head, &sizes),
+            goal_col: None,
+        });
+        let reps = edits
+            .into_iter()
+            .map(|(range, text)| Replacement {
+                range,
+                text,
+                caret: Selection::caret(0),
+            })
+            .collect();
+        let after = self
+            .buffer
+            .apply_explicit(&before, reps, after, Self::now(ctx));
+        self.set_selections(after);
+        true
+    }
+
+    /// Replaces the whole text as one undo step, keeping the carets where
+    /// they still fit. False if the text is read-only.
+    pub fn set_text_undoable(&mut self, ctx: &egui::Context, text: &str) -> bool {
+        if self.buffer.read_only {
+            return false;
+        }
+        if *self.buffer.rope() == text {
+            return true;
+        }
+        let before = self.selections.clone();
+        let mut after = before.clone();
+        after.clamp(text.chars().count());
+        let replacement = Replacement {
+            range: 0..self.buffer.len_chars(),
+            text: text.to_owned(),
+            caret: Selection::caret(0),
+        };
+        let after = self
+            .buffer
+            .apply_explicit(&before, vec![replacement], after, Self::now(ctx));
+        self.set_selections(after);
+        true
+    }
+
+    /// Replaces each selection, in document order, with a text and selects
+    /// it; a single text replaces every selection. One undo step.
+    pub fn replace_selections(
+        &mut self,
+        ctx: &egui::Context,
+        texts: &[String],
+    ) -> Result<(), String> {
+        if self.buffer.read_only {
+            return Err("The document is read-only".to_owned());
+        }
+        let n = self.selections.len();
+        if texts.len() != 1 && texts.len() != n {
+            return Err(format!("Got {} texts for {n} selections", texts.len()));
+        }
+        let before = self.selections.clone();
+        let reps = before
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                let text = texts[if texts.len() == 1 { 0 } else { i }].clone();
+                let len = text.chars().count();
+                Replacement {
+                    range: s.range(),
+                    text,
+                    caret: Selection::new(0, len),
+                }
+            })
+            .collect();
+        let after = self
+            .buffer
+            .apply(&before, reps, EditKind::Other, Self::now(ctx));
+        self.set_selections(after);
+        Ok(())
+    }
+
+    /// Sets the selections from (anchor, head) pairs; the first is the main
+    /// one. Scrolls to it.
+    pub fn select_ranges(&mut self, ranges: &[(usize, usize)]) {
+        let len = self.buffer.len_chars();
+        let sels = ranges
+            .iter()
+            .map(|&(a, h)| Selection::new(a.min(len), h.min(len)))
+            .collect();
+        self.set_selections(Selections::from_vec(sels, 0));
+        self.reveal_carets();
+    }
+
     /// Replaces the whole text (e.g. reload); clears history.
     #[allow(dead_code)]
     pub fn replace_all_text(&mut self, text: &str) {
@@ -708,6 +824,23 @@ impl Editor {
         self.bookmarks.clear();
         self.folds.clear();
     }
+}
+
+/// Where a position ends up after replacing `edits` (sorted ranges, each with
+/// the length of its new text). Inside a replaced range it moves to the end.
+fn map_through(pos: usize, edits: &[(Range<usize>, usize)]) -> usize {
+    let mut delta: isize = 0;
+    for (r, n) in edits {
+        if pos < r.start || (pos == r.start && r.start < r.end) {
+            break;
+        }
+        if pos >= r.end {
+            delta += *n as isize - r.len() as isize;
+            continue;
+        }
+        return (r.start as isize + delta) as usize + n;
+    }
+    (pos as isize + delta) as usize
 }
 
 #[cfg(test)]
@@ -766,6 +899,46 @@ mod tests {
         e.selections = Selections::from_vec(vec![Selection::caret(1), Selection::caret(3)], 0);
         e.paste(&ctx, "1\n2");
         assert_eq!(e.buffer.text(), "x1\ny2");
+    }
+
+    #[test]
+    fn plugin_edits_move_carets() {
+        let ctx = egui::Context::default();
+        let mut e = ed("hello world", 8);
+        assert!(e.edit_ranges(&ctx, vec![(0..5, "hi".into()), (11..11, "!".into())]));
+        assert_eq!(e.buffer.text(), "hi world!");
+        assert_eq!(e.selections.primary().head, 5);
+        e.undo();
+        assert_eq!(e.buffer.text(), "hello world");
+
+        e.selections = Selections::from_vec(vec![Selection::new(0, 5), Selection::new(6, 11)], 0);
+        e.replace_selections(&ctx, &["A".into(), "B".into()])
+            .unwrap();
+        assert_eq!(e.buffer.text(), "A B");
+        assert!(
+            e.replace_selections(&ctx, &["x".into(), "y".into(), "z".into()])
+                .is_err()
+        );
+        e.replace_selections(&ctx, &["-".into()]).unwrap();
+        assert_eq!(e.buffer.text(), "- -");
+
+        assert!(e.set_text_undoable(&ctx, "new"));
+        assert_eq!(e.buffer.text(), "new");
+        e.select_ranges(&[(3, 1)]);
+        assert_eq!(e.selections.primary().range(), 1..3);
+        e.buffer.read_only = true;
+        assert!(!e.set_text_undoable(&ctx, "x"));
+        assert!(!e.edit_ranges(&ctx, vec![(0..1, "x".into())]));
+    }
+
+    #[test]
+    fn map_through_edits() {
+        let edits = [(2..4, 1), (6..6, 3)];
+        assert_eq!(map_through(1, &edits), 1);
+        assert_eq!(map_through(2, &edits), 2);
+        assert_eq!(map_through(3, &edits), 3);
+        assert_eq!(map_through(5, &edits), 4);
+        assert_eq!(map_through(6, &edits), 8);
     }
 
     #[test]
