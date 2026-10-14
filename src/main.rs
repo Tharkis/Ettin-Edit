@@ -5,6 +5,8 @@
 mod actions;
 mod app;
 mod document;
+mod editor;
+mod fonts;
 mod highlight;
 mod settings;
 mod theme;

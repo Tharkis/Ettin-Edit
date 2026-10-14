@@ -1,0 +1,596 @@
+//! NixPad's text editor engine: a rope buffer, multiple selections, editing
+//! commands, and a view that only lays out the rows on screen.
+
+pub mod buffer;
+pub mod highlight;
+pub mod layout;
+pub mod selection;
+mod view;
+
+use unicode_segmentation::UnicodeSegmentation;
+
+use buffer::{Buffer, EditKind, Replacement};
+use highlight::LineHighlighter;
+use layout::RowIndex;
+use selection::{Selection, Selections};
+
+pub use view::ViewConfig;
+
+pub struct Editor {
+    pub buffer: Buffer,
+    pub selections: Selections,
+    rows: RowIndex,
+    highlighter: LineHighlighter,
+    /// Scroll the primary caret into view on the next frame.
+    scroll_to_caret: bool,
+    /// Where a mouse drag started, as a selection to extend from.
+    drag_origin: Option<Selection>,
+    drag_mode: DragMode,
+    /// IME composition text shown at the caret while typing in an input method.
+    preedit: Option<String>,
+    /// Rows that fit on screen, for Page Up / Page Down.
+    page_rows: usize,
+    /// Rows to scroll the view by on the next frame (Page Up / Page Down move the view with the caret).
+    pending_scroll_rows: isize,
+    /// Time, position and count of the last click, to detect double and triple clicks.
+    last_click: Option<(f64, egui::Pos2, u8)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DragMode {
+    Char,
+    Word,
+    Line,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CharClass {
+    Space,
+    Word,
+    Punct,
+}
+
+fn class(c: char) -> CharClass {
+    if c.is_whitespace() {
+        CharClass::Space
+    } else if c.is_alphanumeric() || c == '_' {
+        CharClass::Word
+    } else {
+        CharClass::Punct
+    }
+}
+
+impl Editor {
+    pub fn new(text: &str) -> Self {
+        let buffer = Buffer::new(text);
+        let rows = RowIndex::new(&buffer, None);
+        Self {
+            buffer,
+            selections: Selections::caret(0),
+            rows,
+            highlighter: LineHighlighter::default(),
+            scroll_to_caret: true,
+            drag_origin: None,
+            drag_mode: DragMode::Char,
+            preedit: None,
+            page_rows: 20,
+            pending_scroll_rows: 0,
+            last_click: None,
+        }
+    }
+
+    /// Line and column (both 1-based) of the primary caret. The column counts chars.
+    pub fn caret_line_col(&self) -> (usize, usize) {
+        let head = self.selections.primary().head;
+        let line = self.buffer.char_to_line(head);
+        (line + 1, head - self.buffer.line_start(line) + 1)
+    }
+
+    /// Total number of selected chars across all selections.
+    pub fn selected_chars(&self) -> usize {
+        self.selections.iter().map(|s| s.end() - s.start()).sum()
+    }
+
+    pub fn caret_count(&self) -> usize {
+        self.selections.len()
+    }
+
+    fn now(ctx: &egui::Context) -> f64 {
+        ctx.input(|i| i.time)
+    }
+
+    fn set_selections(&mut self, sels: Selections) {
+        self.selections = sels;
+        self.selections.clamp(self.buffer.len_chars());
+        self.scroll_to_caret = true;
+    }
+
+    // ------------------------------------------------------------------
+    // Positions
+
+    fn line_end(&self, line: usize) -> usize {
+        self.buffer.line_start(line) + self.buffer.line_len(line)
+    }
+
+    fn prev_grapheme(&self, pos: usize) -> usize {
+        if pos == 0 {
+            return 0;
+        }
+        let line = self.buffer.char_to_line(pos);
+        let start = self.buffer.line_start(line);
+        if pos == start {
+            return pos - 1;
+        }
+        let prefix = self.buffer.slice_string(start..pos);
+        let last = prefix
+            .graphemes(true)
+            .next_back()
+            .map_or(1, |g| g.chars().count());
+        pos - last
+    }
+
+    fn next_grapheme(&self, pos: usize) -> usize {
+        let len = self.buffer.len_chars();
+        if pos >= len {
+            return len;
+        }
+        let line = self.buffer.char_to_line(pos);
+        let end = self.line_end(line);
+        if pos >= end {
+            return (pos + 1).min(len);
+        }
+        let rest = self.buffer.slice_string(pos..end);
+        let first = rest.graphemes(true).next().map_or(1, |g| g.chars().count());
+        pos + first
+    }
+
+    fn prev_word(&self, pos: usize) -> usize {
+        let rope = self.buffer.rope();
+        let mut p = pos;
+        while p > 0 && class(rope.char(p - 1)) == CharClass::Space {
+            p -= 1;
+        }
+        if p > 0 {
+            let c = class(rope.char(p - 1));
+            while p > 0 && class(rope.char(p - 1)) == c {
+                p -= 1;
+            }
+        }
+        p
+    }
+
+    fn next_word(&self, pos: usize) -> usize {
+        let rope = self.buffer.rope();
+        let len = rope.len_chars();
+        let mut p = pos;
+        if p < len {
+            let c = class(rope.char(p));
+            if c != CharClass::Space {
+                while p < len && class(rope.char(p)) == c {
+                    p += 1;
+                }
+            }
+        }
+        while p < len && rope.char(p) != '\n' && class(rope.char(p)) == CharClass::Space {
+            p += 1;
+        }
+        if p == pos && p < len {
+            p += 1;
+        }
+        p
+    }
+
+    /// The word (or run of punctuation or spaces) around `pos`.
+    fn word_range(&self, pos: usize) -> (usize, usize) {
+        let rope = self.buffer.rope();
+        let len = rope.len_chars();
+        let line = self.buffer.char_to_line(pos);
+        let (ls, le) = (self.buffer.line_start(line), self.line_end(line));
+        let probe = if pos < le {
+            pos
+        } else if pos > ls {
+            pos - 1
+        } else {
+            return (pos, pos);
+        };
+        let c = class(rope.char(probe));
+        let mut a = probe;
+        while a > ls && class(rope.char(a - 1)) == c {
+            a -= 1;
+        }
+        let mut b = probe;
+        while b < le.min(len) && class(rope.char(b)) == c {
+            b += 1;
+        }
+        (a, b)
+    }
+
+    /// Start of the line's text after leading whitespace.
+    fn first_non_blank(&self, line: usize) -> usize {
+        let start = self.buffer.line_start(line);
+        let end = self.line_end(line);
+        let rope = self.buffer.rope();
+        let mut p = start;
+        while p < end && matches!(rope.char(p), ' ' | '\t') {
+            p += 1;
+        }
+        p
+    }
+
+    // ------------------------------------------------------------------
+    // Movement
+
+    pub fn move_horizontal(&mut self, forward: bool, by_word: bool, extend: bool) {
+        let mut sels = self.selections.clone();
+        sels.map(|s| {
+            if !extend && !s.is_empty() {
+                let p = if forward { s.end() } else { s.start() };
+                return Selection::caret(p);
+            }
+            let p = match (forward, by_word) {
+                (true, false) => self.next_grapheme(s.head),
+                (false, false) => self.prev_grapheme(s.head),
+                (true, true) => self.next_word(s.head),
+                (false, true) => self.prev_word(s.head),
+            };
+            s.moved_to(p, extend)
+        });
+        self.set_selections(sels);
+    }
+
+    pub fn move_home(&mut self, extend: bool, whole_doc: bool) {
+        let mut sels = self.selections.clone();
+        sels.map(|s| {
+            if whole_doc {
+                return s.moved_to(0, extend);
+            }
+            let line = self.buffer.char_to_line(s.head);
+            let smart = self.first_non_blank(line);
+            let target = if s.head == smart {
+                self.buffer.line_start(line)
+            } else {
+                smart
+            };
+            s.moved_to(target, extend)
+        });
+        self.set_selections(sels);
+    }
+
+    pub fn move_end(&mut self, extend: bool, whole_doc: bool) {
+        let len = self.buffer.len_chars();
+        let mut sels = self.selections.clone();
+        sels.map(|s| {
+            let target = if whole_doc {
+                len
+            } else {
+                self.line_end(self.buffer.char_to_line(s.head))
+            };
+            s.moved_to(target, extend)
+        });
+        self.set_selections(sels);
+    }
+
+    pub fn select_all(&mut self) {
+        self.set_selections(Selections::single(Selection::new(
+            0,
+            self.buffer.len_chars(),
+        )));
+    }
+
+    // ------------------------------------------------------------------
+    // Editing
+
+    fn edit(
+        &mut self,
+        ctx: &egui::Context,
+        kind: EditKind,
+        f: impl Fn(&Self, Selection) -> Replacement,
+    ) {
+        let reps: Vec<Replacement> = self.selections.iter().map(|&s| f(self, s)).collect();
+        let before = self.selections.clone();
+        let after = self.buffer.apply(&before, reps, kind, Self::now(ctx));
+        self.set_selections(after);
+    }
+
+    pub fn insert_text(&mut self, ctx: &egui::Context, text: &str) {
+        let n = text.chars().count();
+        let kind = if n == 1 && !text.starts_with(char::is_whitespace) {
+            EditKind::Insert
+        } else {
+            EditKind::Other
+        };
+        let kind = if text == " " { EditKind::Insert } else { kind };
+        self.edit(ctx, kind, |_, s| Replacement {
+            range: s.range(),
+            text: text.to_owned(),
+            caret: Selection::caret(n),
+        });
+    }
+
+    /// Pastes `text`; one line per caret when the line count matches the caret count.
+    pub fn paste(&mut self, ctx: &egui::Context, text: &str) {
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        let lines: Vec<&str> = text.split('\n').collect();
+        let per_caret = self.selections.len() > 1 && lines.len() == self.selections.len();
+        let reps: Vec<Replacement> = self
+            .selections
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                let t = if per_caret {
+                    lines[i].to_owned()
+                } else {
+                    text.clone()
+                };
+                let n = t.chars().count();
+                Replacement {
+                    range: s.range(),
+                    text: t,
+                    caret: Selection::caret(n),
+                }
+            })
+            .collect();
+        let before = self.selections.clone();
+        let after = self
+            .buffer
+            .apply(&before, reps, EditKind::Other, Self::now(ctx));
+        self.set_selections(after);
+    }
+
+    pub fn newline(&mut self, ctx: &egui::Context) {
+        self.edit(ctx, EditKind::Other, |ed, s| {
+            // Carry the current line's indentation onto the new line.
+            let line = ed.buffer.char_to_line(s.start());
+            let start = ed.buffer.line_start(line);
+            let indent_end = ed.first_non_blank(line).min(s.start());
+            let indent = ed.buffer.slice_string(start..indent_end);
+            let text = format!("\n{indent}");
+            let n = text.chars().count();
+            Replacement {
+                range: s.range(),
+                text,
+                caret: Selection::caret(n),
+            }
+        });
+    }
+
+    pub fn delete(&mut self, ctx: &egui::Context, forward: bool, by_word: bool) {
+        self.edit(ctx, EditKind::Delete, |ed, s| {
+            let range = if !s.is_empty() {
+                s.range()
+            } else if forward {
+                let to = if by_word {
+                    ed.next_word(s.head)
+                } else {
+                    ed.next_grapheme(s.head)
+                };
+                s.head..to
+            } else {
+                let from = if by_word {
+                    ed.prev_word(s.head)
+                } else {
+                    ed.prev_grapheme(s.head)
+                };
+                from..s.head
+            };
+            Replacement {
+                range,
+                text: String::new(),
+                caret: Selection::caret(0),
+            }
+        });
+    }
+
+    /// Tab: inserts a tab, or indents every line a multi-line selection touches.
+    pub fn indent(&mut self, ctx: &egui::Context, outdent: bool) {
+        let multi_line = self
+            .selections
+            .iter()
+            .any(|s| self.buffer.char_to_line(s.start()) != self.buffer.char_to_line(s.end()));
+        if !outdent && !multi_line {
+            self.insert_text(ctx, "\t");
+            return;
+        }
+        // Collect each touched line once.
+        let mut lines: Vec<usize> = Vec::new();
+        for s in self.selections.iter() {
+            let first = self.buffer.char_to_line(s.start());
+            let mut last = self.buffer.char_to_line(s.end());
+            if last > first && s.end() == self.buffer.line_start(last) {
+                last -= 1;
+            }
+            for l in first..=last {
+                if lines.last() != Some(&l) {
+                    lines.push(l);
+                }
+            }
+        }
+        lines.dedup();
+        let rope = self.buffer.rope();
+        let mut reps = Vec::new();
+        for &l in &lines {
+            let start = self.buffer.line_start(l);
+            if outdent {
+                let mut n = 0;
+                let end = self.line_end(l);
+                while start + n < end && n < layout::TAB_WIDTH && rope.char(start + n) == ' ' {
+                    n += 1;
+                }
+                if n == 0 && start < end && rope.char(start) == '\t' {
+                    n = 1;
+                }
+                if n > 0 {
+                    reps.push(Replacement {
+                        range: start..start + n,
+                        text: String::new(),
+                        caret: Selection::caret(0),
+                    });
+                }
+            } else if self.buffer.line_len(l) > 0 {
+                reps.push(Replacement {
+                    range: start..start,
+                    text: "\t".into(),
+                    caret: Selection::caret(1),
+                });
+            }
+        }
+        if reps.is_empty() {
+            return;
+        }
+        // Shift each selection end by what was inserted or removed before it.
+        let shifts: Vec<(usize, isize)> = reps
+            .iter()
+            .map(|r| {
+                (
+                    r.range.start,
+                    r.text.chars().count() as isize - r.range.len() as isize,
+                )
+            })
+            .collect();
+        let shift = |p: usize, caret: bool| -> usize {
+            let mut q = p as isize;
+            for &(at, d) in &shifts {
+                if at < p || (at == p && d > 0 && caret) {
+                    q += if d < 0 {
+                        -((p - at).min((-d) as usize) as isize)
+                    } else {
+                        d
+                    };
+                }
+            }
+            q.max(0) as usize
+        };
+        let before = self.selections.clone();
+        let new_sels: Vec<Selection> = before
+            .iter()
+            .map(|s| Selection::new(shift(s.anchor, s.is_empty()), shift(s.head, s.is_empty())))
+            .collect();
+        let time = Self::now(ctx);
+        self.buffer.apply(&before, reps, EditKind::Other, time);
+        self.set_selections(Selections::from_vec(new_sels, before.primary_index()));
+    }
+
+    pub fn undo(&mut self) {
+        if let Some(sels) = self.buffer.undo() {
+            self.set_selections(sels);
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(sels) = self.buffer.redo() {
+            self.set_selections(sels);
+        }
+    }
+
+    /// Text of all selections, one per line.
+    pub fn selected_text(&self) -> Option<String> {
+        if !self.selections.has_selection() {
+            return None;
+        }
+        let parts: Vec<String> = self
+            .selections
+            .iter()
+            .filter(|s| !s.is_empty())
+            .map(|s| self.buffer.slice_string(s.range()))
+            .collect();
+        Some(parts.join("\n"))
+    }
+
+    pub fn cut(&mut self, ctx: &egui::Context) -> Option<String> {
+        let text = self.selected_text()?;
+        self.edit(ctx, EditKind::Other, |_, s| Replacement {
+            range: s.range(),
+            text: String::new(),
+            caret: Selection::caret(0),
+        });
+        Some(text)
+    }
+
+    pub fn collapse_selections(&mut self) {
+        let mut sels = self.selections.clone();
+        if sels.len() > 1 {
+            sels.collapse_to_primary();
+        } else {
+            sels.map(|s| Selection::caret(s.head));
+        }
+        self.set_selections(sels);
+    }
+
+    /// Replaces the whole text (e.g. reload); clears history.
+    #[allow(dead_code)]
+    pub fn replace_all_text(&mut self, text: &str) {
+        let wrap = self.rows.wrap_cols();
+        self.buffer = Buffer::new(text);
+        self.rows = RowIndex::new(&self.buffer, wrap);
+        self.highlighter = LineHighlighter::default();
+        self.selections = Selections::caret(0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ed(text: &str, caret: usize) -> Editor {
+        let mut e = Editor::new(text);
+        e.selections = Selections::caret(caret);
+        e
+    }
+
+    #[test]
+    fn word_movement() {
+        let e = ed("foo.bar  baz", 0);
+        assert_eq!(e.next_word(0), 3);
+        assert_eq!(e.next_word(3), 4);
+        assert_eq!(e.next_word(4), 9);
+        assert_eq!(e.prev_word(12), 9);
+        assert_eq!(e.prev_word(9), 4);
+    }
+
+    #[test]
+    fn graphemes_move_as_one() {
+        let e = ed("e\u{301}x", 0);
+        assert_eq!(e.next_grapheme(0), 2);
+        assert_eq!(e.prev_grapheme(2), 0);
+    }
+
+    #[test]
+    fn newline_keeps_indent_and_backspace_deletes() {
+        let ctx = egui::Context::default();
+        let mut e = ed("    let x", 9);
+        e.newline(&ctx);
+        assert_eq!(e.buffer.text(), "    let x\n    ");
+        e.delete(&ctx, false, false);
+        assert_eq!(e.buffer.text(), "    let x\n   ");
+    }
+
+    #[test]
+    fn indent_and_outdent_lines() {
+        let ctx = egui::Context::default();
+        let mut e = ed("a\nb\nc", 0);
+        e.selections = Selections::single(Selection::new(0, 3));
+        e.indent(&ctx, false);
+        assert_eq!(e.buffer.text(), "\ta\n\tb\nc");
+        assert_eq!(e.selections.primary().range(), 0..5);
+        e.indent(&ctx, true);
+        assert_eq!(e.buffer.text(), "a\nb\nc");
+    }
+
+    #[test]
+    fn multi_caret_paste_distributes_lines() {
+        let ctx = egui::Context::default();
+        let mut e = ed("x\ny", 0);
+        e.selections = Selections::from_vec(vec![Selection::caret(1), Selection::caret(3)], 0);
+        e.paste(&ctx, "1\n2");
+        assert_eq!(e.buffer.text(), "x1\ny2");
+    }
+
+    #[test]
+    fn smart_home() {
+        let mut e = ed("   abc", 5);
+        e.move_home(false, false);
+        assert_eq!(e.selections.primary().head, 3);
+        e.move_home(false, false);
+        assert_eq!(e.selections.primary().head, 0);
+    }
+}

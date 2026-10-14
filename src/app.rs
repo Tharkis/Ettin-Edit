@@ -3,12 +3,13 @@
 use std::path::{Path, PathBuf};
 
 use egui::{
-    Align, Align2, CornerRadius, FontId, Frame, Id, Key, Layout, Margin, Pos2, Rect, RichText,
-    ScrollArea, Sense, Shape, Stroke, TextEdit, Ui, Vec2, ViewportCommand,
+    Align, CornerRadius, FontId, Frame, Id, Key, Layout, Margin, Pos2, Rect, RichText, ScrollArea,
+    Sense, Stroke, Ui, Vec2, ViewportCommand,
 };
 
 use crate::actions::{self, Action};
 use crate::document::{Document, LineEnding};
+use crate::editor::ViewConfig;
 use crate::highlight::{Highlighter, PLAIN_TEXT};
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette, ThemeDef};
@@ -75,6 +76,7 @@ impl NixPadApp {
             scroll_to_active_tab: true,
             window_title: String::new(),
         };
+        crate::fonts::install_fallbacks(&cc.egui_ctx);
         app.apply_style(&cc.egui_ctx);
 
         if app.settings.restore_session {
@@ -138,7 +140,9 @@ impl NixPadApp {
         let id = self.alloc_id();
         match Document::open(id, &path) {
             Ok(mut doc) => {
-                doc.syntax = self.highlighter.detect(doc.path.as_deref(), &doc.text);
+                doc.syntax = self
+                    .highlighter
+                    .detect(doc.path.as_deref(), &doc.editor.buffer.line_text(0));
                 if doc.lossy {
                     self.errors.push(format!(
                         "{} is not valid UTF-8. Invalid bytes are shown as \u{FFFD} and will be replaced if you save.",
@@ -208,7 +212,9 @@ impl NixPadApp {
         match doc.save_to(&path) {
             Ok(()) => {
                 if was_unnamed || doc.syntax == PLAIN_TEXT {
-                    doc.syntax = self.highlighter.detect(Some(&path), &doc.text);
+                    doc.syntax = self
+                        .highlighter
+                        .detect(Some(&path), &doc.editor.buffer.line_text(0));
                 }
                 self.settings.push_recent(path);
                 true
@@ -270,7 +276,7 @@ impl NixPadApp {
             }
             Action::SaveAll => {
                 for i in 0..self.docs.len() {
-                    if self.docs[i].dirty && !self.save(i, false) {
+                    if self.docs[i].is_dirty() && !self.save(i, false) {
                         break;
                     }
                 }
@@ -299,7 +305,11 @@ impl NixPadApp {
             Action::Quit => {
                 self.capture_session();
                 self.request_close(
-                    self.docs.iter().filter(|d| d.dirty).map(|d| d.id).collect(),
+                    self.docs
+                        .iter()
+                        .filter(|d| d.is_dirty())
+                        .map(|d| d.id)
+                        .collect(),
                     true,
                 );
             }
@@ -333,11 +343,8 @@ impl NixPadApp {
                 }
             }
             Action::SetLineEnding(le) => {
-                if let Some(doc) = self.docs.get_mut(self.active)
-                    && doc.line_ending != le
-                {
-                    doc.line_ending = le;
-                    doc.dirty = true;
+                if let Some(doc) = self.docs.get_mut(self.active) {
+                    doc.set_line_ending(le);
                 }
             }
             Action::OpenThemesFolder => {
@@ -628,7 +635,8 @@ impl NixPadApp {
         );
 
         // Unsaved tabs show a dot that turns into a close button on hover.
-        let show_close = close_response.hovered() || response.hovered() || active || !doc.dirty;
+        let show_close =
+            close_response.hovered() || response.hovered() || active || !doc.is_dirty();
         if close_response.hovered() {
             painter.rect_filled(
                 close_rect,
@@ -636,7 +644,7 @@ impl NixPadApp {
                 palette.tab_hover_bg.gamma_multiply(1.6),
             );
         }
-        if doc.dirty && !close_response.hovered() {
+        if doc.is_dirty() && !close_response.hovered() {
             painter.circle_filled(close_rect.center(), 4.0, palette.modified);
         } else if show_close {
             let c = close_rect.center();
@@ -693,160 +701,28 @@ impl NixPadApp {
 
     fn editor(&mut self, ui: &mut Ui) {
         let palette = self.palette();
-        let font = FontId::monospace(self.settings.font_size);
-        let wrap = self.settings.word_wrap;
-        let show_numbers = self.settings.show_line_numbers;
-        let highlight_line = self.settings.highlight_current_line;
         let theme_def = &self.themes[self.theme_idx];
-        let highlighter = &self.highlighter;
-        let focus = std::mem::take(&mut self.focus_editor)
+        let request_focus = std::mem::take(&mut self.focus_editor)
             && self.close_queue.is_none()
             && !self.show_about;
-
         let Some(doc) = self.docs.get_mut(self.active) else {
             return;
         };
-        let digits = doc.line_count().max(1000).to_string().len() as f32;
-        let char_width = ui.fonts_mut(|f| f.glyph_width(&font, '0'));
-        let gutter_width = if show_numbers {
-            digits * char_width + 28.0
-        } else {
-            12.0
-        };
-        let editor_id = Id::new(("editor", doc.id));
-        if std::mem::take(&mut doc.fresh) {
-            let mut state =
-                egui::text_edit::TextEditState::load(ui.ctx(), editor_id).unwrap_or_default();
-            let start = egui::text::CCursor::new(0);
-            state
-                .cursor
-                .set_char_range(Some(egui::text::CCursorRange::one(start)));
-            state.store(ui.ctx(), editor_id);
-        }
-
-        let Document {
-            text,
+        let syntax = self.highlighter.syntax(&doc.syntax);
+        let cfg = ViewConfig {
+            font: FontId::monospace(self.settings.font_size),
+            wrap: self.settings.word_wrap,
+            show_line_numbers: self.settings.show_line_numbers,
+            highlight_current_line: self.settings.highlight_current_line,
+            palette: &palette,
             syntax,
-            highlight,
-            ..
-        } = doc;
-        let syntax_name = syntax.clone();
-        let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap_width: f32| {
-            let mut job = highlighter.layout(
-                highlight,
-                buf.as_str(),
-                &syntax_name,
-                &theme_def.name,
-                &theme_def.syntax,
-                &font,
-                palette.editor_fg,
-            );
-            job.wrap.max_width = if wrap { wrap_width } else { f32::INFINITY };
-            ui.fonts_mut(|f| f.layout_job(job))
+            syntaxes: &self.highlighter.syntaxes,
+            theme: &theme_def.syntax,
+            theme_name: &theme_def.name,
+            plain: doc.syntax == PLAIN_TEXT,
+            request_focus,
         };
-
-        let output = ScrollArea::both()
-            .id_salt(("editor-scroll", editor_id))
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::ZERO;
-                    let (gutter_rect, _) = ui.allocate_exact_size(
-                        Vec2::new(gutter_width, ui.available_height()),
-                        Sense::hover(),
-                    );
-                    let line_bg = ui.painter().add(Shape::Noop);
-                    let available = ui.available_size();
-                    let output = TextEdit::multiline(text)
-                        .id(editor_id)
-                        .font(font.clone())
-                        .frame(Frame::NONE)
-                        .margin(Margin {
-                            left: 0,
-                            right: 8,
-                            top: 6,
-                            bottom: 6,
-                        })
-                        .lock_focus(true)
-                        .desired_width(if wrap { available.x } else { f32::INFINITY })
-                        .min_size(available)
-                        .layouter(&mut layouter)
-                        .show(ui);
-                    (gutter_rect, line_bg, output)
-                })
-                .inner
-            })
-            .inner;
-        let (gutter_rect, line_bg, output) = output;
-        if focus {
-            output.response.response.request_focus();
-        }
-
-        let doc = &mut self.docs[self.active];
-        if output.response.response.changed() {
-            doc.dirty = true;
-        }
-        let cursor = output.cursor_range;
-        if let Some(range) = cursor {
-            let sel = range.primary.index.0.abs_diff(range.secondary.index.0);
-            doc.update_cursor(range.primary.index.0, sel);
-        }
-
-        // Line numbers and the current-line band, positioned from the laid-out rows
-        // so they stay correct with word wrap on.
-        let galley = &output.galley;
-        let origin = output.galley_pos;
-        let clip = ui.clip_rect();
-        let painter = ui.painter();
-        let current_row = cursor.map(|r| galley.pos_from_cursor(r.primary));
-
-        if highlight_line
-            && output.response.response.has_focus()
-            && let Some(row_rect) = current_row
-        {
-            let band = Rect::from_x_y_ranges(
-                clip.x_range(),
-                (origin.y + row_rect.min.y)..=(origin.y + row_rect.max.y),
-            );
-            painter.set(
-                line_bg,
-                Shape::rect_filled(band, 0.0, palette.line_highlight),
-            );
-        }
-
-        if show_numbers {
-            let number_font = FontId::monospace(self.settings.font_size * 0.9);
-            let mut line = 1usize;
-            let mut starts_line = true;
-            for row in galley.rows.iter() {
-                let top = origin.y + row.pos.y;
-                let bottom = top + row.rect().height();
-                if starts_line && bottom >= clip.top() && top <= clip.bottom() {
-                    let is_current = current_row.is_some_and(|r| {
-                        let y = origin.y + r.center().y;
-                        y >= top && y <= bottom
-                    });
-                    painter.text(
-                        Pos2::new(gutter_rect.right() - 14.0, (top + bottom) / 2.0),
-                        Align2::RIGHT_CENTER,
-                        line.to_string(),
-                        number_font.clone(),
-                        if is_current {
-                            palette.gutter_active_fg
-                        } else {
-                            palette.gutter_fg
-                        },
-                    );
-                }
-                if top > clip.bottom() {
-                    break;
-                }
-                starts_line = row.ends_with_newline;
-                if row.ends_with_newline {
-                    line += 1;
-                }
-            }
-        }
+        doc.editor.show(ui, Id::new(("editor", doc.id)), &cfg);
     }
 
     fn status_bar(&mut self, ui: &mut Ui) {
@@ -854,12 +730,13 @@ impl NixPadApp {
         let Some(doc) = self.docs.get(self.active) else {
             return;
         };
-        let (line, col) = doc.cursor;
-        let sel = doc.selection_chars;
+        let (line, col) = doc.editor.caret_line_col();
+        let sel = doc.editor.selected_chars();
+        let carets = doc.editor.caret_count();
         let syntax = doc.syntax.clone();
         let line_ending = doc.line_ending;
         let encoding = if doc.has_bom { "UTF-8 BOM" } else { "UTF-8" };
-        let length = doc.text.len();
+        let length = doc.editor.buffer.len_chars();
         let lines = doc.line_count();
         let zoom = (self.settings.font_size / DEFAULT_FONT * 100.0).round();
         let dim = |s: String| RichText::new(s).size(12.0).color(palette.text_dim);
@@ -893,11 +770,13 @@ impl NixPadApp {
                         );
                     }
                 });
-                let position = if sel > 0 {
-                    format!("Ln {line}, Col {col}   Sel {sel}")
-                } else {
-                    format!("Ln {line}, Col {col}")
-                };
+                let mut position = format!("Ln {line}, Col {col}");
+                if sel > 0 {
+                    position += &format!("   Sel {sel}");
+                }
+                if carets > 1 {
+                    position += &format!("   {carets} carets");
+                }
                 ui.label(dim(position));
             });
         });
@@ -919,7 +798,7 @@ impl NixPadApp {
                 return;
             };
             match self.docs.iter().position(|d| d.id == id) {
-                Some(i) if self.docs[i].dirty => {
+                Some(i) if self.docs[i].is_dirty() => {
                     let name = self.docs[i].title();
                     let mut choice = None;
                     egui::Modal::new(Id::new("unsaved-changes")).show(ctx, |ui| {
@@ -978,11 +857,7 @@ impl NixPadApp {
             queue.doc_ids.retain(|&d| d != id);
         }
         // When quitting, documents stay open so the session is saved as it was.
-        if quitting {
-            if let Some(doc) = self.docs.iter_mut().find(|d| d.id == id) {
-                doc.dirty = false;
-            }
-        } else {
+        if !quitting {
             self.remove_doc(id);
         }
     }
@@ -1040,7 +915,7 @@ impl NixPadApp {
                     .as_ref()
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| doc.title());
-                format!("{}{} - NixPad", if doc.dirty { "*" } else { "" }, name)
+                format!("{}{} - NixPad", if doc.is_dirty() { "*" } else { "" }, name)
             }
             None => "NixPad".to_owned(),
         };

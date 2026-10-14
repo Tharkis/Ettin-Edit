@@ -2,10 +2,10 @@
 //! written back (line endings, byte-order mark).
 
 use std::fs;
-use std::io;
+use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
-use crate::highlight::HighlightCache;
+use crate::editor::Editor;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineEnding {
@@ -61,9 +61,8 @@ const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 pub struct Document {
     pub id: u64,
     pub path: Option<PathBuf>,
-    /// Text with line endings normalised to `\n`.
-    pub text: String,
-    pub dirty: bool,
+    /// The text (line endings normalised to `\n`), selections and undo history.
+    pub editor: Editor,
     /// Name of the syntect syntax used for highlighting.
     pub syntax: String,
     pub line_ending: LineEnding,
@@ -71,12 +70,6 @@ pub struct Document {
     /// Set when the file contained bytes that were not valid UTF-8.
     pub lossy: bool,
     untitled_number: usize,
-    /// Cursor position as (line, column), both 1-based, plus selection length.
-    pub cursor: (usize, usize),
-    pub selection_chars: usize,
-    pub highlight: HighlightCache,
-    /// True until the editor has placed the cursor at the start of the document.
-    pub fresh: bool,
 }
 
 impl Document {
@@ -84,17 +77,12 @@ impl Document {
         Self {
             id,
             path: None,
-            text: String::new(),
-            dirty: false,
+            editor: Editor::new(""),
             syntax: "Plain Text".to_owned(),
             line_ending: LineEnding::platform_default(),
             has_bom: false,
             lossy: false,
             untitled_number: number,
-            cursor: (1, 1),
-            selection_chars: 0,
-            highlight: HighlightCache::default(),
-            fresh: true,
         }
     }
 
@@ -105,15 +93,19 @@ impl Document {
             None => (false, &bytes[..]),
         };
         let (raw, lossy) = match std::str::from_utf8(body) {
-            Ok(s) => (s.to_owned(), false),
-            Err(_) => (String::from_utf8_lossy(body).into_owned(), true),
+            Ok(s) => (std::borrow::Cow::Borrowed(s), false),
+            Err(_) => (String::from_utf8_lossy(body), true),
         };
         let line_ending = LineEnding::detect(&raw).unwrap_or_else(LineEnding::platform_default);
-        let text = raw.replace("\r\n", "\n").replace('\r', "\n");
+        let text = if raw.contains('\r') {
+            raw.replace("\r\n", "\n").replace('\r', "\n")
+        } else {
+            raw.into_owned()
+        };
 
         let mut doc = Self::new_untitled(id, 0);
         doc.path = Some(path.to_path_buf());
-        doc.text = text;
+        doc.editor = Editor::new(&text);
         doc.line_ending = line_ending;
         doc.has_bom = has_bom;
         doc.lossy = lossy;
@@ -121,20 +113,40 @@ impl Document {
     }
 
     pub fn save_to(&mut self, path: &Path) -> io::Result<()> {
-        let body = match self.line_ending {
-            LineEnding::Lf => self.text.clone(),
-            other => self.text.replace('\n', other.as_str()),
-        };
-        let mut bytes = Vec::with_capacity(body.len() + 3);
+        let file = fs::File::create(path)?;
+        let mut out = BufWriter::new(file);
         if self.has_bom {
-            bytes.extend_from_slice(UTF8_BOM);
+            out.write_all(UTF8_BOM)?;
         }
-        bytes.extend_from_slice(body.as_bytes());
-        fs::write(path, bytes)?;
+        let eol = self.line_ending.as_str();
+        for chunk in self.editor.buffer.rope().chunks() {
+            if self.line_ending == LineEnding::Lf {
+                out.write_all(chunk.as_bytes())?;
+            } else {
+                for (i, part) in chunk.split('\n').enumerate() {
+                    if i > 0 {
+                        out.write_all(eol.as_bytes())?;
+                    }
+                    out.write_all(part.as_bytes())?;
+                }
+            }
+        }
+        out.flush()?;
         self.path = Some(path.to_path_buf());
-        self.dirty = false;
+        self.editor.buffer.mark_saved();
         self.lossy = false;
         Ok(())
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.editor.buffer.is_modified()
+    }
+
+    pub fn set_line_ending(&mut self, le: LineEnding) {
+        if self.line_ending != le {
+            self.line_ending = le;
+            self.editor.buffer.mark_modified();
+        }
     }
 
     pub fn title(&self) -> String {
@@ -148,30 +160,11 @@ impl Document {
     }
 
     pub fn is_pristine_untitled(&self) -> bool {
-        self.path.is_none() && !self.dirty && self.text.is_empty()
+        self.path.is_none() && !self.is_dirty() && self.editor.buffer.is_empty()
     }
 
     pub fn line_count(&self) -> usize {
-        self.text.split('\n').count()
-    }
-
-    /// Recomputes line/column from a character offset into `text`.
-    pub fn update_cursor(&mut self, char_index: usize, selection_chars: usize) {
-        let mut line = 1;
-        let mut col = 1;
-        for (i, ch) in self.text.chars().enumerate() {
-            if i >= char_index {
-                break;
-            }
-            if ch == '\n' {
-                line += 1;
-                col = 1;
-            } else {
-                col += 1;
-            }
-        }
-        self.cursor = (line, col);
-        self.selection_chars = selection_chars;
+        self.editor.buffer.len_lines()
     }
 }
 
@@ -196,20 +189,13 @@ mod tests {
         fs::write(&path, original).unwrap();
 
         let mut doc = Document::open(1, &path).unwrap();
-        assert_eq!(doc.text, "one\ntwo\n");
+        assert_eq!(doc.editor.buffer.text(), "one\ntwo\n");
         assert!(doc.has_bom);
         assert_eq!(doc.line_ending, LineEnding::CrLf);
 
         doc.save_to(&path).unwrap();
         assert_eq!(fs::read(&path).unwrap(), original);
+        assert!(!doc.is_dirty());
         fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn cursor_position() {
-        let mut doc = Document::new_untitled(1, 1);
-        doc.text = "ab\ncd\n".to_owned();
-        doc.update_cursor(4, 0);
-        assert_eq!(doc.cursor, (2, 2));
     }
 }
