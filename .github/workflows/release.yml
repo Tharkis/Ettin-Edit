@@ -2,8 +2,10 @@ name: Release
 
 # Pushing a tag such as v0.3.0 builds NixPad for Linux, Arch and Windows and
 # publishes a GitHub release with the builds attached. "Run workflow" on the
-# Actions tab does the same for an existing tag. Pull requests that touch the
-# packaging only build, so packaging changes are checked before a release.
+# Actions tab does the same without pushing a tag: give it a tag name and it
+# builds that tag, or creates the tag on the chosen commit (default: the head of
+# the branch it runs on). Pull requests that touch the packaging only build, so
+# packaging changes are checked before a release.
 
 on:
   push:
@@ -11,8 +13,11 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to build and publish, for example v0.2.0
+        description: Tag to publish, for example v0.3.0. Created if it doesn't exist.
         required: true
+      commit:
+        description: "Commit to tag when the tag does not exist yet (default: branch head)"
+        required: false
   pull_request:
     paths:
       - .github/workflows/release.yml
@@ -23,7 +28,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  REF: ${{ inputs.tag || github.ref }}
 
 jobs:
   version:
@@ -32,10 +36,25 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
+      sha: ${{ steps.sha.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.REF }}
+          fetch-depth: 0
+      - id: sha
+        name: Pick the commit to build
+        shell: bash
+        run: |
+          tag="${{ inputs.tag }}"
+          if [ -n "$tag" ] && sha=$(git rev-parse -q --verify "refs/tags/$tag^{commit}"); then
+            echo "Building existing tag $tag"
+          elif [ -n "${{ inputs.commit }}" ]; then
+            sha=$(git rev-parse --verify "${{ inputs.commit }}^{commit}")
+          else
+            sha="${{ github.sha }}"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          git checkout -q "$sha"
       - id: v
         name: Read the version from Cargo.toml
         shell: bash
@@ -59,7 +78,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.REF }}
+          ref: ${{ needs.version.outputs.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
@@ -91,12 +110,13 @@ jobs:
             xdg-desktop-portal hicolor-icon-theme
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.REF }}
+          ref: ${{ needs.version.outputs.sha }}
       - name: Build with makepkg
         run: |
           useradd -m builder
           chown -R builder "$GITHUB_WORKSPACE"
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/arch/PKGBUILD
+          grep -q "'!debug'" packaging/arch/PKGBUILD || sed -i "s/^options=(/options=('!debug' /" packaging/arch/PKGBUILD
           cd packaging/arch
           runuser -u builder -- makepkg --noconfirm --nodeps
       - uses: actions/upload-artifact@v4
@@ -113,7 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.REF }}
+          ref: ${{ needs.version.outputs.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
@@ -143,6 +163,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ needs.version.outputs.sha }}
           name: NixPad ${{ needs.version.outputs.version }}
           generate_release_notes: true
           body: |
