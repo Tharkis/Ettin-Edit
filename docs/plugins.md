@@ -1,21 +1,26 @@
-# Writing NixPad plugins
+# Writing Ettin Edit plugins
 
-A plugin adds commands, shortcuts and panels to NixPad. You write it in
+A plugin adds commands, shortcuts and panels to Ettin Edit. You write it in
 Python or JavaScript, whichever you prefer.
 
 ## Quick start
 
-1. Choose **Plugins > Install Sample Plugins**. NixPad copies two working
+1. Choose **Plugins > Install Sample Plugins**. Ettin Edit copies three working
    plugins into your plugins folder and starts them:
    - **Text Statistics** (Python)
    - **Markdown Outline** (JavaScript)
+   - **HL7 Viewer** (Python): a bigger example, with a tree panel, an
+     inspector panel and its own unit tests
 2. Try them from the **Plugins** menu.
 3. Choose **Plugins > Open Plugins Folder**, copy one of the sample folders,
    rename it and edit it.
 4. Choose **Plugins > Reload Plugins** to run your changes.
 
-The plugins folder is `~/.config/NixPad/plugins` on Linux and
-`%APPDATA%\NixPad\plugins` on Windows.
+The plugins folder is `~/.config/EttinEdit/plugins` on Linux and
+`%APPDATA%\EttinEdit\plugins` on Windows.
+
+Ettin Edit used to be called NixPad. Plugins written for it that `import
+nixpad` or `require('nixpad')` keep working; new plugins use `ettin`.
 
 ## What you need
 
@@ -24,7 +29,7 @@ The plugins folder is `~/.config/NixPad/plugins` on Linux and
 - JavaScript plugins run with [Node.js](https://nodejs.org) 18 or newer
   (`node`).
 
-If NixPad can't find one of them, set its path in **Plugins > Manage
+If Ettin Edit can't find one of them, set its path in **Plugins > Manage
 Plugins**. Plugins can use any package you install for that Python or
 Node, such as one from pip or npm.
 
@@ -68,60 +73,60 @@ A plugin is a program that runs with your user account. It can read and
 change your open documents and any of your files, and it can use the
 network. Only run plugins you trust.
 
-The first time NixPad finds a plugin, it asks whether to let it run. It asks
+The first time Ettin Edit finds a plugin, it asks whether to let it run. It asks
 again whenever any file in the plugin's folder changes. If you choose
 **Don't Allow**, the plugin is turned off. You can turn it back on in
 **Plugins > Manage Plugins**.
 
-NixPad doesn't ask about the sample plugins you install from the Plugins
+Ettin Edit doesn't ask about the sample plugins you install from the Plugins
 menu. While you write a plugin of your own, tick **Don't ask when it
 changes** for it in Manage Plugins, so reloading it doesn't ask each time.
 
 ## A Python plugin
 
 ```python
-import nixpad
+import ettin
 
-@nixpad.command("Shout", shortcut="Ctrl+Alt+H")
+@ettin.command("Shout", shortcut="Ctrl+Alt+H")
 def shout():
-    doc = nixpad.active()
+    doc = ettin.active()
     doc.replace_selections(doc.selected_text().upper())
 
-@nixpad.on("saved")
+@ettin.on("saved")
 def saved(doc):
-    nixpad.log("Saved", doc.path)
+    ettin.log("Saved", doc.path)
 
-nixpad.run()
+ettin.run()
 ```
 
-The script must end with `nixpad.run()`. Calls are ordinary function calls
-that return when NixPad has answered.
+The script must end with `ettin.run()`. Calls are ordinary function calls
+that return when Ettin Edit has answered.
 
 ## A JavaScript plugin
 
 ```js
-const nixpad = require('nixpad');
+const ettin = require('ettin');
 
-nixpad.command('Shout', async () => {
-  const doc = await nixpad.activeDocument();
+ettin.command('Shout', async () => {
+  const doc = await ettin.activeDocument();
   await doc.replaceSelections((await doc.getSelectedText()).toUpperCase());
 }, { shortcut: 'Ctrl+Alt+H' });
 
-nixpad.on('saved', (doc) => nixpad.log('Saved', doc.path));
+ettin.on('saved', (doc) => ettin.log('Saved', doc.path));
 ```
 
 Every call returns a Promise, so use `await`. Use `require`, not `import`:
-NixPad makes the `nixpad` module available through `NODE_PATH`, and ES
+Ettin Edit makes the `ettin` module available through `NODE_PATH`, and ES
 modules don't read that.
 
 ## Printing and errors
 
-NixPad and the plugin talk over the plugin's standard input and output.
+Ettin Edit and the plugin talk over the plugin's standard input and output.
 `print()` in Python and `console.log()` in JavaScript are sent to the
 plugin log instead (**Plugins > Plugin Log**), so use them freely while
 debugging.
 
-If a command or event handler throws an error, NixPad shows a short message
+If a command or event handler throws an error, Ettin Edit shows a short message
 and writes the full traceback to the log. The plugin keeps running.
 
 If the plugin itself stops, **Manage Plugins** shows why. Fix it, then
@@ -148,10 +153,10 @@ Python names are shown first, JavaScript names second.
 |--------|------------|--------------|
 | `@command(title, shortcut=None, id=None)` | `command(title, fn, {shortcut, id})` | Adds a command to the Plugins menu, with an optional shortcut. |
 | `@on(event)` | `on(event, fn)` | Calls the handler with a `Document` when the event happens. |
-| `run()` | (not needed) | Handles commands and events until NixPad stops the plugin. |
+| `run()` | (not needed) | Handles commands and events until Ettin Edit stops the plugin. |
 
 Shortcuts are written like `Ctrl+Alt+U`, `Ctrl+Shift+F9` or `F6`. They
-need Ctrl or Alt unless they use a function key. A shortcut NixPad or
+need Ctrl or Alt unless they use a function key. A shortcut Ettin Edit or
 another plugin already uses isn't added; the log says why.
 
 Events:
@@ -163,7 +168,8 @@ Events:
 | `closed` | A tab closed. The document can no longer be used. |
 | `activated` | Another tab got focus. |
 | `changed` | The text was edited. Sent after a short pause in typing. |
-| `shutdown` | NixPad is closing or stopping the plugin. No argument. |
+| `caret` | The caret or selection moved in the active tab. Sent after a short pause. |
+| `shutdown` | Ettin Edit is closing or stopping the plugin. No argument. |
 
 ### Documents
 
@@ -178,7 +184,8 @@ A `Document` has these properties, read when you got it (`refresh()`
 updates them): `id`, `title`, `path` (`None`/`null` for a new tab),
 `language`, `modified`, `read_only`/`readOnly`, `length`,
 `line_count`/`lineCount`, `encoding`, `line_ending`/`lineEnding` and
-`caret` (line and column of the main caret).
+`caret` (line and column of the main caret) and `caret_offset` /
+`caret.offset` (its text position).
 
 | Python | JavaScript | What it does |
 |--------|------------|--------------|
@@ -206,49 +213,52 @@ document raises an error.
 | `message(text, kind="info")` | `message(text, kind)` | Shows a short message. `kind` is `info`, `warning` or `error`. |
 | `prompt(text, value="", title=None)` | `prompt(text, {value, title})` | Asks for a line of text. Returns `None`/`null` if cancelled. |
 | `set_clipboard(text)` | `setClipboard(text)` | Copies text. |
-| `run_action(action)` | `runAction(action)` | Runs one of NixPad's own commands (see below). |
+| `run_action(action)` | `runAction(action)` | Runs one of Ettin Edit's own commands (see below). |
 | `log(*values)` | `log(...values)` | Writes a line to the plugin log. |
 
-`run_action` takes the name of a NixPad command, such as `"Duplicate"`,
+`run_action` takes the name of an Ettin Edit command, such as `"Duplicate"`,
 `"SelectAll"`, `"Save"`, `"FindNext"` or `"ToggleWordWrap"`. Commands that
 need options take an object, such as
 `{"SortLines": {"kind": "IgnoreCase", "desc": false}}` or
-`{"ConvertCase": "Upper"}`. The names are the ones in NixPad's
+`{"ConvertCase": "Upper"}`. The names are the ones in Ettin Edit's
 `src/actions.rs`.
 
 ## Panels
 
 A panel is a side or bottom panel that your plugin describes as a list of
-items. NixPad draws it. When the user clicks or changes something, your
+items. Ettin Edit draws it. When the user clicks or changes something, your
 handler is called.
 
 ```python
-from nixpad import ui
+from ettin import ui
 
-nixpad.show_panel("todo", "To Do", [
+ettin.show_panel("todo", "To Do", [
     ui.input("task", hint="New task"),
     ui.button("add", "Add"),
     ui.table("list", ["Task", "Done"], [["Write docs", "no"]]),
 ])
 
-@nixpad.on_panel("todo")
+@ettin.on_panel("todo")
 def todo(event):
     if event["item"] == "add":
-        nixpad.message("Adding " + event["values"]["task"])
+        ettin.message("Adding " + event["values"]["task"])
 ```
 
 ```js
-const { ui } = nixpad;
-await nixpad.showPanel('todo', {
+const { ui } = ettin;
+await ettin.showPanel('todo', {
   title: 'To Do',
   items: [ui.input('task', { hint: 'New task' }), ui.button('add', 'Add')],
 });
-nixpad.onPanel('todo', (e) => {
-  if (e.item === 'add') nixpad.message(`Adding ${e.values.task}`);
+ettin.onPanel('todo', (e) => {
+  if (e.item === 'add') ettin.message(`Adding ${e.values.task}`);
 });
 ```
 
-Calling `show_panel` again with the same id updates the panel in place.
+Calling `show_panel` again with the same id updates the panel in place,
+keeping where it is scrolled to; pass `scroll_to_top=True` (`scrollToTop:
+true` in JavaScript) to go back to the start, for example when the panel
+now shows something else.
 `position` is `"right"` (the default) or `"bottom"`. `close_panel(id)` /
 `closePanel(id)` closes it.
 
@@ -264,7 +274,7 @@ Items:
 | `ui.checkbox(id, label, value)` | `{"type": "checkbox", ...}` | Sends `change` with `true` or `false`. |
 | `ui.select(id, options, value, label)` | `{"type": "select", ...}` | A drop-down list. Sends `change` with the option. |
 | `ui.row(*items)` | `{"type": "row", "items"}` | Puts items side by side. |
-| `ui.tree(id, nodes)` | `{"type": "tree", "id", "nodes"}` | Sends `select` with the node's id. |
+| `ui.tree(id, nodes, selected)` | `{"type": "tree", "id", "nodes", "selected"}` | Sends `select` with the node's id. `selected` (optional) is a node id to highlight; when it changes, the tree opens to it and scrolls it into view. In JavaScript: `ui.tree(id, nodes, { selected })`. |
 | `ui.node(label, id, detail, children, open)` | `{"label", "id", "detail", "children", "open"}` | A tree node. `detail` is dimmed text after the label. |
 | `ui.table(id, columns, rows)` | `{"type": "table", "id", "columns", "rows"}` | Click a header to sort. Sends `select` with the row's index in your `rows`. |
 
@@ -278,15 +288,15 @@ different `value` for it.
 ## The protocol
 
 You can write a plugin in another language by speaking the protocol
-directly. NixPad starts `main` and sends JSON-RPC 2.0 messages on its
+directly. Ettin Edit starts `main` and sends JSON-RPC 2.0 messages on its
 standard input, one per line, UTF-8. The plugin sends requests and
 notifications on its standard output, one per line. Standard error goes to
 the log. Python plugins are run with `python3 -u main.py` and JavaScript
 plugins with `node main.js`, in the plugin's folder.
 
-NixPad sends these notifications:
+Ettin Edit sends these notifications:
 
-- `initialize` `{plugin, nixpad, api}`. Always first. `api` is 1.
+- `initialize` `{plugin, ettin, api}`. Always first. `api` is 1.
 - `command` `{id}`.
 - `event` `{event, doc}`.
 - `panel` `{panel, item, event, value, values}`.

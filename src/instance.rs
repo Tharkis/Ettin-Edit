@@ -1,4 +1,4 @@
-//! Single-instance mode: a second `nixpad file.txt` hands the file to the
+//! Single-instance mode: a second `ettin-edit file.txt` hands the file to the
 //! window that is already open instead of starting another one.
 //!
 //! The first instance listens on a loopback TCP port and writes the port and
@@ -62,7 +62,7 @@ fn running_addr(config_dir: &Path) -> Option<(SocketAddr, InstanceFile)> {
     Some((SocketAddr::from((Ipv4Addr::LOCALHOST, info.port)), info))
 }
 
-/// True if another NixPad is running and listening.
+/// True if another Ettin Edit is running and listening.
 pub fn is_running(config_dir: &Path) -> bool {
     running_addr(config_dir)
         .is_some_and(|(addr, _)| TcpStream::connect_timeout(&addr, TIMEOUT).is_ok())
@@ -112,7 +112,7 @@ pub fn listen(config_dir: &Path, wake: impl Fn() + Send + 'static) -> Option<Lis
 
     let (tx, rx) = channel();
     std::thread::Builder::new()
-        .name("nixpad-instance".into())
+        .name("ettin-edit-instance".into())
         .spawn(move || {
             for stream in listener.incoming().flatten() {
                 handle(stream, &token, &tx);
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn second_instance_hands_over_files() {
-        let dir = std::env::temp_dir().join(format!("nixpad-instance-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ettin-edit-instance-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         assert!(!send_to_running(&dir, &[]));
 

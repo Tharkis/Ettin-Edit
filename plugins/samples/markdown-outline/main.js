@@ -1,4 +1,4 @@
-// Markdown Outline: a sample NixPad plugin in JavaScript.
+// Markdown Outline: a sample Ettin Edit plugin in JavaScript.
 //
 // Shows the headings of the current tab as a tree in a side panel; click one
 // to jump to it. Also adds Insert UUID and Wrap Lines to the Plugins menu.
@@ -8,8 +8,8 @@
 'use strict';
 
 const crypto = require('crypto');
-const nixpad = require('nixpad');
-const { ui } = nixpad;
+const ettin = require('ettin');
+const { ui } = ettin;
 
 let visible = false;
 
@@ -57,31 +57,31 @@ function tree(heads) {
 
 async function refresh(doc) {
   if (!visible) return;
-  doc = doc || (await nixpad.activeDocument());
+  doc = doc || (await ettin.activeDocument());
   const heads = headings(await doc.getText());
   const items = heads.length
     ? [ui.tree('outline', tree(heads))]
     : [ui.label('No headings in this tab. Lines that start with # are headings.', { weak: true })];
-  await nixpad.showPanel('outline', { title: `Outline: ${doc.title}`, items });
+  await ettin.showPanel('outline', { title: `Outline: ${doc.title}`, items });
 }
 
-nixpad.onPanel('outline', async (e) => {
+ettin.onPanel('outline', async (e) => {
   if (e.event === 'close') {
     visible = false;
   } else if (e.event === 'select') {
-    const doc = await nixpad.activeDocument();
+    const doc = await ettin.activeDocument();
     await doc.goTo(Number(e.value));
   }
 });
 
-nixpad.command('Show or Hide Markdown Outline', async () => {
+ettin.command('Show or Hide Markdown Outline', async () => {
   visible = !visible;
   if (visible) await refresh();
-  else await nixpad.closePanel('outline');
+  else await ettin.closePanel('outline');
 }, { shortcut: 'Ctrl+Alt+O' });
 
-nixpad.command('Insert UUID', async () => {
-  const doc = await nixpad.activeDocument();
+ettin.command('Insert UUID', async () => {
+  const doc = await ettin.activeDocument();
   await doc.insert(crypto.randomUUID());
 }, { shortcut: 'Ctrl+Alt+I' });
 
@@ -105,25 +105,25 @@ function wrap(text, width) {
   }).join('\n\n');
 }
 
-nixpad.command('Wrap Lines…', async () => {
-  const doc = await nixpad.activeDocument();
+ettin.command('Wrap Lines…', async () => {
+  const doc = await ettin.activeDocument();
   const sels = await doc.getSelections();
   if (!sels.some((s) => s.text)) {
-    await nixpad.message('Select the lines to wrap first.', 'warning');
+    await ettin.message('Select the lines to wrap first.', 'warning');
     return;
   }
-  const answer = await nixpad.prompt('Wrap at column:', { value: '80', title: 'Wrap Lines' });
+  const answer = await ettin.prompt('Wrap at column:', { value: '80', title: 'Wrap Lines' });
   if (answer === null) return;
   const width = parseInt(answer, 10);
   if (!(width >= 10)) {
-    await nixpad.message('Enter a column of 10 or more.', 'warning');
+    await ettin.message('Enter a column of 10 or more.', 'warning');
     return;
   }
   await doc.replaceSelections(sels.map((s) => wrap(s.text, width)));
 });
 
-nixpad.on('activated', refresh);
-nixpad.on('changed', async (doc) => {
-  const active = await nixpad.activeDocument();
+ettin.on('activated', refresh);
+ettin.on('changed', async (doc) => {
+  const active = await ettin.activeDocument();
   if (doc.id === active.id) await refresh(doc);
 });

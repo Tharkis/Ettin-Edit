@@ -16,6 +16,7 @@ use syntect::highlighting::Theme;
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 use super::buffer::{CharEdit, LineEdit};
+use super::fold::FoldMark;
 use super::highlight::LineSpans;
 use super::layout::{char_cols, wrap_points};
 use super::selection::{Selection, Selections};
@@ -33,7 +34,7 @@ const MULTI_CLICK_SECS: f64 = 0.45;
 /// Width of the bookmark column at the left of the gutter.
 const BOOKMARK_MARGIN: f32 = 16.0;
 /// Width of the fold-marker column at the right of the gutter.
-const FOLD_MARGIN: f32 = 14.0;
+const FOLD_MARGIN: f32 = 16.0;
 /// Lines searched below a blank line for the indentation its guides follow.
 const GUIDE_LOOKAHEAD: usize = 50;
 
@@ -76,6 +77,8 @@ struct RowLayout {
     galley: Arc<Galley>,
     /// Display-string char index for each char in `start..=end`.
     disp: Vec<usize>,
+    /// Offsets (within the line) of tabs to draw an arrow across.
+    tabs: Vec<usize>,
 }
 
 impl RowLayout {
@@ -550,14 +553,15 @@ impl Editor {
         let mut col = if wraps.len() > 1 { 0 } else { start_col };
         let mut run_format: Option<TextFormat> = None;
         let base = TextFormat::simple(cfg.font.clone(), cfg.palette.editor_fg);
-        let ws_format = TextFormat::simple(cfg.font.clone(), cfg.palette.guide);
+        let ws_format = TextFormat::simple(cfg.font.clone(), cfg.palette.whitespace);
+        let mut tabs = Vec::new();
         let flush = |job: &mut LayoutJob, text: &mut String, fmt: &Option<TextFormat>| {
             if !text.is_empty() {
                 job.append(text, 0.0, fmt.clone().unwrap_or_else(|| base.clone()));
                 text.clear();
             }
         };
-        for &c in &chars[start..end] {
+        for (i, &c) in chars[start..end].iter().enumerate() {
             disp.push(disp_len);
             let format = match &spans {
                 Some(spans) => {
@@ -590,13 +594,11 @@ impl Editor {
             let w = char_cols(c, col);
             match c {
                 '\t' => {
-                    for i in 0..w {
-                        text.push(if cfg.show_whitespace && i == 0 {
-                            '→'
-                        } else {
-                            ' '
-                        });
+                    // Shown as an arrow across the whole tab, drawn later.
+                    if cfg.show_whitespace {
+                        tabs.push(start + i);
                     }
+                    text.extend(std::iter::repeat_n(' ', w));
                     disp_len += w;
                 }
                 ' ' if cfg.show_whitespace => {
@@ -632,6 +634,7 @@ impl Editor {
             x_offset: start_col as f32 * metrics.char_w,
             galley,
             disp,
+            tabs,
         });
         cache.rows.insert(row, layout.clone());
         layout
@@ -716,7 +719,7 @@ impl Editor {
                 let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
                 let response = ui.interact(rect, id, Sense::click_and_drag());
                 let origin = rect.min;
-                // An arrow over the gutter (fold arrows, bookmarks, line numbers),
+                // An arrow over the gutter (fold markers, bookmarks, line numbers),
                 // a text cursor over the text.
                 let gutter_right = origin.x + viewport.min.x + gutter_w;
                 if let Some(p) = response.hover_pos() {
@@ -918,6 +921,26 @@ impl Editor {
                     );
                 }
 
+                // Tabs: an arrow from one side of the tab to the other.
+                let tab_stroke = Stroke::new(1.0, palette.whitespace);
+                for (r, row) in &rows {
+                    for &t in &row.tabs {
+                        let x0 = text_x + row.x_of(t) + metrics.char_w * 0.2;
+                        let x1 = text_x + row.x_of(t + 1) - metrics.char_w * 0.2;
+                        let y = (row_y(*r) + metrics.row_h / 2.0).round() + 0.5;
+                        let head = (metrics.row_h * 0.18).clamp(2.5, 4.5).min(x1 - x0);
+                        painter.line_segment([Pos2::new(x0, y), Pos2::new(x1, y)], tab_stroke);
+                        painter.line_segment(
+                            [Pos2::new(x1 - head, y - head), Pos2::new(x1, y)],
+                            tab_stroke,
+                        );
+                        painter.line_segment(
+                            [Pos2::new(x1 - head, y + head), Pos2::new(x1, y)],
+                            tab_stroke,
+                        );
+                    }
+                }
+
                 // End-of-line symbols and folded-region markers after the text.
                 let last_line = self.buffer.len_lines() - 1;
                 let small = FontId::monospace(cfg.font.size * 0.62);
@@ -931,7 +954,7 @@ impl Editor {
                         let g = painter.layout_no_wrap(
                             cfg.eol_label.to_owned(),
                             small.clone(),
-                            palette.guide,
+                            palette.whitespace,
                         );
                         let rect = Rect::from_min_size(
                             Pos2::new(x, row_y(*r) + (metrics.row_h - g.size().y - 2.0) / 2.0),
@@ -940,10 +963,10 @@ impl Editor {
                         painter.rect_stroke(
                             rect,
                             2.0,
-                            Stroke::new(1.0, palette.guide),
+                            Stroke::new(1.0, palette.whitespace),
                             egui::StrokeKind::Inside,
                         );
-                        painter.galley(rect.min + Vec2::new(3.0, 1.0), g, palette.guide);
+                        painter.galley(rect.min + Vec2::new(3.0, 1.0), g, palette.whitespace);
                         x = rect.right() + metrics.char_w * 0.4;
                     }
                     if folded {
@@ -1068,37 +1091,71 @@ impl Editor {
                     }
                 }
 
-                // Fold markers: ▾ where a region can fold, ▸ where one is folded.
-                let fold_x = gutter.right() - FOLD_MARGIN / 2.0;
-                let size = (metrics.row_h * 0.2).clamp(3.0, 5.0);
+                // Fold markers: a box with − where a region can fold and + where
+                // one is folded, joined by a line down to where the region ends.
+                let fold_x = (gutter.right() - FOLD_MARGIN / 2.0).round() + 0.5;
+                let lines: Vec<usize> = rows
+                    .iter()
+                    .filter(|(_, row)| row.first_in_line)
+                    .map(|(_, row)| row.line)
+                    .collect();
+                let marks: HashMap<usize, FoldMark> =
+                    lines.iter().copied().zip(self.fold_marks(&lines)).collect();
+                let line_stroke = Stroke::new(1.0, palette.gutter_fg);
+                let box_size = (metrics.row_h * 0.62).clamp(9.0, 13.0).round();
+                let half = box_size / 2.0;
                 for (r, row) in &rows {
+                    let Some(mark) = marks.get(&row.line) else {
+                        continue;
+                    };
+                    let top = row_y(*r);
+                    let bottom = top + metrics.row_h;
                     if !row.first_in_line {
+                        if mark.below {
+                            painter.vline(fold_x, top..=bottom, line_stroke);
+                        }
                         continue;
                     }
-                    let folded = self.is_folded(row.line);
-                    if !folded && !self.is_fold_start(row.line) {
-                        continue;
+                    let mid = (top + metrics.row_h / 2.0).round() + 0.5;
+                    if mark.header {
+                        let folded = self.is_folded(row.line);
+                        let rect =
+                            Rect::from_center_size(Pos2::new(fold_x, mid), Vec2::splat(box_size));
+                        if mark.above {
+                            painter.vline(fold_x, top..=rect.top(), line_stroke);
+                        }
+                        if mark.below {
+                            painter.vline(fold_x, rect.bottom()..=bottom, line_stroke);
+                        }
+                        let color = if folded {
+                            palette.accent
+                        } else {
+                            palette.gutter_active_fg
+                        };
+                        painter.rect(
+                            rect,
+                            2.5,
+                            palette.editor_bg,
+                            Stroke::new(1.0, color),
+                            egui::StrokeKind::Inside,
+                        );
+                        let arm = half - 2.5;
+                        let sign = Stroke::new(1.0, color);
+                        painter.hline(fold_x - arm..=fold_x + arm, mid, sign);
+                        if folded {
+                            painter.vline(fold_x, mid - arm..=mid + arm, sign);
+                        }
+                    } else {
+                        if mark.above {
+                            let to = if mark.end && !mark.below { mid } else { bottom };
+                            painter.vline(fold_x, top..=to, line_stroke);
+                        } else if mark.below {
+                            painter.vline(fold_x, mid..=bottom, line_stroke);
+                        }
+                        if mark.end {
+                            painter.hline(fold_x..=fold_x + half, mid, line_stroke);
+                        }
                     }
-                    let c = Pos2::new(fold_x, row_y(*r) + metrics.row_h / 2.0);
-                    let points = if folded {
-                        vec![
-                            c + Vec2::new(-size * 0.6, -size),
-                            c + Vec2::new(size * 0.8, 0.0),
-                            c + Vec2::new(-size * 0.6, size),
-                        ]
-                    } else {
-                        vec![
-                            c + Vec2::new(-size, -size * 0.6),
-                            c + Vec2::new(size, -size * 0.6),
-                            c + Vec2::new(0.0, size * 0.8),
-                        ]
-                    };
-                    let color = if folded {
-                        palette.accent
-                    } else {
-                        palette.gutter_fg
-                    };
-                    painter.add(egui::Shape::convex_polygon(points, color, Stroke::NONE));
                 }
 
                 if !self.bookmarks.is_empty() {

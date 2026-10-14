@@ -30,8 +30,8 @@ jobs:
         run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: nixpad-linux-x86_64
-          path: target/release/nixpad
+          name: ettin-edit-linux-x86_64
+          path: target/release/ettin-edit
 
   windows:
     name: Windows
@@ -46,5 +46,5 @@ jobs:
         run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: nixpad-windows-x86_64
-          path: target/release/nixpad.exe
+          name: ettin-edit-windows-x86_64
+          path: target/release/ettin-edit.exe

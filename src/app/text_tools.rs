@@ -5,7 +5,7 @@ use std::cell::RefCell;
 
 use egui::{Frame, Margin, Ui};
 
-use super::NixPadApp;
+use super::EttinApp;
 use crate::actions::Action;
 use crate::text_tools_ui::{NoticeResponse, TreeAction, XPathAction, XPathRow};
 use crate::tools::json::{self, JsonOp};
@@ -51,7 +51,7 @@ fn one_line(s: &str, max: usize) -> String {
     }
 }
 
-impl NixPadApp {
+impl EttinApp {
     pub(super) fn notify(&mut self, ctx: &egui::Context, text: String, jump: Option<(u64, usize)>) {
         self.notice = Some(crate::text_tools_ui::Notice {
             text,

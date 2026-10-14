@@ -1,4 +1,4 @@
-//! A running plugin: a child process that NixPad talks to over its standard
+//! A running plugin: a child process that Ettin Edit talks to over its standard
 //! input and output, one JSON message per line. What it writes to standard
 //! error goes to the plugin log.
 
@@ -55,7 +55,7 @@ pub fn candidates(runtime: Runtime, custom: &str) -> Vec<(String, Vec<String>)> 
 
 impl Proc {
     /// Starts `main` with the first program in `programs` that exists.
-    /// `sdk` is added to the module search path so `import nixpad` works.
+    /// `sdk` is added to the module search path so `import ettin` works.
     pub fn spawn(
         runtime: Runtime,
         programs: &[(String, Vec<String>)],
@@ -78,7 +78,7 @@ impl Proc {
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
-                .env("NIXPAD_VERSION", env!("CARGO_PKG_VERSION"));
+                .env("ETTIN_VERSION", env!("CARGO_PKG_VERSION"));
             match runtime {
                 Runtime::Python => {
                     cmd.env("PYTHONPATH", prepend_path("PYTHONPATH", sdk))

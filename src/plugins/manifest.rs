@@ -228,7 +228,7 @@ mod tests {
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nixpad-test-{}-{name}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ettin-test-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -246,7 +246,7 @@ mod tests {
         fs::write(dir.join("tool.cjs"), "1").unwrap();
         let m = parse(&dir, r#"{"main": "tool.cjs"}"#).unwrap();
         assert_eq!(m.runtime, Runtime::Node);
-        assert!(m.name.starts_with("nixpad-test"));
+        assert!(m.name.starts_with("ettin-test"));
 
         assert!(parse(&dir, r#"{"main": "../x.py"}"#).is_err());
         assert!(parse(&dir, r#"{"main": "missing.py"}"#).is_err());

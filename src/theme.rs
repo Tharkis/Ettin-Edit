@@ -1,19 +1,24 @@
 //! Themes: a syntax colour scheme plus the editor chrome colours derived from it.
 //!
-//! Built-in themes ship with NixPad; extra `.tmTheme` files dropped into the
-//! user's `themes` folder are picked up at start-up.
+//! The built-in themes are written to the user's `themes` folder, where they
+//! can be edited; extra `.tmTheme` files dropped there are picked up too.
 
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use egui::{Color32, CornerRadius, Stroke, Visuals};
 use syntect::highlighting::{Color as SyntectColor, Theme as SyntectTheme, ThemeSet};
 
 pub struct ThemeDef {
     pub name: String,
+    /// Changes each time themes are loaded, so highlighting caches made with
+    /// an older copy of the theme are dropped.
+    pub key: String,
     pub syntax: SyntectTheme,
     pub palette: Palette,
-    /// True for themes loaded from the user's themes folder.
+    /// True for themes the user added to the themes folder.
     pub custom: bool,
 }
 
@@ -44,8 +49,10 @@ pub struct Palette {
     pub brace_match: Color32,
     /// An unmatched bracket.
     pub brace_bad: Color32,
-    /// Whitespace and end-of-line symbols, indent guides and the edge line.
+    /// Indent guides, the edge line and fold lines.
     pub guide: Color32,
+    /// Whitespace and end-of-line symbols.
+    pub whitespace: Color32,
 }
 
 fn to_egui(c: SyntectColor) -> Color32 {
@@ -150,6 +157,7 @@ impl Palette {
                 Color32::from_rgba_unmultiplied(220, 40, 40, 80)
             },
             guide: mix(editor_bg, editor_fg, if dark { 0.22 } else { 0.25 }),
+            whitespace: mix(editor_bg, editor_fg, if dark { 0.42 } else { 0.4 }),
         }
     }
 
@@ -209,71 +217,148 @@ fn load_embedded(source: &str) -> SyntectTheme {
     ThemeSet::load_from_reader(&mut Cursor::new(source)).expect("built-in theme is valid")
 }
 
-/// All themes: built-ins first, then any found in `user_dir`.
-pub fn load_themes(user_dir: Option<&Path>) -> Vec<ThemeDef> {
-    let mut defaults = ThemeSet::load_defaults().themes;
-    let mut themes = Vec::new();
-    let mut add = |name: &str, syntax: SyntectTheme, accent: Option<Color32>| {
-        let palette = Palette::derive(&syntax, accent);
-        themes.push(ThemeDef {
-            name: name.to_owned(),
-            syntax,
-            palette,
-            custom: false,
-        });
-    };
+/// The built-in themes, in menu order. Each is also written to the user's
+/// themes folder as `<name>.tmTheme`, where it can be edited.
+pub const BUILTIN: &[(&str, &str)] = &[
+    (
+        "Ettin Dark",
+        include_str!("../assets/themes/Ettin Dark.tmTheme"),
+    ),
+    (
+        "Ettin Night",
+        include_str!("../assets/themes/Ettin Night.tmTheme"),
+    ),
+    (
+        "Ocean Dark",
+        include_str!("../assets/themes/Ocean Dark.tmTheme"),
+    ),
+    ("Mocha", include_str!("../assets/themes/Mocha.tmTheme")),
+    (
+        "Solarized Dark",
+        include_str!("../assets/themes/Solarized Dark.tmTheme"),
+    ),
+    (
+        "Ettin Light",
+        include_str!("../assets/themes/Ettin Light.tmTheme"),
+    ),
+    (
+        "Ocean Light",
+        include_str!("../assets/themes/Ocean Light.tmTheme"),
+    ),
+    (
+        "Solarized Light",
+        include_str!("../assets/themes/Solarized Light.tmTheme"),
+    ),
+    (
+        "GitHub Light",
+        include_str!("../assets/themes/GitHub Light.tmTheme"),
+    ),
+];
 
-    add(
-        "NixPad Dark",
-        load_embedded(include_str!("../assets/themes/nixpad-dark.tmTheme")),
-        None,
-    );
-    add(
-        "NixPad Light",
-        load_embedded(include_str!("../assets/themes/nixpad-light.tmTheme")),
-        None,
-    );
-    let bundled = [
-        (
-            "Ocean Dark",
-            "base16-ocean.dark",
-            Color32::from_rgb(143, 161, 179),
-        ),
-        (
-            "Ocean Light",
-            "base16-ocean.light",
-            Color32::from_rgb(79, 91, 102),
-        ),
-        (
-            "Eighties",
-            "base16-eighties.dark",
-            Color32::from_rgb(102, 153, 204),
-        ),
-        (
-            "Mocha",
-            "base16-mocha.dark",
-            Color32::from_rgb(138, 166, 162),
-        ),
-        (
-            "Solarized Dark",
-            "Solarized (dark)",
-            Color32::from_rgb(38, 139, 210),
-        ),
-        (
-            "Solarized Light",
-            "Solarized (light)",
-            Color32::from_rgb(38, 139, 210),
-        ),
-        (
-            "GitHub Light",
-            "InspiredGitHub",
-            Color32::from_rgb(9, 105, 218),
-        ),
-    ];
-    for (name, key, accent) in bundled {
-        if let Some(t) = defaults.remove(key) {
-            add(name, t, Some(accent));
+/// Remembers which version of each built-in theme was written to the themes
+/// folder, so a copy the user never edited is updated with Ettin Edit.
+const WRITTEN_FILE: &str = ".builtin-themes.json";
+
+fn file_name(name: &str) -> String {
+    format!("{name}.tmTheme")
+}
+
+/// 64-bit FNV-1a, as hex: stable across Rust versions.
+fn hash(text: &str) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in text.as_bytes() {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{h:016x}")
+}
+
+/// Writes the built-in themes into `dir`. A missing file is written; a file
+/// still exactly as Ettin Edit wrote it is updated to this version; a file
+/// the user changed is kept. With `restore`, changed files are first copied
+/// to `<name>.tmTheme.bak` and then replaced too.
+pub fn install_builtins(dir: &Path, restore: bool) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let record_path = dir.join(WRITTEN_FILE);
+    let mut written: BTreeMap<String, String> = std::fs::read_to_string(&record_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let before = written.clone();
+    for (name, source) in BUILTIN {
+        let file = file_name(name);
+        let path = dir.join(&file);
+        let ours = hash(source);
+        match std::fs::read_to_string(&path) {
+            Err(_) => std::fs::write(&path, source)?,
+            Ok(current) => {
+                let theirs = hash(&current);
+                if theirs == ours {
+                    // Already this version.
+                } else if written.get(&file) == Some(&theirs) {
+                    std::fs::write(&path, source)?;
+                } else if restore {
+                    std::fs::write(dir.join(format!("{file}.bak")), current)?;
+                    std::fs::write(&path, source)?;
+                } else {
+                    continue;
+                }
+            }
         }
+        written.insert(file, ours);
+    }
+    if written != before {
+        let json = serde_json::to_string_pretty(&written).unwrap_or_default();
+        std::fs::write(record_path, json)?;
+    }
+    Ok(())
+}
+
+fn theme_def(name: String, syntax: SyntectTheme, custom: bool) -> ThemeDef {
+    let accent = syntax.settings.accent.map(to_egui);
+    let palette = Palette::derive(&syntax, accent);
+    static LOADS: AtomicU64 = AtomicU64::new(0);
+    let key = format!("{name}#{}", LOADS.fetch_add(1, Ordering::Relaxed));
+    ThemeDef {
+        name,
+        key,
+        syntax,
+        palette,
+        custom,
+    }
+}
+
+/// All themes, built-ins first, read from `user_dir` (the themes folder)
+/// so edits there take effect. A built-in theme whose file is missing or
+/// broken falls back to the copy inside Ettin Edit. Returns the themes and
+/// any problems to show the user.
+pub fn load_themes(user_dir: Option<&Path>) -> (Vec<ThemeDef>, Vec<String>) {
+    let mut errors = Vec::new();
+    if let Some(dir) = user_dir
+        && let Err(e) = install_builtins(dir, false)
+    {
+        errors.push(format!(
+            "Couldn't write the built-in themes to {}: {e}",
+            dir.display()
+        ));
+    }
+    let mut themes = Vec::new();
+    for (name, source) in BUILTIN {
+        let from_file = user_dir.map(|d| d.join(file_name(name))).and_then(|path| {
+            if !path.is_file() {
+                return None;
+            }
+            ThemeSet::get_theme(&path)
+                .map_err(|e| {
+                    errors.push(format!(
+                        "The theme file {} has a problem, so the original {name} theme is used: {e}",
+                        path.display()
+                    ))
+                })
+                .ok()
+        });
+        let syntax = from_file.unwrap_or_else(|| load_embedded(source));
+        themes.push(theme_def((*name).to_owned(), syntax, false));
     }
 
     if let Some(dir) = user_dir
@@ -289,26 +374,21 @@ pub fn load_themes(user_dir: Option<&Path>) -> Vec<ThemeDef> {
             .collect();
         paths.sort();
         for path in paths {
+            let name = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            if BUILTIN.iter().any(|(b, _)| *b == name) {
+                continue;
+            }
             match ThemeSet::get_theme(&path) {
-                Ok(syntax) => {
-                    let name = path
-                        .file_stem()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned();
-                    let palette = Palette::derive(&syntax, None);
-                    themes.push(ThemeDef {
-                        name,
-                        syntax,
-                        palette,
-                        custom: true,
-                    });
-                }
-                Err(e) => eprintln!("nixpad: skipping theme {}: {e}", path.display()),
+                Ok(syntax) => themes.push(theme_def(name, syntax, true)),
+                Err(e) => errors.push(format!("Skipped the theme {}: {e}", path.display())),
             }
         }
     }
-    themes
+    (themes, errors)
 }
 
 #[cfg(test)]
@@ -317,11 +397,60 @@ mod tests {
 
     #[test]
     fn builtins_load_and_classify() {
-        let themes = load_themes(None);
-        assert!(themes.len() >= 9);
-        let dark = themes.iter().find(|t| t.name == "NixPad Dark").unwrap();
-        let light = themes.iter().find(|t| t.name == "NixPad Light").unwrap();
+        let (themes, errors) = load_themes(None);
+        assert!(errors.is_empty());
+        assert_eq!(themes.len(), BUILTIN.len());
+        assert_eq!(themes[0].name, "Ettin Dark");
+        let dark = themes.iter().find(|t| t.name == "Ettin Dark").unwrap();
+        let light = themes.iter().find(|t| t.name == "Ettin Light").unwrap();
         assert!(dark.palette.dark);
         assert!(!light.palette.dark);
+    }
+
+    #[test]
+    fn builtins_go_to_the_themes_folder() {
+        let dir = std::env::temp_dir().join(format!("ettin-edit-themes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        install_builtins(&dir, false).unwrap();
+        let dark = dir.join("Ettin Dark.tmTheme");
+        assert_eq!(std::fs::read_to_string(&dark).unwrap(), BUILTIN[0].1);
+
+        // An edit in the folder is used and kept.
+        let edited = BUILTIN[0].1.replace("#2D2D2D", "#101010");
+        std::fs::write(&dark, &edited).unwrap();
+        install_builtins(&dir, false).unwrap();
+        assert_eq!(std::fs::read_to_string(&dark).unwrap(), edited);
+        let (themes, errors) = load_themes(Some(&dir));
+        assert!(errors.is_empty());
+        assert_eq!(
+            themes[0].palette.editor_bg,
+            Color32::from_rgb(0x10, 0x10, 0x10)
+        );
+        assert!(!themes[0].custom);
+
+        // A copy written by an older version and never edited is updated.
+        let old = BUILTIN[1].1.replace("Ettin Night", "Old Night");
+        let night = dir.join("Ettin Night.tmTheme");
+        std::fs::write(&night, &old).unwrap();
+        let record = dir.join(WRITTEN_FILE);
+        let mut written: BTreeMap<String, String> =
+            serde_json::from_str(&std::fs::read_to_string(&record).unwrap()).unwrap();
+        written.insert("Ettin Night.tmTheme".into(), hash(&old));
+        std::fs::write(&record, serde_json::to_string(&written).unwrap()).unwrap();
+        install_builtins(&dir, false).unwrap();
+        assert_eq!(std::fs::read_to_string(&night).unwrap(), BUILTIN[1].1);
+
+        // Restoring puts the original back and keeps the edit as .bak.
+        install_builtins(&dir, true).unwrap();
+        assert_eq!(std::fs::read_to_string(&dark).unwrap(), BUILTIN[0].1);
+        let bak = dir.join("Ettin Dark.tmTheme.bak");
+        assert_eq!(std::fs::read_to_string(bak).unwrap(), edited);
+
+        // A broken built-in file falls back to the original, with a message.
+        std::fs::write(&dark, "not a theme").unwrap();
+        let (themes, errors) = load_themes(Some(&dir));
+        assert_eq!(errors.len(), 1);
+        assert_eq!(themes[0].name, "Ettin Dark");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
