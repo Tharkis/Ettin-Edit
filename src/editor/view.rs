@@ -19,6 +19,7 @@ use super::buffer::{CharEdit, LineEdit};
 use super::highlight::LineSpans;
 use super::layout::{char_cols, wrap_points};
 use super::selection::{Selection, Selections};
+use super::smart::ColumnSel;
 use super::{DragMode, Editor};
 use crate::theme::Palette;
 
@@ -30,6 +31,10 @@ const TEXT_PAD: f32 = 6.0;
 const MULTI_CLICK_SECS: f64 = 0.45;
 /// Width of the bookmark column at the left of the gutter.
 const BOOKMARK_MARGIN: f32 = 16.0;
+/// Width of the fold-marker column at the right of the gutter.
+const FOLD_MARGIN: f32 = 14.0;
+/// Lines searched below a blank line for the indentation its guides follow.
+const GUIDE_LOOKAHEAD: usize = 50;
 
 pub struct ViewConfig<'a> {
     pub font: FontId,
@@ -43,6 +48,13 @@ pub struct ViewConfig<'a> {
     pub theme_name: &'a str,
     pub plain: bool,
     pub request_focus: bool,
+    pub show_whitespace: bool,
+    pub show_eol: bool,
+    /// Shown at line ends when `show_eol` is on, such as "LF".
+    pub eol_label: &'a str,
+    pub indent_guides: bool,
+    /// Draw a vertical line at this column.
+    pub edge_column: Option<usize>,
 }
 
 /// One laid-out visual row.
@@ -191,6 +203,7 @@ impl Editor {
         let edits = self.buffer.take_line_edits();
         if let Some(first) = edits.iter().map(|e| e.start_line).min() {
             self.rows.apply_edits(&self.buffer, &edits);
+            self.map_folds(&edits);
             self.highlighter.invalidate_from(first);
             if !self.bookmarks.is_empty() {
                 self.bookmarks = map_bookmarks(&self.bookmarks, &edits);
@@ -330,6 +343,82 @@ impl Editor {
         self.set_selections(sels);
     }
 
+    /// The rectangular selection to extend: the one being made, or a new one
+    /// from the primary selection.
+    fn column_state(&mut self, cache: &mut FrameCache) -> ColumnSel {
+        if let Some((c, sels)) = &self.column
+            && *sels == self.selections
+        {
+            return *c;
+        }
+        let p = self.selections.primary();
+        let anchor = self.visual_pos(cache, p.anchor);
+        let head = self.visual_pos(cache, p.head);
+        ColumnSel { anchor, head }
+    }
+
+    /// Selects the columns between `c.anchor` and `c.head` on every row between them.
+    fn set_column_selection(&mut self, cache: &mut FrameCache, c: ColumnSel) {
+        let last_row = self.rows.total_rows().saturating_sub(1);
+        let (r0, r1) = (
+            c.anchor.0.min(c.head.0),
+            c.anchor.0.max(c.head.0).min(last_row),
+        );
+        let sels: Vec<Selection> = (r0..=r1)
+            .map(|r| {
+                let a = self.pos_at(cache, r, c.anchor.1);
+                let h = self.pos_at(cache, r, c.head.1);
+                Selection::new(a, h)
+            })
+            .collect();
+        let primary = if c.head.0 >= c.anchor.0 {
+            sels.len() - 1
+        } else {
+            0
+        };
+        self.set_selections(Selections::from_vec(sels, primary));
+        self.column = Some((c, self.selections.clone()));
+    }
+
+    fn extend_column_selection(&mut self, cache: &mut FrameCache, rows: isize, cols: isize) {
+        self.sync_caches();
+        let mut c = self.column_state(cache);
+        let last_row = self.rows.total_rows().saturating_sub(1) as isize;
+        c.head.0 = (c.head.0 as isize + rows).clamp(0, last_row) as usize;
+        c.head.1 = (c.head.1 as isize + cols).max(0) as usize;
+        self.set_column_selection(cache, c);
+    }
+
+    /// Display width of a line's indentation for its indent guides. A blank line
+    /// takes the smaller indentation of the text lines around it.
+    fn guide_indent(&self, cache: &mut FrameCache, line: usize) -> usize {
+        let indent_of = |chars: &[char]| -> Option<usize> {
+            let mut col = 0;
+            for &c in chars {
+                match c {
+                    ' ' | '\t' => col += char_cols(c, col),
+                    '\r' => return None,
+                    _ => return Some(col),
+                }
+            }
+            None
+        };
+        let chars = self.line_chars(cache, line);
+        if let Some(i) = indent_of(&chars) {
+            return i;
+        }
+        let n = self.buffer.len_lines();
+        let next = (line + 1..n.min(line + GUIDE_LOOKAHEAD))
+            .find_map(|l| indent_of(&self.line_chars(cache, l)));
+        let prev = (line.saturating_sub(GUIDE_LOOKAHEAD)..line)
+            .rev()
+            .find_map(|l| indent_of(&self.line_chars(cache, l)));
+        match (prev, next) {
+            (Some(a), Some(b)) => a.min(b),
+            _ => 0,
+        }
+    }
+
     /// Whole-word, case-sensitive occurrences of `word` on the visible lines,
     /// apart from the selection itself.
     fn word_hits(
@@ -431,6 +520,7 @@ impl Editor {
         let mut col = if wraps.len() > 1 { 0 } else { start_col };
         let mut run_format: Option<TextFormat> = None;
         let base = TextFormat::simple(cfg.font.clone(), cfg.palette.editor_fg);
+        let ws_format = TextFormat::simple(cfg.font.clone(), cfg.palette.guide);
         let flush = |job: &mut LayoutJob, text: &mut String, fmt: &Option<TextFormat>| {
             if !text.is_empty() {
                 job.append(text, 0.0, fmt.clone().unwrap_or_else(|| base.clone()));
@@ -458,6 +548,11 @@ impl Editor {
                 }
                 None => base.clone(),
             };
+            let format = if cfg.show_whitespace && (c == ' ' || c == '\t') {
+                ws_format.clone()
+            } else {
+                format
+            };
             if run_format.as_ref() != Some(&format) {
                 flush(&mut job, &mut text, &run_format);
                 run_format = Some(format);
@@ -465,10 +560,18 @@ impl Editor {
             let w = char_cols(c, col);
             match c {
                 '\t' => {
-                    for _ in 0..w {
-                        text.push(' ');
+                    for i in 0..w {
+                        text.push(if cfg.show_whitespace && i == 0 {
+                            '→'
+                        } else {
+                            ' '
+                        });
                     }
                     disp_len += w;
+                }
+                ' ' if cfg.show_whitespace => {
+                    text.push('·');
+                    disp_len += 1;
                 }
                 c if c.is_control() => {
                     text.push(char::from_u32(0x2400 + (c as u32).min(0x21)).unwrap_or('\u{FFFD}'));
@@ -514,10 +617,11 @@ impl Editor {
         let number_font = FontId::monospace(cfg.font.size * 0.88);
         let digits = self.buffer.len_lines().max(999).to_string().len() as f32;
         let gutter_w = BOOKMARK_MARGIN
+            + FOLD_MARGIN
             + if cfg.show_line_numbers {
-                digits * ui.fonts_mut(|f| f.glyph_width(&number_font, '0')) + 22.0
+                digits * ui.fonts_mut(|f| f.glyph_width(&number_font, '0')) + 8.0
             } else {
-                6.0
+                0.0
             };
         let scrollbar = ui.spacing().scroll.bar_width + ui.spacing().scroll.bar_outer_margin + 4.0;
         let text_w =
@@ -543,13 +647,17 @@ impl Editor {
                         tab: true,
                         horizontal_arrows: true,
                         vertical_arrows: true,
-                        escape: false,
+                        escape: true,
                     },
                 )
             });
             changed |= self.handle_keyboard(ui, &mut cache);
         }
         self.sync_caches();
+        self.reveal_carets();
+        if !has_focus {
+            self.completion = None;
+        }
         if changed {
             cache = FrameCache::default();
         }
@@ -564,6 +672,7 @@ impl Editor {
 
         let mut budget = HIGHLIGHT_BUDGET;
         let mut needs_repaint = false;
+        let mut popup_at: Option<Pos2> = None;
         let scroll = ScrollArea::both()
             .id_salt(id.with("scroll"))
             .auto_shrink(false)
@@ -651,6 +760,37 @@ impl Editor {
                     }
                 }
 
+                // Long-line edge.
+                if let Some(edge) = cfg.edge_column {
+                    let x = text_x + edge as f32 * metrics.char_w;
+                    painter.line_segment(
+                        [
+                            Pos2::new(x, origin.y + viewport.min.y),
+                            Pos2::new(x, origin.y + viewport.max.y),
+                        ],
+                        Stroke::new(1.0, palette.guide.gamma_multiply(0.7)),
+                    );
+                }
+
+                // Indent guides, one per indentation level.
+                if cfg.indent_guides {
+                    for (r, row) in &rows {
+                        let indent = self.guide_indent(&mut cache, row.line);
+                        let mut col = 0;
+                        while col < indent {
+                            let x = text_x + col as f32 * metrics.char_w;
+                            painter.line_segment(
+                                [
+                                    Pos2::new(x + 0.5, row_y(*r)),
+                                    Pos2::new(x + 0.5, row_y(*r) + metrics.row_h),
+                                ],
+                                Stroke::new(1.0, palette.guide.gamma_multiply(0.55)),
+                            );
+                            col += super::layout::TAB_WIDTH;
+                        }
+                    }
+                }
+
                 // Marks, find matches and other occurrences of the selected word.
                 paint_ranges(
                     painter,
@@ -710,6 +850,24 @@ impl Editor {
                     }
                 }
 
+                // The bracket at the caret and its partner.
+                if let Some(m) = self.brace_match() {
+                    let color = if m.matched {
+                        palette.brace_match
+                    } else {
+                        palette.brace_bad
+                    };
+                    paint_ranges(
+                        painter,
+                        &rows,
+                        &m.ranges,
+                        color,
+                        text_x,
+                        origin.y,
+                        metrics.row_h,
+                    );
+                }
+
                 // Text.
                 for (r, row) in &rows {
                     painter.galley(
@@ -717,6 +875,70 @@ impl Editor {
                         row.galley.clone(),
                         palette.editor_fg,
                     );
+                }
+
+                // End-of-line symbols and folded-region markers after the text.
+                let last_line = self.buffer.len_lines() - 1;
+                let small = FontId::monospace(cfg.font.size * 0.62);
+                for (r, row) in &rows {
+                    if !row.last_in_line {
+                        continue;
+                    }
+                    let mut x = text_x + row.x_of(row.end) + metrics.char_w * 0.4;
+                    let folded = self.is_folded(row.line);
+                    if cfg.show_eol && row.line < last_line {
+                        let g = painter.layout_no_wrap(
+                            cfg.eol_label.to_owned(),
+                            small.clone(),
+                            palette.guide,
+                        );
+                        let rect = Rect::from_min_size(
+                            Pos2::new(x, row_y(*r) + (metrics.row_h - g.size().y - 2.0) / 2.0),
+                            g.size() + Vec2::new(6.0, 2.0),
+                        );
+                        painter.rect_stroke(
+                            rect,
+                            2.0,
+                            Stroke::new(1.0, palette.guide),
+                            egui::StrokeKind::Inside,
+                        );
+                        painter.galley(rect.min + Vec2::new(3.0, 1.0), g, palette.guide);
+                        x = rect.right() + metrics.char_w * 0.4;
+                    }
+                    if folded {
+                        let g = painter.layout_no_wrap(
+                            "...".to_owned(),
+                            cfg.font.clone(),
+                            palette.text_dim,
+                        );
+                        let rect = Rect::from_min_size(
+                            Pos2::new(x, row_y(*r) + 1.0),
+                            Vec2::new(g.size().x + 8.0, metrics.row_h - 2.0),
+                        );
+                        painter.rect_filled(rect, 3.0, palette.line_highlight);
+                        painter.rect_stroke(
+                            rect,
+                            3.0,
+                            Stroke::new(1.0, palette.guide),
+                            egui::StrokeKind::Inside,
+                        );
+                        painter.galley(
+                            Pos2::new(
+                                rect.left() + 4.0,
+                                row_y(*r) + (metrics.row_h - g.size().y) / 2.0,
+                            ),
+                            g,
+                            palette.text_dim,
+                        );
+                        let y = row_y(*r) + metrics.row_h - 0.5;
+                        painter.line_segment(
+                            [
+                                Pos2::new(origin.x + viewport.min.x + gutter_w, y),
+                                Pos2::new(origin.x + viewport.max.x, y),
+                            ],
+                            Stroke::new(1.0, palette.guide.gamma_multiply(0.6)),
+                        );
+                    }
                 }
 
                 // Carets and IME composition.
@@ -789,7 +1011,10 @@ impl Editor {
                         }
                         let current = caret_lines.contains(&row.line);
                         painter.text(
-                            Pos2::new(gutter.right() - 14.0, row_y(*r) + metrics.row_h / 2.0),
+                            Pos2::new(
+                                gutter.right() - FOLD_MARGIN,
+                                row_y(*r) + metrics.row_h / 2.0,
+                            ),
                             Align2::RIGHT_CENTER,
                             (row.line + 1).to_string(),
                             number_font.clone(),
@@ -800,6 +1025,39 @@ impl Editor {
                             },
                         );
                     }
+                }
+
+                // Fold markers: ▾ where a region can fold, ▸ where one is folded.
+                let fold_x = gutter.right() - FOLD_MARGIN / 2.0;
+                let size = (metrics.row_h * 0.2).clamp(3.0, 5.0);
+                for (r, row) in &rows {
+                    if !row.first_in_line {
+                        continue;
+                    }
+                    let folded = self.is_folded(row.line);
+                    if !folded && !self.is_fold_start(row.line) {
+                        continue;
+                    }
+                    let c = Pos2::new(fold_x, row_y(*r) + metrics.row_h / 2.0);
+                    let points = if folded {
+                        vec![
+                            c + Vec2::new(-size * 0.6, -size),
+                            c + Vec2::new(size * 0.8, 0.0),
+                            c + Vec2::new(-size * 0.6, size),
+                        ]
+                    } else {
+                        vec![
+                            c + Vec2::new(-size, -size * 0.6),
+                            c + Vec2::new(size, -size * 0.6),
+                            c + Vec2::new(0.0, size * 0.8),
+                        ]
+                    };
+                    let color = if folded {
+                        palette.accent
+                    } else {
+                        palette.gutter_fg
+                    };
+                    painter.add(egui::Shape::convex_polygon(points, color, Stroke::NONE));
                 }
 
                 if !self.bookmarks.is_empty() {
@@ -854,6 +1112,16 @@ impl Editor {
                     );
                 }
 
+                if self.completion.is_some()
+                    && let Some(caret) = primary_caret_rect
+                {
+                    let to_global = ui
+                        .ctx()
+                        .layer_transform_to_global(ui.layer_id())
+                        .unwrap_or_default();
+                    popup_at = Some(to_global * caret.left_bottom());
+                }
+
                 if focused && let Some(caret) = primary_caret_rect {
                     let to_global = ui
                         .ctx()
@@ -872,9 +1140,54 @@ impl Editor {
                 self.context_menu(&response);
             });
         let _ = scroll;
+        if let Some(at) = popup_at {
+            self.completion_popup(ui, id, at, cfg);
+        }
         // Search highlights are recomputed next frame after the text changes.
         if needs_repaint || self.buffer.version() != version_before {
             ui.ctx().request_repaint();
+        }
+    }
+
+    /// The word-completion list under the caret.
+    fn completion_popup(&mut self, ui: &Ui, id: Id, at: Pos2, cfg: &ViewConfig) {
+        let Some(c) = self.completion.clone() else {
+            return;
+        };
+        let palette = cfg.palette;
+        let mut chosen = None;
+        egui::Area::new(id.with("completion"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(at + Vec2::new(-4.0, 2.0))
+            .show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style())
+                    .fill(palette.chrome_bg)
+                    .inner_margin(egui::Margin::same(3))
+                    .show(ui, |ui| {
+                        ui.set_min_width(160.0);
+                        ScrollArea::vertical()
+                            .max_height(220.0)
+                            .auto_shrink([true, true])
+                            .show(ui, |ui| {
+                                for (i, item) in c.items.iter().enumerate() {
+                                    let text = egui::RichText::new(item)
+                                        .font(cfg.font.clone())
+                                        .color(palette.text);
+                                    let r = ui.add(egui::Button::selectable(i == c.selected, text));
+                                    if i == c.selected {
+                                        r.scroll_to_me(None);
+                                    }
+                                    if r.clicked() {
+                                        chosen = Some(i);
+                                    }
+                                }
+                            });
+                    });
+            });
+        if let Some(i) = chosen {
+            let ctx = ui.ctx().clone();
+            self.accept_completion(&ctx, Some(i));
+            ui.memory_mut(|m| m.request_focus(id));
         }
     }
 
@@ -920,15 +1233,21 @@ impl Editor {
         let ctx = ui.ctx().clone();
         let events = ui.input(|i| i.events.clone());
         let mut edited = false;
+        let mut typed_word = false;
         for event in events {
             match event {
                 Event::Text(text) => {
                     if !text.is_empty() && !text.chars().any(|c| c.is_control()) {
-                        self.insert_text(&ctx, &text);
+                        self.type_text(&ctx, &text);
                         edited = true;
+                        typed_word |= text.chars().all(|c| c.is_alphanumeric() || c == '_');
+                        if !typed_word {
+                            self.completion = None;
+                        }
                     }
                 }
                 Event::Paste(text) => {
+                    self.completion = None;
                     self.paste(&ctx, &text);
                     edited = true;
                 }
@@ -965,7 +1284,20 @@ impl Editor {
                 _ => {}
             }
         }
+        if typed_word && self.opts.completion {
+            self.update_completion(false);
+        } else if typed_word {
+            self.completion = None;
+        }
         edited
+    }
+
+    /// Replays a recorded key press (macro playback).
+    pub fn replay_key(&mut self, ctx: &egui::Context, key: Key, modifiers: Modifiers) {
+        let mut cache = FrameCache::default();
+        self.sync_caches();
+        self.handle_key(ctx, &mut cache, key, modifiers);
+        self.sync_caches();
     }
 
     fn handle_key(
@@ -977,7 +1309,57 @@ impl Editor {
     ) -> bool {
         let word = m.command || (cfg!(target_os = "macos") && m.alt);
         let extend = m.shift;
+        // The completion list takes the navigation keys while it is open.
+        if let Some(c) = &mut self.completion {
+            let n = c.items.len();
+            match key {
+                Key::ArrowDown => {
+                    c.selected = (c.selected + 1) % n;
+                    return false;
+                }
+                Key::ArrowUp => {
+                    c.selected = (c.selected + n - 1) % n;
+                    return false;
+                }
+                Key::PageDown => {
+                    c.selected = (c.selected + 8).min(n - 1);
+                    return false;
+                }
+                Key::PageUp => {
+                    c.selected = c.selected.saturating_sub(8);
+                    return false;
+                }
+                Key::Enter | Key::Tab if m.is_none() => {
+                    self.accept_completion(ctx, None);
+                    return true;
+                }
+                Key::Escape => {
+                    self.completion = None;
+                    return false;
+                }
+                Key::Backspace => {}
+                _ => self.completion = None,
+            }
+        }
+        // Alt+Shift+arrows grow a rectangular selection.
+        if m.alt && m.shift && !m.command {
+            let step = match key {
+                Key::ArrowUp => Some((-1, 0)),
+                Key::ArrowDown => Some((1, 0)),
+                Key::ArrowLeft => Some((0, -1)),
+                Key::ArrowRight => Some((0, 1)),
+                _ => None,
+            };
+            if let Some((dr, dc)) = step {
+                self.extend_column_selection(cache, dr, dc);
+                return false;
+            }
+        }
         match key {
+            Key::Space if m.command => {
+                self.update_completion(true);
+                return false;
+            }
             Key::ArrowLeft => self.move_horizontal(false, word, extend),
             Key::ArrowRight => self.move_horizontal(true, word, extend),
             Key::ArrowUp if m.command && m.alt => self.add_caret_vertical(cache, false),
@@ -1011,6 +1393,9 @@ impl Editor {
             }
             Key::Backspace => {
                 self.delete(ctx, false, word);
+                if self.completion.is_some() {
+                    self.update_completion(false);
+                }
                 return true;
             }
             Key::Delete => {
@@ -1076,11 +1461,13 @@ impl Editor {
             // Use where the button went down, not where the pointer is by now.
             let pointer = press_origin.unwrap_or(pointer);
             let row = ((pointer.y - origin.y) / metrics.row_h).floor();
-            // A click in the gutter toggles a bookmark on that line.
+            // A click in the gutter toggles a fold (in the marker column) or a bookmark.
             if pointer.x < gutter_right {
                 if row >= 0.0 && (row as usize) < total_rows {
                     let (line, _) = self.rows.row_to_line(row as usize);
-                    self.toggle_bookmark(line);
+                    if pointer.x < gutter_right - FOLD_MARGIN || !self.toggle_fold(line) {
+                        self.toggle_bookmark(line);
+                    }
                 }
                 self.drag_origin = None;
                 return false;
@@ -1128,8 +1515,14 @@ impl Editor {
                 }
             };
             self.drag_origin = Some(target);
+            self.completion = None;
+            // Alt+drag makes a rectangular selection from here.
+            self.column_drag = (modifiers.alt && clicks == 1 && row >= 0.0).then(|| {
+                let col = ((pointer.x - text_x) / metrics.char_w).round().max(0.0) as usize;
+                (row as usize, col)
+            });
             let mut sels = self.selections.clone();
-            if modifiers.alt && clicks == 1 {
+            if (modifiers.alt || modifiers.command) && clicks == 1 {
                 sels.push(target, true);
             } else if modifiers.shift && clicks == 1 {
                 let p = sels.primary();
@@ -1144,6 +1537,24 @@ impl Editor {
         }
 
         if response.dragged_by(egui::PointerButton::Primary)
+            && modifiers.alt
+            && let Some(anchor) = self.column_drag
+        {
+            let row = ((pointer.y - origin.y) / metrics.row_h).floor().max(0.0) as usize;
+            let row = row.min(total_rows.saturating_sub(1));
+            let col = ((pointer.x - text_x) / metrics.char_w).round().max(0.0) as usize;
+            self.set_column_selection(
+                cache,
+                ColumnSel {
+                    anchor,
+                    head: (row, col),
+                },
+            );
+            ui.scroll_to_rect(
+                Rect::from_center_size(pointer, Vec2::splat(metrics.row_h)),
+                None,
+            );
+        } else if response.dragged_by(egui::PointerButton::Primary)
             && let Some(origin_sel) = self.drag_origin
         {
             let pos = pos_at_pointer(self);
@@ -1190,6 +1601,7 @@ impl Editor {
         }
         if response.drag_stopped() {
             self.drag_origin = None;
+            self.column_drag = None;
         }
         false
     }

@@ -85,29 +85,52 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] Bookmarks: toggle with Ctrl+F2 or a click in the gutter, F2 / Shift+F2 to jump, Clear All
 - [x] Cut, copy or remove bookmarked lines, remove unbookmarked lines, inverse bookmarks
 
+## Release 0.4: editing power tools (done)
+
+### Multiple cursors and column editing
+- [x] Select next occurrence (Ctrl+Shift+D) and select all occurrences (Alt+F3) for multi-caret edits
+- [x] Ctrl+click or Alt+click adds a caret; Esc goes back to one
+- [x] Column (box) selection with Alt+drag or Alt+Shift+arrows; typing and deleting work on every row
+- [x] Column Editor (Alt+C): insert text or a number sequence (start, step, repeat, leading zeros, dec/hex/oct/bin) down a column
+
+### Line operations (Edit > Line Operations)
+- [x] Duplicate (Ctrl+D), delete (Ctrl+Shift+L), move up/down (Ctrl+Shift+Up/Down)
+- [x] Join (Ctrl+J), split at the long-line column (Ctrl+I), insert blank line above or below
+- [x] Sort ascending or descending: lexically, ignoring case, as integers, as decimals, by length; reverse order
+- [x] Remove duplicate lines, consecutive duplicates, empty lines, or blank lines
+- [x] Trim trailing, leading or both; end-of-line to space; tabs to spaces; spaces to tabs (leading or all)
+
+### Text tools
+- [x] Case conversion: UPPER (Ctrl+Shift+U), lower (Ctrl+U), Title (Alt+U), Sentence (Ctrl+Alt+U), iNVERT (Ctrl+Alt+Shift+U)
+- [x] Toggle line comment (Ctrl+Q) and block comment (Ctrl+Shift+Q), with the right markers for each language
+- [x] Insert date and time, short (F5) or long (Shift+F5)
+- [x] Read-only mode (Edit menu, or click "Read-only" in the status bar)
+
+### Typing helpers (each can be turned off in the Settings menu)
+- [x] Auto-close brackets and quotes; typing a closer steps over it; Backspace removes an empty pair; selected text gets wrapped
+- [x] Smart indent: Enter indents after `{`, `(`, `[` (and after `:` in Python, YAML and Nim) and splits `{}` onto separate lines; a closing bracket outdents
+- [x] Word completion from words in the document, as you type or with Ctrl+Space
+- [x] Insert spaces instead of tabs (optional)
+- [x] Matching bracket highlight (red when unmatched) and matching HTML/XML tag highlight
+
+### View
+- [x] Code folding by indentation: gutter arrows, fold/unfold current (Ctrl+Alt+F / Ctrl+Alt+Shift+F), fold all (Alt+0), unfold all (Alt+Shift+0), fold level 1–5 (Alt+1…5)
+- [x] Indent guides
+- [x] Show whitespace (spaces and tabs) and end-of-line markers (LF, CRLF, CR)
+- [x] Long-line edge marker at a configurable column (default 80)
+
+### Macros
+- [x] Record (Ctrl+Shift+R) and play back (Ctrl+Shift+P) typing, keys, clipboard and edit commands
+- [x] Run a macro N times or until the end of the file
+- [x] Save macros by name; saved macros appear in the Macro menu and survive restarts
+
 ## Core editor features still missing
 
 ### Editing
-- [~] Multiple cursors and multi-selection (basics in 0.2; select next occurrence still to come)
-- [ ] Column (block) selection and column editing
-- [~] Auto-indent and smart indentation per language (keeps the previous line's indent; per-language rules still to come)
-- [ ] Brace and tag matching / highlighting
-- [ ] Auto-close brackets and quotes
-- [ ] Toggle line and block comments per language
-- [ ] Line operations: duplicate, delete, move up/down, join, split
-- [ ] Sort lines (ascending/descending, case-insensitive, numeric), remove duplicate lines, remove empty lines
-- [ ] Trim trailing / leading whitespace, tabs to spaces and back
-- [ ] Case conversion (UPPER, lower, Title, Sentence, iNVERT)
-- [ ] Word and keyword auto-completion, function parameter hints
-- [ ] Macro recording and playback, saved macros
-- [ ] Insert date/time
-- [ ] Read-only mode
-- [ ] Code folding
+- [ ] Function parameter hints and language keyword completion
+- [ ] Syntax-aware code folding (by grammar instead of indentation)
 
 ### View
-- [ ] Show whitespace and end-of-line symbols
-- [ ] Indent guides
-- [ ] Long-line edge marker
 - [ ] Split view (two documents side by side) and clone the same document into both views
 - [ ] Document map (minimap)
 - [ ] Function list panel

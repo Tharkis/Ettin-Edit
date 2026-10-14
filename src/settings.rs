@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::macros::SavedMacro;
 use crate::search::SearchOptions;
 
 pub const MAX_RECENT: usize = 12;
@@ -27,6 +28,16 @@ pub struct Settings {
     pub fif_filters: String,
     pub fif_subfolders: bool,
     pub fif_hidden: bool,
+    pub show_whitespace: bool,
+    pub show_eol: bool,
+    pub indent_guides: bool,
+    pub show_edge: bool,
+    pub edge_column: usize,
+    pub auto_close: bool,
+    pub smart_indent: bool,
+    pub use_spaces: bool,
+    pub word_completion: bool,
+    pub macros: Vec<SavedMacro>,
 }
 
 impl Default for Settings {
@@ -49,6 +60,16 @@ impl Default for Settings {
             fif_filters: String::new(),
             fif_subfolders: true,
             fif_hidden: false,
+            show_whitespace: false,
+            show_eol: false,
+            indent_guides: true,
+            show_edge: false,
+            edge_column: 80,
+            auto_close: true,
+            smart_indent: true,
+            use_spaces: false,
+            word_completion: true,
+            macros: Vec::new(),
         }
     }
 }

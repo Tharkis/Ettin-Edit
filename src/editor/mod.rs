@@ -3,12 +3,15 @@
 
 pub mod buffer;
 mod find;
+mod fold;
 pub mod highlight;
 pub mod layout;
+pub mod lines;
 pub mod selection;
+mod smart;
 mod view;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -20,6 +23,7 @@ use layout::RowIndex;
 use selection::{Selection, Selections};
 
 pub use find::{FindOutcome, MAX_HIGHLIGHTS};
+pub use smart::EditOptions;
 pub use view::ViewConfig;
 
 pub struct Editor {
@@ -48,6 +52,16 @@ pub struct Editor {
     pub marks: Vec<Range<usize>>,
     /// Bookmarked lines (0-based). Bookmarks move with edits.
     pub bookmarks: BTreeSet<usize>,
+    /// Typing behaviour (auto-close, indentation, completion), set by the app.
+    pub opts: EditOptions,
+    /// The word-completion list, while it is open.
+    pub completion: Option<smart::Completion>,
+    /// The rectangular selection being made, and the selections it produced.
+    column: Option<(smart::ColumnSel, Selections)>,
+    /// Where an Alt+drag rectangular selection started (visual row, column).
+    column_drag: Option<(usize, usize)>,
+    /// Folded regions: first line → last hidden line.
+    folds: BTreeMap<usize, usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -94,6 +108,11 @@ impl Editor {
             search_hits: Arc::default(),
             marks: Vec::new(),
             bookmarks: BTreeSet::new(),
+            opts: EditOptions::default(),
+            completion: None,
+            column: None,
+            column_drag: None,
+            folds: BTreeMap::new(),
         }
     }
 
@@ -251,7 +270,7 @@ impl Editor {
                 (true, true) => self.next_word(s.head),
                 (false, true) => self.prev_word(s.head),
             };
-            s.moved_to(p, extend)
+            s.moved_to(self.skip_hidden(p, forward), extend)
         });
         self.set_selections(sels);
     }
@@ -325,6 +344,24 @@ impl Editor {
         });
     }
 
+    /// Text typed at the keyboard: like [`Self::insert_text`], plus auto-closed
+    /// pairs and closing brackets that line up with their opener.
+    pub fn type_text(&mut self, ctx: &egui::Context, text: &str) {
+        let mut chars = text.chars();
+        if let (Some(c), None) = (chars.next(), chars.next()) {
+            if self.opts.auto_close && self.type_with_pairs(ctx, c) {
+                return;
+            }
+            if self.opts.smart_indent
+                && matches!(c, '}' | ']' | ')')
+                && self.type_closer_outdented(ctx, c)
+            {
+                return;
+            }
+        }
+        self.insert_text(ctx, text);
+    }
+
     /// Pastes `text`; one line per caret when the line count matches the caret count.
     pub fn paste(&mut self, ctx: &egui::Context, text: &str) {
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
@@ -356,6 +393,10 @@ impl Editor {
     }
 
     pub fn newline(&mut self, ctx: &egui::Context) {
+        if self.opts.smart_indent {
+            self.smart_newline(ctx);
+            return;
+        }
         self.edit(ctx, EditKind::Other, |ed, s| {
             // Carry the current line's indentation onto the new line.
             let line = ed.buffer.char_to_line(s.start());
@@ -373,6 +414,9 @@ impl Editor {
     }
 
     pub fn delete(&mut self, ctx: &egui::Context, forward: bool, by_word: bool) {
+        if !forward && !by_word && self.opts.auto_close && self.delete_pair(ctx) {
+            return;
+        }
         self.edit(ctx, EditKind::Delete, |ed, s| {
             let range = if !s.is_empty() {
                 s.range()
@@ -406,7 +450,22 @@ impl Editor {
             .iter()
             .any(|s| self.buffer.char_to_line(s.start()) != self.buffer.char_to_line(s.end()));
         if !outdent && !multi_line {
-            self.insert_text(ctx, "\t");
+            if !self.opts.use_spaces {
+                self.insert_text(ctx, "\t");
+                return;
+            }
+            // Spaces up to the next tab stop.
+            self.edit(ctx, EditKind::Insert, |ed, s| {
+                let line = ed.buffer.char_to_line(s.start());
+                let ls = ed.buffer.line_start(line);
+                let col = layout::line_cols(ed.buffer.rope().slice(ls..s.start()).chars());
+                let n = layout::TAB_WIDTH - col % layout::TAB_WIDTH;
+                Replacement {
+                    range: s.range(),
+                    text: " ".repeat(n),
+                    caret: Selection::caret(n),
+                }
+            });
             return;
         }
         // Collect each touched line once.
@@ -445,10 +504,12 @@ impl Editor {
                     });
                 }
             } else if self.buffer.line_len(l) > 0 {
+                let unit = self.indent_unit();
+                let n = unit.chars().count();
                 reps.push(Replacement {
                     range: start..start,
-                    text: "\t".into(),
-                    caret: Selection::caret(1),
+                    text: unit,
+                    caret: Selection::caret(n),
                 });
             }
         }
@@ -544,6 +605,7 @@ impl Editor {
         self.selections = Selections::caret(0);
         self.marks.clear();
         self.bookmarks.clear();
+        self.folds.clear();
     }
 }
 

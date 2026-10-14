@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::editor::Editor;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum LineEnding {
     Lf,
     CrLf,
@@ -20,6 +20,15 @@ impl LineEnding {
             LineEnding::Lf => "Unix (LF)",
             LineEnding::CrLf => "Windows (CR LF)",
             LineEnding::Cr => "Macintosh (CR)",
+        }
+    }
+
+    /// The short name shown at line ends: LF, CRLF or CR.
+    pub fn short_label(self) -> &'static str {
+        match self {
+            LineEnding::Lf => "LF",
+            LineEnding::CrLf => "CRLF",
+            LineEnding::Cr => "CR",
         }
     }
 
