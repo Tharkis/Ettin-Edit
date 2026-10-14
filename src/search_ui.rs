@@ -65,6 +65,8 @@ pub struct FindBar {
     focus: Option<&'static str>,
     /// A note shown next to the count, such as "Wrapped around" or "7 replaced".
     pub message: Option<String>,
+    /// The document state a replace message describes; the message clears once the text changes again.
+    pub message_at: Option<(u64, u64)>,
     /// Where search-as-you-type starts from: the document and char offset.
     pub origin: Option<(u64, usize)>,
     /// What the highlights were computed for: (doc id, buffer version, text, options).

@@ -556,9 +556,9 @@ impl NixPadApp {
         let Some(q) = self.query() else { return };
         let template = self.find_bar.replace.clone();
         let in_selection = self.find_bar.in_selection;
-        let n = self.docs[self.active]
-            .editor
-            .replace_all(ctx, &q, &template, in_selection);
+        let doc = &mut self.docs[self.active];
+        let n = doc.editor.replace_all(ctx, &q, &template, in_selection);
+        self.find_bar.message_at = Some((doc.id, doc.editor.buffer.version()));
         self.find_bar.message = Some(match n {
             0 => "No results".to_owned(),
             1 => "1 replaced".to_owned(),
@@ -654,6 +654,15 @@ impl NixPadApp {
             return;
         };
         let (id, version) = (doc.id, doc.editor.buffer.version());
+        // A "N replaced" note goes away once the text changes again (e.g. undo).
+        if self
+            .find_bar
+            .message_at
+            .is_some_and(|at| at != (id, version))
+        {
+            self.find_bar.message = None;
+            self.find_bar.message_at = None;
+        }
         if self.find_bar.hits_stale(id, version, &opts) {
             let query = if self.find_bar.find.is_empty() {
                 None
