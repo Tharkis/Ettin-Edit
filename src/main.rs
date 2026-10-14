@@ -4,6 +4,8 @@
 
 mod actions;
 mod app;
+mod compare;
+mod compare_ui;
 mod document;
 mod editor;
 mod encoding;

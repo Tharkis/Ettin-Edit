@@ -7,11 +7,14 @@ NixPad is an original, clean-room implementation written in Rust: it shares no c
 
 ## Status
 
-Release 0.6 adds the Tools menu, with built-in versions of three favourite Notepad++
+Release 0.7 adds split view (two tabs side by side, or one document in both views)
+and Compare, a built-in take on ComparePlus: compare two tabs, the last save, the
+clipboard, the last Git commit or two selections, with word-level highlights, moved
+blocks, an overview bar and patch export. Release 0.6 added the Tools menu, with built-in versions of three favourite Notepad++
 plugins. JSON and JavaScript tools format, minify, validate and sort, with a live JSON
 tree. MIME tools cover Base64, URL, quoted-printable, HTML entities and SAML. XML tools
 pretty print, check syntax (optionally on save), run XPath queries, show the current
-XPath on the status bar, and close tags as you type. Release 0.6.1 puts the Edit and Tools menus in the editor's right-click menu. It builds on 0.5's encodings,
+XPath on the status bar, and close tags as you type. Release 0.6.1 put the Edit and Tools menus in the editor's right-click menu. It all builds on 0.5's encodings,
 backups and file commands, 0.4's editing tools, 0.3's search and 0.2's editor engine.
 See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
 
@@ -63,7 +66,7 @@ appears under **Theme > Custom** on the next start:
 | `src/encoding.rs` | Encoding detection, decoding and encoding (UTF-8, UTF-16, legacy code pages) |
 | `src/session.rs` | The session and backups of unsaved changes |
 | `src/instance.rs` | Single-window mode: hands files to the NixPad already running |
-| `src/system.rs` | Opening the file manager and a terminal |
+| `src/system.rs` | Opening the file manager and a terminal, and reading the last Git commit |
 | `src/file_ui.rs` | Rename, move to trash and summary dialogs, the changed-on-disk bar, the Encoding menu |
 | `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `view.rs` (drawing, keyboard and mouse) |
 | `src/search.rs` | Search queries (plain, whole word, regex), replacement templates, and Find in Files |
@@ -73,6 +76,9 @@ appears under **Theme > Custom** on the next start:
 | `src/text_tools_ui.rs` | The JSON tree and XPath panels, and the notices tools show |
 | `src/menu.rs`, `src/app/menus.rs` | Menus as data, so the Edit and Tools menus are drawn in both the menu bar and the right-click menu |
 | `src/app/text_tools.rs` | Runs the text tools on the current document |
+| `src/app/views.rs` | Split view: which tabs are in which view, moving and cloning tabs, the divider |
+| `src/compare.rs` | The compare engine: line alignment, options, moved lines, word changes, unified patches |
+| `src/compare_ui.rs`, `src/app/compare.rs` | The Compare tab, and starting and refreshing comparisons |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |
 | `src/fonts.rs` | Fallback fonts for Chinese, Japanese and Korean text |

@@ -62,6 +62,25 @@ pub struct Editor {
     column_drag: Option<(usize, usize)>,
     /// Folded regions: first line → last hidden line.
     folds: BTreeMap<usize, usize>,
+    /// The carets and scrolling of the other view, when the document is shown
+    /// in both views of a split. Swapped in with [`Editor::swap_view`].
+    other_view: Option<Box<ViewState>>,
+}
+
+/// What each view of a document keeps for itself: carets, scrolling and
+/// mouse state. The text, undo history, folds and marks are shared.
+struct ViewState {
+    selections: Selections,
+    scroll_to_caret: bool,
+    drag_origin: Option<Selection>,
+    drag_mode: Option<DragMode>,
+    preedit: Option<String>,
+    page_rows: usize,
+    pending_scroll_rows: isize,
+    last_click: Option<(f64, egui::Pos2, u8)>,
+    completion: Option<smart::Completion>,
+    column: Option<(smart::ColumnSel, Selections)>,
+    column_drag: Option<(usize, usize)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -113,7 +132,64 @@ impl Editor {
             column: None,
             column_drag: None,
             folds: BTreeMap::new(),
+            other_view: None,
         }
+    }
+
+    /// Gives the document a second view (for showing it in both views of a
+    /// split), starting where this one is.
+    pub fn add_other_view(&mut self) {
+        self.other_view = Some(Box::new(ViewState {
+            selections: self.selections.clone(),
+            scroll_to_caret: true,
+            drag_origin: None,
+            drag_mode: Some(DragMode::Char),
+            preedit: None,
+            page_rows: self.page_rows,
+            pending_scroll_rows: 0,
+            last_click: None,
+            completion: None,
+            column: None,
+            column_drag: None,
+        }));
+    }
+
+    /// Drops the second view.
+    pub fn remove_other_view(&mut self) {
+        self.other_view = None;
+    }
+
+    pub fn has_other_view(&self) -> bool {
+        self.other_view.is_some()
+    }
+
+    /// The selections of the other view, when the document is shown in both.
+    pub fn other_view_selections(&self) -> Option<&Selections> {
+        self.other_view.as_deref().map(|v| &v.selections)
+    }
+
+    /// Swaps the live view state with the other view's, so editing and drawing
+    /// act on the other view. Does nothing without a second view.
+    pub fn swap_view(&mut self) {
+        let Some(other) = self.other_view.as_deref_mut() else {
+            return;
+        };
+        std::mem::swap(&mut self.selections, &mut other.selections);
+        std::mem::swap(&mut self.scroll_to_caret, &mut other.scroll_to_caret);
+        std::mem::swap(&mut self.drag_origin, &mut other.drag_origin);
+        let mode = other.drag_mode.replace(self.drag_mode);
+        self.drag_mode = mode.unwrap_or(DragMode::Char);
+        std::mem::swap(&mut self.preedit, &mut other.preedit);
+        std::mem::swap(&mut self.page_rows, &mut other.page_rows);
+        std::mem::swap(
+            &mut self.pending_scroll_rows,
+            &mut other.pending_scroll_rows,
+        );
+        std::mem::swap(&mut self.last_click, &mut other.last_click);
+        std::mem::swap(&mut self.completion, &mut other.completion);
+        std::mem::swap(&mut self.column, &mut other.column);
+        std::mem::swap(&mut self.column_drag, &mut other.column_drag);
+        self.selections.clamp(self.buffer.len_chars());
     }
 
     /// Line and column (both 1-based) of the primary caret. The column counts chars.

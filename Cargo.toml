@@ -1,6 +1,6 @@
 [package]
 name = "nixpad"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 
@@ -22,6 +22,7 @@ chardetng = "1.0.0"
 trash = "5.2.9"
 roxmltree = "0.21.1"
 miniz_oxide = "0.9.1"
+similar = { version = "2.7.0", features = ["unicode"] }
 
 [profile.release]
 opt-level = 3

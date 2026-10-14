@@ -1,7 +1,9 @@
 //! The NixPad window: menu bar, tab strip, editor and status bar.
 
+mod compare;
 mod menus;
 mod text_tools;
+mod views;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -87,6 +89,13 @@ pub struct NixPadApp {
     xml_outline: Option<text_tools::OutlineCache>,
     /// What the last text tool did, shown briefly.
     notice: Option<Notice>,
+    split: views::Split,
+    /// The open comparison.
+    compare: Option<crate::compare_ui::CompareView>,
+    /// The tab used before the active one, for Compare.
+    previous_tab: Option<u64>,
+    /// When Compare to Clipboard asked for the clipboard text.
+    clipboard_compare: Option<f64>,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -147,6 +156,10 @@ impl NixPadApp {
             xpath: XPathPanel::default(),
             xml_outline: None,
             notice: None,
+            split: views::Split::default(),
+            compare: None,
+            previous_tab: None,
+            clipboard_compare: None,
         };
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
@@ -175,6 +188,7 @@ impl NixPadApp {
                         pinned: false,
                         read_only: false,
                         caret: 0,
+                        view: 0,
                     })
                     .collect(),
                 active: app.settings.session_active,
@@ -207,17 +221,35 @@ impl NixPadApp {
     fn new_tab(&mut self) {
         self.untitled_counter += 1;
         let id = self.alloc_id();
-        self.docs
-            .push(Document::new_untitled(id, self.untitled_counter));
-        self.select(self.docs.len() - 1);
+        let doc = Document::new_untitled(id, self.untitled_counter);
+        self.add_doc(doc);
     }
 
+    /// Adds a tab to the focused view and selects it.
+    fn add_doc(&mut self, mut doc: Document) {
+        let view = if self.is_split() {
+            self.split.focused
+        } else {
+            0
+        };
+        doc.views = [view == 0, view == 1];
+        doc.live_view = view;
+        self.docs.push(doc);
+        self.focus_view(view, self.docs.len() - 1);
+    }
+
+    /// Selects a tab, in the focused view when it is shown there.
     fn select(&mut self, index: usize) {
-        if index < self.docs.len() {
-            self.active = index;
-            self.focus_editor = true;
-            self.scroll_to_active_tab = true;
-        }
+        let Some(doc) = self.docs.get(index) else {
+            return;
+        };
+        let focused = self.split.focused;
+        let view = if doc.views[focused] {
+            focused
+        } else {
+            1 - focused
+        };
+        self.focus_view(view, index);
     }
 
     fn open_path(&mut self, path: &Path, record_recent: bool) {
@@ -249,11 +281,14 @@ impl NixPadApp {
                     .get(self.active)
                     .is_some_and(|d| d.is_pristine_untitled());
                 if replace {
+                    let old = &self.docs[self.active];
+                    doc.views = old.views;
+                    doc.live_view = old.live_view;
                     self.docs[self.active] = doc;
+                    self.fix_views();
                     self.select(self.active);
                 } else {
-                    self.docs.push(doc);
-                    self.select(self.docs.len() - 1);
+                    self.add_doc(doc);
                 }
                 if record_recent {
                     self.settings.push_recent(path);
@@ -324,13 +359,29 @@ impl NixPadApp {
 
     fn remove_doc(&mut self, id: u64) {
         if let Some(i) = self.docs.iter().position(|d| d.id == id) {
+            // The view showing it moves to the tab next to it.
+            let focused = self.split.focused;
+            let next_active = if i == self.active {
+                self.neighbour_in(focused, i)
+            } else {
+                Some(self.docs[self.active].id)
+            };
+            if self.split.other_active == Some(id) {
+                self.split.other_active = self.neighbour_in(1 - focused, i);
+            }
             let doc = self.docs.remove(i);
             if let Some(backup) = doc.backup {
                 let _ = std::fs::remove_file(backup);
             }
-            if self.active > i || self.active >= self.docs.len() {
-                self.active = self.active.saturating_sub(1);
+            self.active = next_active
+                .and_then(|id| self.docs.iter().position(|d| d.id == id))
+                .unwrap_or(usize::MAX);
+            if self.active == usize::MAX && self.is_split() {
+                // The focused view is empty: focus the other one.
+                self.split.focused = 1 - focused;
+                self.active = self.active_in(1 - focused).unwrap_or(0);
             }
+            self.fix_views();
             self.focus_editor = true;
         }
         if self.docs.is_empty() && !self.quitting {
@@ -365,7 +416,9 @@ impl NixPadApp {
         }
         if let Some(a) = active {
             self.active = a;
+            self.split.focused = usize::from(!self.docs[a].views[0]);
         }
+        self.fix_views();
     }
 
     fn restore_tab(&mut self, tab: SessionTab) -> Option<usize> {
@@ -401,6 +454,12 @@ impl NixPadApp {
                 .detect(doc.path.as_deref(), &doc.editor.buffer.line_text(0))
         });
         doc.pinned = tab.pinned;
+        doc.views = match tab.view {
+            1 => [false, true],
+            2 => [true, true],
+            _ => [true, false],
+        };
+        doc.live_view = usize::from(tab.view == 1);
         doc.editor.buffer.read_only = tab.read_only;
         doc.editor.selections = crate::editor::selection::Selections::caret(
             tab.caret.min(doc.editor.buffer.len_chars()),
@@ -444,6 +503,11 @@ impl NixPadApp {
                 pinned: doc.pinned,
                 read_only: doc.editor.buffer.read_only,
                 caret: doc.editor.selections.primary().head,
+                view: match doc.views {
+                    [true, true] => 2,
+                    [false, true] => 1,
+                    _ => 0,
+                },
             });
         }
         Session { tabs, active }
@@ -710,9 +774,29 @@ impl NixPadApp {
                 }
             }
             Action::CloseTab => {
-                let id = self.docs[self.active].id;
-                self.request_close(vec![id], false);
+                // A tab shown in both views only closes in this one.
+                if !self.close_in_view(self.active, self.split.focused) {
+                    let id = self.docs[self.active].id;
+                    self.request_close(vec![id], false);
+                }
             }
+            Action::CloseTabInView(i, view) => {
+                if !self.close_in_view(i, view)
+                    && let Some(d) = self.docs.get(i)
+                {
+                    self.request_close(vec![d.id], false);
+                }
+            }
+            Action::SelectTabInView(i, view) => self.focus_view(view, i),
+            Action::MoveToOtherView(i, view) => self.move_to_other_view(i, view),
+            Action::CloneToOtherView(i, view) => self.clone_to_other_view(i, view),
+            Action::MoveActiveToOtherView => {
+                self.move_to_other_view(self.active, self.split.focused)
+            }
+            Action::CloneActiveToOtherView => {
+                self.clone_to_other_view(self.active, self.split.focused)
+            }
+            Action::FocusOtherView => self.focus_other_view(),
             Action::CloseTabAt(i) => {
                 if let Some(d) = self.docs.get(i) {
                     self.request_close(vec![d.id], false);
@@ -756,8 +840,8 @@ impl NixPadApp {
                     );
                 }
             }
-            Action::NextTab => self.select((self.active + 1) % self.docs.len()),
-            Action::PrevTab => self.select((self.active + self.docs.len() - 1) % self.docs.len()),
+            Action::NextTab => self.step_tab(1),
+            Action::PrevTab => self.step_tab(-1),
             Action::SelectTab(i) => self.select(i),
             Action::ZoomIn => {
                 self.settings.font_size = (self.settings.font_size + 1.0).min(MAX_FONT)
@@ -960,6 +1044,18 @@ impl NixPadApp {
             | Action::ToggleJsonTree
             | Action::ToggleXPathPanel
             | Action::CopyXPath => self.run_text_tool(ctx, action),
+            Action::CompareTabs
+            | Action::CompareWith(_)
+            | Action::CompareToSaved
+            | Action::CompareToClipboard
+            | Action::CompareToGitHead
+            | Action::CompareSelections
+            | Action::NextDifference
+            | Action::PrevDifference
+            | Action::ShowComparison
+            | Action::CloseComparison
+            | Action::ExportComparePatch
+            | Action::ToggleCompareOption(_) => self.run_compare(ctx, action),
             _ => self.run_edit(ctx, action),
         }
         if focus_editor {
@@ -1613,6 +1709,13 @@ impl NixPadApp {
                     s.show_edge,
                     Action::ToggleEdge,
                 );
+                ui.separator();
+                self.menu_item(ui, "Move to Other View", Action::MoveActiveToOtherView);
+                self.menu_item(ui, "Clone to Other View", Action::CloneActiveToOtherView);
+                if self.is_split() {
+                    self.menu_item(ui, "Focus Other View", Action::FocusOtherView);
+                }
+                ui.separator();
                 ui.menu_button("Folding", |ui| {
                     self.menu_item(ui, "Fold All", Action::FoldAll);
                     self.menu_item(ui, "Unfold All", Action::UnfoldAll);
@@ -1815,18 +1918,25 @@ impl NixPadApp {
         }
     }
 
-    fn tab_bar(&mut self, ui: &mut Ui) {
+    /// The tabs of one view.
+    fn tab_strip(&mut self, ui: &mut Ui, view: usize) {
         let palette = self.palette();
         let tab_height = 32.0;
+        let tabs = self.tabs_in(view);
         ScrollArea::horizontal()
+            .id_salt(("tab-strip", view))
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 1.0;
-                    let rects: Vec<Rect> = (0..self.docs.len())
-                        .map(|i| self.tab(ui, i, tab_height, &palette))
+                    if view == 0 {
+                        self.compare_tab(ui, tab_height, &palette);
+                    }
+                    let rects: Vec<Rect> = tabs
+                        .iter()
+                        .map(|&i| self.tab(ui, i, view, tab_height, &palette))
                         .collect();
-                    self.drag_tabs(ui, &rects);
+                    self.drag_tabs(ui, &tabs, &rects);
                     ui.add_space(4.0);
                     let plus = ui.add_sized(
                         [28.0, tab_height - 6.0],
@@ -1834,42 +1944,63 @@ impl NixPadApp {
                             .frame(false),
                     );
                     if plus.on_hover_text("New tab").clicked() {
+                        if view != self.split.focused {
+                            self.pending.push(Action::FocusOtherView);
+                        }
                         self.pending.push(Action::NewTab);
                     }
                 });
             });
-        self.scroll_to_active_tab = false;
+        if view == self.split.focused || !self.is_split() {
+            self.scroll_to_active_tab = false;
+        }
     }
 
-    /// Moves the tab being dragged to where the pointer is. Pinned tabs stay
-    /// among pinned ones, and the others after them.
-    fn drag_tabs(&mut self, ui: &Ui, rects: &[Rect]) {
+    /// Moves the tab being dragged to where the pointer is, among the tabs of
+    /// its view (`tabs`, drawn at `rects`). Pinned tabs stay among pinned
+    /// ones, and the others after them.
+    fn drag_tabs(&mut self, ui: &Ui, tabs: &[usize], rects: &[Rect]) {
         let Some(id) = self.drag_tab else {
             return;
         };
         let (down, pointer) = ui.input(|i| (i.pointer.primary_down(), i.pointer.hover_pos()));
-        let from = self.docs.iter().position(|d| d.id == id);
-        let (Some(from), Some(pointer), true) = (from, pointer, down) else {
+        let Some(from) = tabs.iter().position(|&i| self.docs[i].id == id) else {
+            if !down {
+                self.drag_tab = None;
+            }
+            return;
+        };
+        let Some(pointer) = pointer.filter(|_| down) else {
             self.drag_tab = None;
             return;
         };
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-        let pinned = self.docs[from].pinned;
-        let same = |i: usize| self.docs[i].pinned == pinned;
+        let pinned = self.docs[tabs[from]].pinned;
+        let same = |k: usize| self.docs[tabs[k]].pinned == pinned;
         // Move past every neighbour whose middle the pointer has crossed.
         let target = (from + 1..rects.len())
             .rev()
-            .find(|&i| same(i) && pointer.x > rects[i].center().x)
-            .or_else(|| (0..from).find(|&i| same(i) && pointer.x < rects[i].center().x));
+            .find(|&k| same(k) && pointer.x > rects[k].center().x)
+            .or_else(|| (0..from).find(|&k| same(k) && pointer.x < rects[k].center().x));
         if let Some(to) = target {
-            self.move_doc(from, to);
+            self.move_doc(tabs[from], tabs[to]);
         }
     }
 
-    /// Draws one tab and returns where it is.
-    fn tab(&mut self, ui: &mut Ui, index: usize, height: f32, palette: &Palette) -> Rect {
+    /// Draws one tab of `view` and returns where it is.
+    fn tab(
+        &mut self,
+        ui: &mut Ui,
+        index: usize,
+        view: usize,
+        height: f32,
+        palette: &Palette,
+    ) -> Rect {
         let doc = &self.docs[index];
-        let active = index == self.active;
+        let split = self.is_split();
+        let focused_view = !split || view == self.split.focused;
+        let active =
+            self.active_in(view) == Some(index) && !self.compare.as_ref().is_some_and(|c| c.shown);
         let title = doc.title();
         let font = FontId::proportional(13.0);
         let text_color = if active {
@@ -1891,8 +2022,11 @@ impl NixPadApp {
             Pos2::new(rect.right() - 8.0 - close_size / 2.0, rect.center().y),
             Vec2::splat(close_size),
         );
-        let close_response =
-            ui.interact(close_rect, Id::new(("tab-close", doc.id)), Sense::click());
+        let close_response = ui.interact(
+            close_rect,
+            Id::new(("tab-close", doc.id, view)),
+            Sense::click(),
+        );
 
         let painter = ui.painter();
         let radius = CornerRadius {
@@ -1911,7 +2045,11 @@ impl NixPadApp {
                     sw: 0,
                     se: 0,
                 },
-                palette.accent,
+                if focused_view {
+                    palette.accent
+                } else {
+                    palette.text_dim.gamma_multiply(0.5)
+                },
             );
         } else if response.hovered() || close_response.hovered() {
             painter.rect_filled(rect, radius, palette.tab_hover_bg);
@@ -1968,9 +2106,9 @@ impl NixPadApp {
         if close_response.clicked() && pinned {
             self.pending.push(Action::TogglePin(index));
         } else if close_response.clicked() || (response.middle_clicked() && !pinned) {
-            self.pending.push(Action::CloseTabAt(index));
+            self.pending.push(Action::CloseTabInView(index, view));
         } else if response.clicked() {
-            self.pending.push(Action::SelectTab(index));
+            self.pending.push(Action::SelectTabInView(index, view));
         }
         let path = doc.path.clone();
         let response = match &path {
@@ -1979,10 +2117,10 @@ impl NixPadApp {
         };
         response.context_menu(|ui| {
             if ui.button("Close").clicked() {
-                self.pending.push(Action::CloseTabAt(index));
+                self.pending.push(Action::CloseTabInView(index, view));
             }
             if ui.button("Close Others").clicked() {
-                self.pending.push(Action::SelectTab(index));
+                self.pending.push(Action::SelectTabInView(index, view));
                 self.pending.push(Action::CloseOthers);
             }
             if ui
@@ -1990,6 +2128,13 @@ impl NixPadApp {
                 .clicked()
             {
                 self.pending.push(Action::TogglePin(index));
+            }
+            ui.separator();
+            if ui.button("Move to Other View").clicked() {
+                self.pending.push(Action::MoveToOtherView(index, view));
+            }
+            if ui.button("Clone to Other View").clicked() {
+                self.pending.push(Action::CloneToOtherView(index, view));
             }
             if let Some(p) = &path {
                 ui.separator();
@@ -2001,7 +2146,7 @@ impl NixPadApp {
                     ("Open Terminal Here", Action::OpenTerminalHere),
                 ] {
                     if ui.button(label).clicked() {
-                        self.pending.push(Action::SelectTab(index));
+                        self.pending.push(Action::SelectTabInView(index, view));
                         self.pending.push(action);
                     }
                 }
@@ -2022,15 +2167,18 @@ impl NixPadApp {
         rect
     }
 
-    fn editor(&mut self, ui: &mut Ui) {
+    /// Draws tab `index` in `view`. Returns true when its editor has keyboard focus.
+    fn editor_pane(&mut self, ui: &mut Ui, view: usize, index: usize) -> bool {
         let palette = self.palette();
         let theme_def = &self.themes[self.theme_idx];
-        let request_focus = std::mem::take(&mut self.focus_editor) && !self.any_dialog_open();
+        let focused_view = view == self.split.focused;
+        let request_focus =
+            focused_view && std::mem::take(&mut self.focus_editor) && !self.any_dialog_open();
         let ctx = ui.ctx().clone();
         let mut menu_model = menus::MenuModel::new(&ctx);
-        let context_menu = self.context_menu(&mut menu_model);
-        let Some(doc) = self.docs.get_mut(self.active) else {
-            return;
+        let context_menu = self.context_menu(&mut menu_model, index);
+        let Some(doc) = self.docs.get_mut(index) else {
+            return false;
         };
         let syntax = self.highlighter.syntax(&doc.syntax);
         let s = &self.settings;
@@ -2070,10 +2218,24 @@ impl NixPadApp {
             edge_column: s.show_edge.then_some(s.edge_column),
             context_menu: &context_menu,
         };
-        let clicked = doc.editor.show(ui, Id::new(("editor", doc.id)), &cfg);
+        // A document shown in both views keeps each view's carets apart.
+        let swapped = doc.editor.has_other_view() && doc.live_view != view;
+        if swapped {
+            doc.editor.swap_view();
+        }
+        let id = Id::new(("editor", doc.id, view));
+        let clicked = doc.editor.show(ui, id, &cfg);
+        if swapped {
+            doc.editor.swap_view();
+        }
         if let Some(action) = clicked.and_then(|id| menu_model.action(id)) {
+            // The right-click menu acts on the view it was opened in.
+            if !focused_view {
+                self.focus_view(view, index);
+            }
             self.pending.push(action);
         }
+        ui.memory(|m| m.has_focus(id))
     }
 
     fn status_bar(&mut self, ui: &mut Ui) {
@@ -2402,7 +2564,9 @@ impl eframe::App for NixPadApp {
                 ctx.request_repaint_after(std::time::Duration::from_secs_f64(BACKUP_INTERVAL));
             }
         }
+        self.fix_views();
         self.handle_input(&ctx);
+        self.take_clipboard(&ctx);
         let palette = self.palette();
 
         egui::Panel::top("menu-bar")
@@ -2421,7 +2585,7 @@ impl eframe::App for NixPadApp {
                 bottom: 0,
             }))
             .show_separator_line(false)
-            .show(ui, |ui| self.tab_bar(ui));
+            .show(ui, |ui| self.tab_bars(ui));
         egui::Panel::bottom("status-bar")
             .frame(
                 Frame::new()
@@ -2492,7 +2656,7 @@ impl eframe::App for NixPadApp {
         self.record_editor_input(&ctx);
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
-            .show(ui, |ui| self.editor(ui));
+            .show(ui, |ui| self.editor_area(ui));
 
         self.close_queue_ui(&ctx);
         self.dialogs(&ctx);

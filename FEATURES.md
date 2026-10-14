@@ -89,7 +89,7 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 
 ### Multiple cursors and column editing
 - [x] Select next occurrence (Ctrl+Shift+D) and select all occurrences (Alt+F3) for multi-caret edits
-- [x] Ctrl+click or Alt+click adds a caret; Esc goes back to one
+- [x] Ctrl+click or Alt+click adds a caret, Ctrl+drag adds a selection (0.7); Esc goes back to one
 - [x] Column (box) selection with Alt+drag or Alt+Shift+arrows; typing and deleting work on every row
 - [x] Column Editor (Alt+C): insert text or a number sequence (start, step, repeat, leading zeros, dec/hex/oct/bin) down a column
 
@@ -177,6 +177,23 @@ ticked off too; this section covers what sits around them.
 - [x] The editor's right-click menu has the whole Edit menu (Undo through Read-Only, with every submenu) and the Tools menu
 - [x] Undo, Redo, Cut and Copy are greyed out when there is nothing to undo, redo or copy (in the Edit menu too)
 
+## Release 0.7: split view and Compare (done)
+
+### Split view (View menu and tab right-click menu)
+- [x] Move a tab to the other view, or clone it so the same document shows in both views with separate carets and scrolling
+- [x] Each view has its own tab bar and active tab; F8 switches views; drag the divider to resize
+- [x] Closing a clone only closes that view's copy; the split ends when one view is empty
+- [x] The split layout is saved with the session
+
+### Compare (Tools > Compare, and the right-click menu)
+- [x] Opens as a Compare tab: both sides aligned row by row, read-only, and updated as you edit the compared tabs
+- [x] Double-click a line to jump to it in its tab for editing
+- [x] Toolbar: first, previous, next and last difference, the change summary, Swap Sides, Export Patch, and the options
+- [x] Shortcuts: Ctrl+Alt+D compares the two views (or this tab with the one used before it), F7 / Shift+F7 next and previous difference
+- [x] Compare With any open tab, the last save, the clipboard, the last Git commit, or two selections (Ctrl+drag a second selection, or select in each view)
+- [x] Moved blocks are coloured apart from added and removed lines
+- [x] Very large or very different files stay responsive (the diff has a time limit and the view only draws the visible rows)
+
 ## Core editor features still missing
 
 ### Editing
@@ -184,7 +201,7 @@ ticked off too; this section covers what sits around them.
 - [ ] Syntax-aware code folding (by grammar instead of indentation)
 
 ### View
-- [ ] Split view (two documents side by side) and clone the same document into both views
+- [x] Split view (two documents side by side) and clone the same document into both views (0.7)
 - [ ] Document map (minimap)
 - [ ] Function list panel
 - [ ] Folder as workspace (file tree side panel)
@@ -266,13 +283,13 @@ These can ship built in or as first-party plugins once the plugin system exists.
 - [~] Namespace handling for XPath: prefixes declared in the document work, and unprefixed names also match the default namespace; custom prefix mappings are still missing
 
 ### ComparePlus (diff)
-- [ ] Compare two tabs side by side
-- [ ] Highlight added, removed, changed and moved lines, plus character-level changes inside lines
-- [ ] Next / previous / first / last difference navigation
-- [ ] Synchronised scrolling between the two sides
-- [ ] Compare against last saved version, clipboard, or Git HEAD
-- [ ] Options: ignore whitespace, ignore case, ignore empty lines, detect moves
-- [ ] Compare summary (counts of changes)
-- [ ] Compare a selection against another selection
-- [ ] Diff overview bar (where differences are in the file)
-- [ ] Export the diff as a unified patch
+- [x] Compare two tabs side by side
+- [x] Highlight added, removed, changed and moved lines, plus character-level changes inside lines
+- [x] Next / previous / first / last difference navigation
+- [x] Synchronised scrolling between the two sides
+- [x] Compare against last saved version, clipboard, or Git HEAD
+- [x] Options: ignore whitespace, ignore case, ignore empty lines, detect moves
+- [x] Compare summary (counts of changes)
+- [x] Compare a selection against another selection
+- [x] Diff overview bar (where differences are in the file)
+- [x] Export the diff as a unified patch
