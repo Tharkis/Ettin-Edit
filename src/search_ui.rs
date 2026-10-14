@@ -45,7 +45,7 @@ fn option_toggle(ui: &mut Ui, label: &str, on: &mut bool, tip: &str) -> bool {
     false
 }
 
-fn icon_button(ui: &mut Ui, label: &str, tip: &str) -> bool {
+pub fn icon_button(ui: &mut Ui, label: &str, tip: &str) -> bool {
     ui.add(egui::Button::new(RichText::new(label).size(14.0)).min_size(Vec2::new(26.0, 22.0)))
         .on_hover_text(tip)
         .clicked()

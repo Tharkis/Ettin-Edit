@@ -1,5 +1,7 @@
 //! The NixPad window: menu bar, tab strip, editor and status bar.
 
+mod text_tools;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -25,6 +27,7 @@ use crate::search_ui::{
 use crate::session::{Session, SessionStore, SessionTab};
 use crate::settings::{self, Settings};
 use crate::system;
+use crate::text_tools_ui::{JsonTree, Notice, XPathPanel};
 use crate::theme::{self, Palette, ThemeDef};
 use crate::tools_ui::{ColumnDialog, RunMacroDialog, RunTimes, SaveMacroDialog};
 
@@ -76,6 +79,13 @@ pub struct NixPadApp {
     rename: RenameDialog,
     trash_confirm: Option<u64>,
     summary: Option<Summary>,
+    json_tree: JsonTree,
+    /// Select the tree node at the caret once the tree is built.
+    json_tree_reveal: bool,
+    xpath: XPathPanel,
+    xml_outline: Option<text_tools::OutlineCache>,
+    /// What the last text tool did, shown briefly.
+    notice: Option<Notice>,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -131,6 +141,11 @@ impl NixPadApp {
             rename: RenameDialog::default(),
             trash_confirm: None,
             summary: None,
+            json_tree: JsonTree::default(),
+            json_tree_reveal: false,
+            xpath: XPathPanel::default(),
+            xml_outline: None,
+            notice: None,
         };
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
@@ -295,6 +310,7 @@ impl NixPadApp {
                         .detect(Some(&path), &doc.editor.buffer.line_text(0));
                 }
                 self.settings.push_recent(path);
+                self.check_after_save(index);
                 true
             }
             Err(e) => {
@@ -937,6 +953,12 @@ impl NixPadApp {
                 self.docs[self.active].editor.remove_lines(ctx, true)
             }
             Action::InverseBookmarks => self.docs[self.active].editor.inverse_bookmarks(),
+            Action::Mime(_)
+            | Action::Json(_)
+            | Action::Xml(_)
+            | Action::ToggleJsonTree
+            | Action::ToggleXPathPanel
+            | Action::CopyXPath => self.run_text_tool(ctx, action),
             _ => self.run_edit(ctx, action),
         }
         if focus_editor {
@@ -1027,6 +1049,10 @@ impl NixPadApp {
                 self.settings.remember_unsaved = !self.settings.remember_unsaved
             }
             Action::ToggleAutoReload => self.settings.auto_reload = !self.settings.auto_reload,
+            Action::ToggleCloseTags => self.settings.close_tags = !self.settings.close_tags,
+            Action::ToggleXmlCheckOnSave => {
+                self.settings.xml_check_on_save = !self.settings.xml_check_on_save
+            }
             Action::ToggleMacroRecording => self.recorder.toggle(),
             Action::PlayMacro => {
                 if !self.recorder.is_recording() {
@@ -1686,6 +1712,7 @@ impl NixPadApp {
                     ui.add(egui::DragValue::new(&mut self.settings.edge_column).range(10..=400));
                 });
             });
+            ui.menu_button("Tools", |ui| self.tools_menu(ui));
             ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
                 self.menu_item(ui, "About NixPad", Action::About);
@@ -2123,6 +2150,11 @@ impl NixPadApp {
                 doc.syntax.as_str(),
                 "HTML" | "XML" | "SVG" | "Vue Component" | "PHP" | "ASP"
             ),
+            close_tags: s.close_tags,
+            html: matches!(
+                doc.syntax.as_str(),
+                "HTML" | "Vue Component" | "PHP" | "ASP"
+            ),
         };
         let eol_label = doc.line_ending.short_label();
         let cfg = ViewConfig {
@@ -2148,6 +2180,7 @@ impl NixPadApp {
 
     fn status_bar(&mut self, ui: &mut Ui) {
         let palette = self.palette();
+        let xpath = self.current_xpath(&ui.ctx().clone());
         let Some(doc) = self.docs.get(self.active) else {
             return;
         };
@@ -2179,6 +2212,21 @@ impl NixPadApp {
                 });
             });
             ui.label(dim(format!("length: {length}   lines: {lines}")));
+            if let Some(path) = xpath {
+                let shown = if path.chars().count() > 80 {
+                    let tail: String = path.chars().rev().take(79).collect();
+                    format!("…{}", tail.chars().rev().collect::<String>())
+                } else {
+                    path.clone()
+                };
+                if ui
+                    .add(egui::Label::new(dim(shown)).sense(Sense::click()))
+                    .on_hover_text(format!("{path}\nClick to copy"))
+                    .clicked()
+                {
+                    self.pending.push(Action::CopyXPath);
+                }
+            }
             if recording {
                 ui.label(
                     RichText::new("● Recording macro")
@@ -2484,6 +2532,7 @@ impl eframe::App for NixPadApp {
             )
             .show_separator_line(false)
             .show(ui, |ui| self.status_bar(ui));
+        self.xpath_panel(ui, &ctx);
         if self.results.open {
             if self.results.poll() {
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -2541,6 +2590,7 @@ impl eframe::App for NixPadApp {
                 });
             self.pending.extend(picked);
         }
+        self.json_tree_panel(ui, &ctx);
         self.record_editor_input(&ctx);
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
@@ -2548,6 +2598,7 @@ impl eframe::App for NixPadApp {
 
         self.close_queue_ui(&ctx);
         self.dialogs(&ctx);
+        self.notice_ui(&ctx);
 
         for action in std::mem::take(&mut self.pending) {
             self.run(&ctx, action);

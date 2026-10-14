@@ -349,6 +349,9 @@ impl Editor {
     pub fn type_text(&mut self, ctx: &egui::Context, text: &str) {
         let mut chars = text.chars();
         if let (Some(c), None) = (chars.next(), chars.next()) {
+            if c == '>' && self.opts.markup && self.opts.close_tags && self.type_tag_end(ctx) {
+                return;
+            }
             if self.opts.auto_close && self.type_with_pairs(ctx, c) {
                 return;
             }

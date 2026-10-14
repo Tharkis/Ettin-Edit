@@ -6,6 +6,9 @@ use egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
 
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
+use crate::tools::json::JsonOp;
+use crate::tools::mime::MimeOp;
+use crate::tools::xml::XmlOp;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Action {
@@ -139,6 +142,16 @@ pub enum Action {
     ToggleSingleInstance,
     ToggleRememberUnsaved,
     ToggleAutoReload,
+    // Text tools
+    Mime(MimeOp),
+    Json(JsonOp),
+    Xml(XmlOp),
+    ToggleJsonTree,
+    ToggleXPathPanel,
+    /// Copy the XPath of the element at the caret.
+    CopyXPath,
+    ToggleCloseTags,
+    ToggleXmlCheckOnSave,
     // Macros
     ToggleMacroRecording,
     PlayMacro,
@@ -172,6 +185,7 @@ impl Action {
                 | Action::RenameFile
                 | Action::MoveToTrash
                 | Action::Summary
+                | Action::ToggleXPathPanel
         )
     }
 
@@ -218,6 +232,15 @@ impl Action {
                 | Action::InsertDateTime { .. }
                 | Action::SelectNextOccurrence
                 | Action::SelectAllOccurrences
+                | Action::Mime(_)
+                | Action::Json(JsonOp::Format | JsonOp::Minify | JsonOp::SortKeys)
+                | Action::Xml(
+                    XmlOp::PrettyPrint
+                        | XmlOp::PrettyPrintAttributes
+                        | XmlOp::Linearize
+                        | XmlOp::Escape
+                        | XmlOp::Unescape
+                )
         )
     }
 }
@@ -250,6 +273,15 @@ const SHIFT: Modifiers = Modifiers::SHIFT;
 pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
     let s = |m, k| KeyboardShortcut::new(m, k);
     vec![
+        // Text tools (before the shorter combinations they contain)
+        (s(CMD_ALT_SHIFT, Key::B), Action::Xml(XmlOp::PrettyPrint)),
+        (s(CMD_ALT_SHIFT, Key::L), Action::Xml(XmlOp::Linearize)),
+        (s(CMD_ALT_SHIFT, Key::M), Action::Xml(XmlOp::CheckSyntax)),
+        (s(CMD_ALT_SHIFT, Key::P), Action::CopyXPath),
+        (s(CMD_ALT_SHIFT, Key::E), Action::ToggleXPathPanel),
+        (s(CMD_ALT, Key::M), Action::Json(JsonOp::Format)),
+        (s(CMD_ALT, Key::N), Action::Json(JsonOp::Minify)),
+        (s(CMD_ALT, Key::J), Action::ToggleJsonTree),
         (s(CMD, Key::N), Action::NewTab),
         (s(CMD, Key::O), Action::Open),
         (s(CMD_SHIFT, Key::S), Action::SaveAll),

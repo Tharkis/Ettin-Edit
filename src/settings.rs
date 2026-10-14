@@ -47,6 +47,10 @@ pub struct Settings {
     pub remember_unsaved: bool,
     /// Reload files changed on disk without asking, if they have no unsaved changes.
     pub auto_reload: bool,
+    /// Typing `>` after an opening tag in HTML or XML adds the closing tag.
+    pub close_tags: bool,
+    /// Check that XML is well-formed each time it's saved.
+    pub xml_check_on_save: bool,
 }
 
 impl Default for Settings {
@@ -82,6 +86,8 @@ impl Default for Settings {
             single_instance: true,
             remember_unsaved: true,
             auto_reload: false,
+            close_tags: true,
+            xml_check_on_save: false,
         }
     }
 }

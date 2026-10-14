@@ -7,11 +7,13 @@ NixPad is an original, clean-room implementation written in Rust: it shares no c
 
 ## Status
 
-Release 0.5 makes files safer: encodings beyond UTF-8 (detected automatically), backups
-so unsaved work survives a crash or restart, a warning when another program changes an
-open file, a single window that new files open into, pinned and draggable tabs, and file
-commands (rename, move to trash, open folder or terminal, summary). It builds on 0.4's
-editing tools, 0.3's search and 0.2's own editor engine. See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
+Release 0.6 adds the Tools menu, with built-in versions of three favourite Notepad++
+plugins. JSON and JavaScript tools format, minify, validate and sort, with a live JSON
+tree. MIME tools cover Base64, URL, quoted-printable, HTML entities and SAML. XML tools
+pretty print, check syntax (optionally on save), run XPath queries, show the current
+XPath on the status bar, and close tags as you type. It builds on 0.5's encodings,
+backups and file commands, 0.4's editing tools, 0.3's search and 0.2's editor engine.
+See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
 
 ## Installing on Arch / CachyOS
 
@@ -67,6 +69,9 @@ appears under **Theme > Custom** on the next start:
 | `src/search.rs` | Search queries (plain, whole word, regex), replacement templates, and Find in Files |
 | `src/search_ui.rs` | The find bar, results panel, and the Go to Line and Find in Files dialogs |
 | `src/tools_ui.rs` | The Column Editor and macro dialogs |
+| `src/tools/` | The Tools menu's text tools: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0) |
+| `src/text_tools_ui.rs` | The JSON tree and XPath panels, and the notices tools show |
+| `src/app/text_tools.rs` | Runs the text tools on the current document |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |
 | `src/fonts.rs` | Fallback fonts for Chinese, Japanese and Korean text |
