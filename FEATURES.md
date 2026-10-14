@@ -208,6 +208,25 @@ list further down is ticked off too; this section covers what sits around it.
 - [x] Recent queries menu, and a Tables menu that inserts table names
 - [x] UPDATE, DELETE and CREATE work on the query copy; the file itself never changes
 
+## Release 0.9: plugin system (done)
+
+Plugins are folders in the plugins folder (`~/.config/NixPad/plugins/` on Linux,
+`%APPDATA%\NixPad\plugins\` on Windows) with a `plugin.json` and a Python or
+JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > Plugin Guide.
+
+- [x] Plugins menu: each running plugin's commands with their shortcuts, Manage Plugins, Plugin Log, Open Plugins Folder, Reload Plugins, Install Sample Plugins and Plugin Guide; the right-click menu has the plugin commands too
+- [x] Plugins run as their own processes; NixPad finds `python3`/`python` (`python`, `py -3` on Windows) and `node`, or the paths set in Manage Plugins
+- [x] A small SDK for each language (`import nixpad` / `require("nixpad")`) that NixPad keeps up to date
+- [x] API: documents (list, open, new, save, close, activate, info), text (get, set, replace ranges, insert), selections, go to line, run any built-in command, messages, a text prompt, the clipboard and the plugin log
+- [x] Events: opened, saved, closed, activated (tab switched), changed (after typing pauses) and shutdown
+- [x] Panels on the right or bottom described in JSON: headings, labels, buttons, inputs, checkboxes, dropdowns, rows, trees and sortable tables, with clicks and edits sent back to the plugin
+- [x] Plugin shortcuts that clash with a built-in one or another plugin's are refused, with a line in the log
+- [x] A permission prompt the first time a plugin runs and again when its files change, unless you tick "Don't ask when it changes"
+- [x] Manage Plugins: enable or disable, start, stop, restart, open each plugin's folder, see why one failed
+- [x] Plugin Log: what plugins print, their errors, and what NixPad refused
+- [x] A plugin that crashes or fails to start shows a notice and never takes the editor down; a plugin's undoable edits undo in one step
+- [x] Sample plugins: Text Statistics (Python: counts and word frequencies in a panel, frequencies to a CSV tab) and Markdown Outline (JavaScript: a clickable heading tree, Insert UUID, Wrap Lines)
+
 ## Core editor features still missing
 
 ### Editing
@@ -242,14 +261,14 @@ list further down is ticked off too; this section covers what sits around it.
 - [ ] Auto-update check
 
 ## Plugin system (Python and JavaScript)
-- [ ] Decide the runtime model: embedded interpreters (e.g. pyo3 for Python, a JS engine such as QuickJS/Boa) or out-of-process plugins over JSON-RPC
-- [ ] Plugin API: read/replace text and selection, open/save documents, show messages, add menu items and shortcuts, register commands (the editor's command list in `src/actions.rs` is built for this)
-- [ ] Plugin events: document opened/saved/closed, text changed, tab switched
-- [ ] Plugin panels (dock a custom view, e.g. a tree or a grid)
-- [ ] Plugin folder in the config directory, enable/disable per plugin
-- [ ] Plugin manager: browse, install, update, remove
-- [ ] Sample plugins in both Python and JavaScript
-- [ ] Sandboxing / permission prompts for plugins
+- [x] Runtime model: out-of-process plugins over JSON-RPC (one JSON message per line on standard input and output), so a crashing plugin can't take the editor down and any installed Python 3 or Node.js works
+- [x] Plugin API: read/replace text and selection, open/save documents, show messages, add menu items and shortcuts, register commands (the editor's command list in `src/actions.rs` is built for this)
+- [x] Plugin events: document opened/saved/closed, text changed, tab switched
+- [x] Plugin panels (dock a custom view, e.g. a tree or a grid)
+- [x] Plugin folder in the config directory, enable/disable per plugin
+- [ ] Plugin manager: browse, install, update, remove (planned for 1.0)
+- [x] Sample plugins in both Python and JavaScript
+- [x] Sandboxing / permission prompts for plugins (a permission prompt the first time a plugin runs and again when its files change; plugins are not sandboxed)
 
 ## Features from Joe's favourite Notepad++ plugins
 

@@ -7,7 +7,11 @@ NixPad is an original, clean-room implementation written in Rust: it shares no c
 
 ## Status
 
-Release 0.8 adds CsvQuery: SQL over the CSV or TSV file you have open, with joins
+Release 0.9 adds plugins in Python or JavaScript. A plugin can read and change text,
+open and save files, add menu commands and shortcuts, react to events and show panels
+with trees, tables and forms. Plugins > Install Sample Plugins adds two to try, and
+Plugins > Plugin Guide explains how to write your own ([docs/plugins.md](docs/plugins.md)).
+Release 0.8 added CsvQuery: SQL over the CSV or TSV file you have open, with joins
 across open tabs, a sortable results grid, column statistics, and results to a new tab.
 Release 0.7 added split view (two tabs side by side, or one document in both views)
 and Compare, a built-in take on ComparePlus: compare two tabs, the last save, the
@@ -63,7 +67,7 @@ appears under **Theme > Custom** on the next start:
 | --- | --- |
 | `src/main.rs` | Entry point: window setup, files from the command line |
 | `src/app.rs` | The window: menus, tabs, editor, status bar, dialogs |
-| `src/actions.rs` | Every command and its keyboard shortcut. Menus and shortcuts go through this list, and plugins will too |
+| `src/actions.rs` | Every command and its keyboard shortcut. Menus, shortcuts and plugins go through this list |
 | `src/document.rs` | Loading, saving and reloading files: encodings, line endings, changes on disk |
 | `src/encoding.rs` | Encoding detection, decoding and encoding (UTF-8, UTF-16, legacy code pages) |
 | `src/session.rs` | The session and backups of unsaved changes |
@@ -82,6 +86,11 @@ appears under **Theme > Custom** on the next start:
 | `src/app/views.rs` | Split view: which tabs are in which view, moving and cloning tabs, the divider |
 | `src/compare.rs` | The compare engine: line alignment, options, moved lines, word changes, unified patches |
 | `src/compare_ui.rs`, `src/app/compare.rs` | The Compare tab, and starting and refreshing comparisons |
+| `src/plugins/` | The plugin host: `mod.rs` (starting plugins, messages, commands, events), `manifest.rs` (`plugin.json`, finding plugins, the permission fingerprint), `process.rs` (plugin processes), `shortcut.rs` (shortcut text), `panel.rs` (JSON panels), `ui.rs` (Manage Plugins, the log and the permission prompt) |
+| `src/app/plugins.rs` | Answers plugin calls on the open documents, sends events, draws plugin panels |
+| `plugins/sdk/` | The Python and JavaScript SDKs that plugins import |
+| `plugins/samples/` | The sample plugins (Text Statistics in Python, Markdown Outline in JavaScript) |
+| `docs/plugins.md` | The plugin guide |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |
 | `src/fonts.rs` | Fallback fonts for Chinese, Japanese and Korean text |

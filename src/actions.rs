@@ -188,6 +188,18 @@ pub enum Action {
     SaveMacro,
     PlaySavedMacro(usize),
     DeleteSavedMacro(usize),
+    // Plugins
+    /// Run a command a plugin added.
+    PluginCommand {
+        plugin: String,
+        command: String,
+    },
+    ManagePlugins,
+    ShowPluginLog,
+    OpenPluginsFolder,
+    ReloadPlugins,
+    InstallSamplePlugins,
+    PluginGuide,
 }
 
 impl Action {
@@ -215,6 +227,8 @@ impl Action {
                 | Action::MoveToTrash
                 | Action::Summary
                 | Action::ToggleXPathPanel
+                | Action::ManagePlugins
+                | Action::ShowPluginLog
         )
     }
 

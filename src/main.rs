@@ -16,6 +16,7 @@ mod highlight;
 mod instance;
 mod macros;
 mod menu;
+mod plugins;
 mod search;
 mod search_ui;
 mod session;

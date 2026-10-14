@@ -52,6 +52,24 @@ impl<'c> MenuModel<'c> {
         self.entry(label, enabled, None, action)
     }
 
+    /// An item whose shortcut isn't one of NixPad's own (a plugin's).
+    fn item_with_shortcut(
+        &mut self,
+        label: &str,
+        shortcut: Option<&egui::KeyboardShortcut>,
+        action: Action,
+    ) -> MenuEntry {
+        let entry = MenuEntry::Item {
+            label: label.to_owned(),
+            shortcut: shortcut.map(|s| self.ctx.format_shortcut(s)),
+            enabled: true,
+            checked: None,
+            id: self.actions.len(),
+        };
+        self.actions.push(action);
+        entry
+    }
+
     fn toggle(&mut self, label: &str, checked: bool, action: Action) -> MenuEntry {
         self.entry(label, true, Some(checked), action)
     }
@@ -89,7 +107,37 @@ impl NixPadApp {
         let mut entries = self.edit_menu(m, index);
         entries.push(MenuEntry::Separator);
         entries.push(submenu("Tools", self.tools_menu(m)));
+        let plugins = self.plugin_commands_menu(m);
+        if !plugins.is_empty() {
+            entries.push(submenu("Plugins", plugins));
+        }
         entries
+    }
+
+    /// The running plugins' commands, one submenu per plugin.
+    fn plugin_commands_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
+        self.plugins
+            .plugins
+            .iter()
+            .filter(|p| p.is_running() && !p.commands.is_empty())
+            .map(|p| {
+                let items = p
+                    .commands
+                    .iter()
+                    .map(|c| {
+                        m.item_with_shortcut(
+                            &c.title,
+                            c.shortcut.as_ref(),
+                            Action::PluginCommand {
+                                plugin: p.id.clone(),
+                                command: c.id.clone(),
+                            },
+                        )
+                    })
+                    .collect();
+                submenu(p.name(), items)
+            })
+            .collect()
     }
 
     /// The Edit menu, enabled for tab `index`.

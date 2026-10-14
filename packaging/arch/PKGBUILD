@@ -1,7 +1,7 @@
 # Builds NixPad from the checkout this file lives in.
 # Usage: cd packaging/arch && makepkg -si
 pkgname=nixpad
-pkgver=0.8.0
+pkgver=0.9.0
 pkgrel=1
 pkgdesc="A modern, cross-platform text editor"
 arch=('x86_64' 'aarch64')

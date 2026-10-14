@@ -1,6 +1,7 @@
 //! User settings, stored as JSON in the platform config folder
 //! (`~/.config/NixPad` on Linux, `%APPDATA%\NixPad` on Windows).
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -53,6 +54,21 @@ pub struct Settings {
     pub xml_check_on_save: bool,
     /// How Compare matches lines.
     pub compare: crate::compare::CompareOptions,
+    /// Per plugin (by folder name): turned off, and which version was allowed to run.
+    pub plugins: BTreeMap<String, PluginPrefs>,
+    /// The Python and Node programs plugins run with; empty finds them on the PATH.
+    pub python_path: String,
+    pub node_path: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PluginPrefs {
+    pub disabled: bool,
+    /// The fingerprint of the plugin's folder when the user allowed it to run.
+    pub approved: Option<String>,
+    /// Don't ask again when its files change (for plugins the user is writing).
+    pub trust_changes: bool,
 }
 
 impl Default for Settings {
@@ -91,6 +107,9 @@ impl Default for Settings {
             close_tags: true,
             xml_check_on_save: false,
             compare: crate::compare::CompareOptions::default(),
+            plugins: BTreeMap::new(),
+            python_path: String::new(),
+            node_path: String::new(),
         }
     }
 }
