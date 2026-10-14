@@ -363,11 +363,25 @@ fn editor_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
     ]
 }
 
+/// Every shortcut, including the editor's own; for looking up menu labels.
+pub fn all_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
+    let mut all = shortcuts();
+    all.extend(editor_shortcuts());
+    all
+}
+
 /// The shortcut text shown next to a menu item.
 pub fn shortcut_label(ctx: &egui::Context, action: &Action) -> Option<String> {
-    shortcuts()
-        .into_iter()
-        .chain(editor_shortcuts())
+    shortcut_label_in(&all_shortcuts(), ctx, action)
+}
+
+/// [`shortcut_label`] with the list from [`all_shortcuts`] built once.
+pub fn shortcut_label_in(
+    all: &[(KeyboardShortcut, Action)],
+    ctx: &egui::Context,
+    action: &Action,
+) -> Option<String> {
+    all.iter()
         .find(|(_, a)| a == action)
-        .map(|(s, _)| ctx.format_shortcut(&s))
+        .map(|(s, _)| ctx.format_shortcut(s))
 }

@@ -11,7 +11,7 @@ Release 0.6 adds the Tools menu, with built-in versions of three favourite Notep
 plugins. JSON and JavaScript tools format, minify, validate and sort, with a live JSON
 tree. MIME tools cover Base64, URL, quoted-printable, HTML entities and SAML. XML tools
 pretty print, check syntax (optionally on save), run XPath queries, show the current
-XPath on the status bar, and close tags as you type. It builds on 0.5's encodings,
+XPath on the status bar, and close tags as you type. Release 0.6.1 puts the Edit and Tools menus in the editor's right-click menu. It builds on 0.5's encodings,
 backups and file commands, 0.4's editing tools, 0.3's search and 0.2's editor engine.
 See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
 
@@ -71,6 +71,7 @@ appears under **Theme > Custom** on the next start:
 | `src/tools_ui.rs` | The Column Editor and macro dialogs |
 | `src/tools/` | The Tools menu's text tools: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0) |
 | `src/text_tools_ui.rs` | The JSON tree and XPath panels, and the notices tools show |
+| `src/menu.rs`, `src/app/menus.rs` | Menus as data, so the Edit and Tools menus are drawn in both the menu bar and the right-click menu |
 | `src/app/text_tools.rs` | Runs the text tools on the current document |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |
