@@ -150,6 +150,12 @@ impl RowIndex {
         if edits.is_empty() {
             return;
         }
+        // Thousands of edits at once (Replace All): re-measuring everything is
+        // cheaper than splicing the arrays once per edit.
+        if edits.len() > 2000 {
+            self.rebuild(buffer);
+            return;
+        }
         // Edits were applied one after another, so each splice sees the line
         // numbering left by the previous one. Spliced-in lines are marked 0 and
         // measured once, against the final text.

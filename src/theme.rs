@@ -34,6 +34,12 @@ pub struct Palette {
     pub text_dim: Color32,
     pub accent: Color32,
     pub modified: Color32,
+    /// Matches of the find bar's search.
+    pub find_hit: Color32,
+    /// Text marked with Mark All.
+    pub mark: Color32,
+    /// Other occurrences of the selected word.
+    pub word_hit: Color32,
 }
 
 fn to_egui(c: SyntectColor) -> Color32 {
@@ -110,6 +116,22 @@ impl Palette {
             } else {
                 Color32::from_rgb(196, 98, 0)
             },
+            find_hit: if dark {
+                Color32::from_rgba_unmultiplied(255, 196, 0, 72)
+            } else {
+                Color32::from_rgba_unmultiplied(255, 170, 0, 96)
+            },
+            mark: if dark {
+                Color32::from_rgba_unmultiplied(64, 210, 160, 80)
+            } else {
+                Color32::from_rgba_unmultiplied(0, 170, 120, 72)
+            },
+            word_hit: Color32::from_rgba_unmultiplied(
+                accent.r(),
+                accent.g(),
+                accent.b(),
+                if dark { 52 } else { 44 },
+            ),
         }
     }
 

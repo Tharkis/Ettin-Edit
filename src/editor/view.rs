@@ -3,7 +3,8 @@
 //! Only the rows inside the scroll viewport are laid out, so the cost of a
 //! frame depends on the window size, not the file size.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::ops::Range;
 use std::sync::Arc;
 
 use egui::text::{CCursor, LayoutJob, TextFormat};
@@ -14,6 +15,7 @@ use egui::{
 use syntect::highlighting::Theme;
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
+use super::buffer::{CharEdit, LineEdit};
 use super::highlight::LineSpans;
 use super::layout::{char_cols, wrap_points};
 use super::selection::{Selection, Selections};
@@ -26,6 +28,8 @@ const CLIP_LINE_CHARS: usize = 4000;
 const HIGHLIGHT_BUDGET: usize = 3000;
 const TEXT_PAD: f32 = 6.0;
 const MULTI_CLICK_SECS: f64 = 0.45;
+/// Width of the bookmark column at the left of the gutter.
+const BOOKMARK_MARGIN: f32 = 16.0;
 
 pub struct ViewConfig<'a> {
     pub font: FontId,
@@ -100,6 +104,80 @@ struct FrameCache {
     rows: HashMap<usize, Arc<RowLayout>>,
 }
 
+/// Moves bookmarks through line edits. A bookmark stays on the line where an
+/// edit starts; lines an edit joins into that line lose theirs.
+fn map_bookmarks(marks: &BTreeSet<usize>, edits: &[LineEdit]) -> BTreeSet<usize> {
+    let mut lines: Vec<usize> = marks.iter().copied().collect();
+    for e in edits {
+        let end = e.start_line + e.old_lines;
+        lines.retain(|&l| l <= e.start_line || l >= end);
+        for l in &mut lines {
+            if *l >= end {
+                *l = *l + e.new_lines - e.old_lines;
+            }
+        }
+    }
+    lines.into_iter().collect()
+}
+
+/// Moves marked ranges through char edits; a mark an edit touches is dropped.
+fn map_marks(marks: &[Range<usize>], edits: &[CharEdit]) -> Vec<Range<usize>> {
+    let mut out = marks.to_vec();
+    for e in edits {
+        let end = e.start + e.removed;
+        out.retain(|m| m.end <= e.start || m.start >= end);
+        for m in &mut out {
+            if m.start >= end {
+                m.start = m.start + e.inserted - e.removed;
+                m.end = m.end + e.inserted - e.removed;
+            }
+        }
+    }
+    out.sort_by_key(|m| (m.start, m.end));
+    out
+}
+
+/// Fills the parts of `ranges` (sorted char ranges) that fall on the visible rows.
+fn paint_ranges(
+    painter: &egui::Painter,
+    rows: &[(usize, Arc<RowLayout>)],
+    ranges: &[Range<usize>],
+    color: egui::Color32,
+    text_x: f32,
+    origin_y: f32,
+    row_h: f32,
+) {
+    let (Some((_, first)), Some((_, last))) = (rows.first(), rows.last()) else {
+        return;
+    };
+    let vis_start = first.line_start + first.start;
+    let vis_end = last.line_start + last.end;
+    let from = ranges.partition_point(|r| r.end < vis_start);
+    for r in ranges[from..].iter().take_while(|r| r.start <= vis_end) {
+        for (row_idx, row) in rows {
+            let row_start = row.line_start + row.start;
+            let row_end = row.line_start + row.end;
+            if r.end <= row_start || r.start > row_end || (r.start == row_end && !row.last_in_line)
+            {
+                continue;
+            }
+            let x0 = row.x_of(r.start.max(row_start) - row.line_start);
+            let x1 = row.x_of(r.end.min(row_end) - row.line_start);
+            if x1 > x0 {
+                let y = origin_y + *row_idx as f32 * row_h;
+                painter.rect_filled(
+                    Rect::from_min_max(
+                        Pos2::new(text_x + x0, y),
+                        Pos2::new(text_x + x1, y + row_h),
+                    ),
+                    2.0,
+                    color,
+                );
+            }
+        }
+    }
+}
+
 /// Font metrics for the editor grid.
 #[derive(Clone, Copy)]
 struct Metrics {
@@ -108,12 +186,23 @@ struct Metrics {
 }
 
 impl Editor {
-    /// Applies pending edits to the row index and highlighter.
-    fn sync_caches(&mut self) {
+    /// Applies pending edits to the row index, highlighter, bookmarks and marks.
+    pub(super) fn sync_caches(&mut self) {
         let edits = self.buffer.take_line_edits();
         if let Some(first) = edits.iter().map(|e| e.start_line).min() {
             self.rows.apply_edits(&self.buffer, &edits);
             self.highlighter.invalidate_from(first);
+            if !self.bookmarks.is_empty() {
+                self.bookmarks = map_bookmarks(&self.bookmarks, &edits);
+            }
+        }
+        let char_edits = self.buffer.take_char_edits();
+        if !char_edits.is_empty() && !self.marks.is_empty() {
+            if char_edits.len().saturating_mul(self.marks.len()) > 5_000_000 {
+                self.marks.clear();
+            } else {
+                self.marks = map_marks(&self.marks, &char_edits);
+            }
         }
     }
 
@@ -239,6 +328,46 @@ impl Editor {
             true,
         );
         self.set_selections(sels);
+    }
+
+    /// Whole-word, case-sensitive occurrences of `word` on the visible lines,
+    /// apart from the selection itself.
+    fn word_hits(
+        &self,
+        cache: &mut FrameCache,
+        rows: &[(usize, Arc<RowLayout>)],
+        word: &str,
+    ) -> Vec<Range<usize>> {
+        let w: Vec<char> = word.chars().collect();
+        let own = self.selections.primary().start();
+        let is_word = |c: char| c.is_alphanumeric() || c == '_';
+        let mut out = Vec::new();
+        let mut last_line = None;
+        for (_, row) in rows {
+            if last_line == Some(row.line) {
+                continue;
+            }
+            last_line = Some(row.line);
+            let chars = self.line_chars(cache, row.line);
+            if chars.len() > CLIP_LINE_CHARS * 5 {
+                continue;
+            }
+            let mut i = 0;
+            while i + w.len() <= chars.len() {
+                let bounded = (i == 0 || !is_word(chars[i - 1]))
+                    && chars.get(i + w.len()).is_none_or(|&c| !is_word(c));
+                if bounded && chars[i..i + w.len()] == w[..] {
+                    let start = row.line_start + i;
+                    if start != own {
+                        out.push(start..start + w.len());
+                    }
+                    i += w.len();
+                } else {
+                    i += 1;
+                }
+            }
+        }
+        out
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -384,11 +513,12 @@ impl Editor {
         };
         let number_font = FontId::monospace(cfg.font.size * 0.88);
         let digits = self.buffer.len_lines().max(999).to_string().len() as f32;
-        let gutter_w = if cfg.show_line_numbers {
-            digits * ui.fonts_mut(|f| f.glyph_width(&number_font, '0')) + 28.0
-        } else {
-            10.0
-        };
+        let gutter_w = BOOKMARK_MARGIN
+            + if cfg.show_line_numbers {
+                digits * ui.fonts_mut(|f| f.glyph_width(&number_font, '0')) + 22.0
+            } else {
+                6.0
+            };
         let scrollbar = ui.spacing().scroll.bar_width + ui.spacing().scroll.bar_outer_margin + 4.0;
         let text_w =
             (ui.available_width() - gutter_w - TEXT_PAD - scrollbar).max(metrics.char_w * 10.0);
@@ -401,6 +531,7 @@ impl Editor {
         self.sync_caches();
         self.rows.set_wrap(&self.buffer, wrap_cols);
 
+        let version_before = self.buffer.version();
         let mut cache = FrameCache::default();
         let mut changed = false;
         let has_focus = ui.memory(|m| m.has_focus(id));
@@ -465,6 +596,7 @@ impl Editor {
                     metrics,
                     origin,
                     text_x,
+                    origin.x + viewport.min.x + gutter_w,
                     visible_cols,
                     &mut budget,
                 );
@@ -517,6 +649,38 @@ impl Editor {
                             painter.rect_filled(band, 0.0, palette.line_highlight);
                         }
                     }
+                }
+
+                // Marks, find matches and other occurrences of the selected word.
+                paint_ranges(
+                    painter,
+                    &rows,
+                    &self.marks,
+                    palette.mark,
+                    text_x,
+                    origin.y,
+                    metrics.row_h,
+                );
+                paint_ranges(
+                    painter,
+                    &rows,
+                    &self.search_hits,
+                    palette.find_hit,
+                    text_x,
+                    origin.y,
+                    metrics.row_h,
+                );
+                if let Some(word) = self.selected_word() {
+                    let hits = self.word_hits(&mut cache, &rows, &word);
+                    paint_ranges(
+                        painter,
+                        &rows,
+                        &hits,
+                        palette.word_hit,
+                        text_x,
+                        origin.y,
+                        metrics.row_h,
+                    );
                 }
 
                 // Selections.
@@ -638,6 +802,22 @@ impl Editor {
                     }
                 }
 
+                if !self.bookmarks.is_empty() {
+                    let radius = (metrics.row_h * 0.26).clamp(3.0, 6.0);
+                    for (r, row) in &rows {
+                        if row.first_in_line && self.bookmarks.contains(&row.line) {
+                            painter.circle_filled(
+                                Pos2::new(
+                                    gutter.left() + BOOKMARK_MARGIN / 2.0 + 1.0,
+                                    row_y(*r) + metrics.row_h / 2.0,
+                                ),
+                                radius,
+                                palette.accent,
+                            );
+                        }
+                    }
+                }
+
                 // Page Up / Page Down scroll the view along with the caret.
                 let page_scroll = std::mem::take(&mut self.pending_scroll_rows);
                 if page_scroll != 0 {
@@ -692,7 +872,8 @@ impl Editor {
                 self.context_menu(&response);
             });
         let _ = scroll;
-        if needs_repaint {
+        // Search highlights are recomputed next frame after the text changes.
+        if needs_repaint || self.buffer.version() != version_before {
             ui.ctx().request_repaint();
         }
     }
@@ -859,6 +1040,7 @@ impl Editor {
         metrics: Metrics,
         origin: Pos2,
         text_x: f32,
+        gutter_right: f32,
         visible_cols: (f32, f32),
         budget: &mut usize,
     ) -> bool {
@@ -894,6 +1076,15 @@ impl Editor {
             // Use where the button went down, not where the pointer is by now.
             let pointer = press_origin.unwrap_or(pointer);
             let row = ((pointer.y - origin.y) / metrics.row_h).floor();
+            // A click in the gutter toggles a bookmark on that line.
+            if pointer.x < gutter_right {
+                if row >= 0.0 && (row as usize) < total_rows {
+                    let (line, _) = self.rows.row_to_line(row as usize);
+                    self.toggle_bookmark(line);
+                }
+                self.drag_origin = None;
+                return false;
+            }
             let pos = if row < 0.0 {
                 0
             } else if row as usize >= total_rows {

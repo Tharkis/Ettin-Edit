@@ -8,6 +8,8 @@ mod document;
 mod editor;
 mod fonts;
 mod highlight;
+mod search;
+mod search_ui;
 mod settings;
 mod theme;
 

@@ -1,7 +1,7 @@
 # Builds NixPad from the checkout this file lives in.
 # Usage: cd packaging/arch && makepkg -si
 pkgname=nixpad
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="A modern, cross-platform text editor"
 arch=('x86_64' 'aarch64')
@@ -9,7 +9,7 @@ url="https://github.com/Tharkis/NixPad"
 license=('custom')
 depends=('gcc-libs' 'glibc' 'libxkbcommon' 'libxkbcommon-x11' 'libgl' 'xdg-desktop-portal' 'hicolor-icon-theme')
 makedepends=('cargo')
-options=('!lto')
+options=('!lto' '!debug')
 
 _root() { realpath "$startdir/../.."; }
 

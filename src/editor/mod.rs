@@ -2,10 +2,15 @@
 //! commands, and a view that only lays out the rows on screen.
 
 pub mod buffer;
+mod find;
 pub mod highlight;
 pub mod layout;
 pub mod selection;
 mod view;
+
+use std::collections::BTreeSet;
+use std::ops::Range;
+use std::sync::Arc;
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -14,6 +19,7 @@ use highlight::LineHighlighter;
 use layout::RowIndex;
 use selection::{Selection, Selections};
 
+pub use find::{FindOutcome, MAX_HIGHLIGHTS};
 pub use view::ViewConfig;
 
 pub struct Editor {
@@ -34,6 +40,14 @@ pub struct Editor {
     pending_scroll_rows: isize,
     /// Time, position and count of the last click, to detect double and triple clicks.
     last_click: Option<(f64, egui::Pos2, u8)>,
+    /// The text as one string for searching, with the buffer version it was taken at.
+    text_cache: Option<(u64, Arc<String>)>,
+    /// Matches of the find bar's search, highlighted while the bar is open (char ranges, sorted).
+    pub search_hits: Arc<Vec<Range<usize>>>,
+    /// Text marked with Mark All (char ranges, sorted). Marks move with edits.
+    pub marks: Vec<Range<usize>>,
+    /// Bookmarked lines (0-based). Bookmarks move with edits.
+    pub bookmarks: BTreeSet<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -76,6 +90,10 @@ impl Editor {
             page_rows: 20,
             pending_scroll_rows: 0,
             last_click: None,
+            text_cache: None,
+            search_hits: Arc::default(),
+            marks: Vec::new(),
+            bookmarks: BTreeSet::new(),
         }
     }
 
@@ -524,6 +542,8 @@ impl Editor {
         self.rows = RowIndex::new(&self.buffer, wrap);
         self.highlighter = LineHighlighter::default();
         self.selections = Selections::caret(0);
+        self.marks.clear();
+        self.bookmarks.clear();
     }
 }
 
