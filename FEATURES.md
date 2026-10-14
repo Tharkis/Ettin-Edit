@@ -28,14 +28,13 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] Current line highlight, toggle in View menu
 - [x] Word wrap (Alt+Z)
 - [x] Zoom in/out/reset (Ctrl+= / Ctrl+- / Ctrl+0)
-- [x] Undo/redo, clipboard, select all (built into the editor widget)
+- [x] Undo/redo, clipboard, select all
 - [x] Status bar: language, length, line count, Ln/Col, selection length, line ending, encoding, zoom
 
 ### Syntax highlighting
 - [x] Highlighting for about 65 languages (Rust, Python, JavaScript, JSON, XML, HTML, CSS, C/C++, C#, Java, Go, PHP, SQL, YAML, Markdown, shell, and more)
 - [x] Language detected from the file name, then from the first line (shebang, `<?xml`)
 - [x] Language menu grouped A–Z, plus a quick picker on the status bar
-- [x] Large files (over 2 MB) open as plain text to stay responsive
 
 ### Themes
 - [x] Dark mode by default, with light themes available
@@ -47,6 +46,23 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 ### Platform
 - [x] Linux (X11 and Wayland) and Windows builds from one codebase
 - [x] Settings in `~/.config/NixPad` (Linux) or `%APPDATA%\NixPad` (Windows)
+
+## Release 0.2: new editor engine (done)
+
+- [x] NixPad's own editor engine on a rope buffer (replaces egui's text box)
+- [x] Undo/redo history with typing merged into steps, and the saved point tracked through undo
+- [x] Multiple carets: Alt+click to add, Ctrl+Alt+Up/Down to add above or below, Esc to go back to one
+- [x] Typing, deleting, pasting and Enter work at every caret; pasting N lines onto N carets puts one line at each
+- [x] Double-click selects a word, triple-click a line; drag extends by char, word or line
+- [x] Enter keeps the current line's indent; Tab / Shift+Tab indent and outdent selected lines
+- [x] Smart Home (first non-blank, then column 0), Ctrl+arrows by word, Ctrl+Backspace/Delete by word
+- [x] Right-click menu: Undo, Redo, Cut, Copy, Paste, Select All
+- [x] Large files keep their colours: incremental highlighting parses only what is on screen (a 50 MB, 940,000-line file opens in about a second)
+- [x] Very long lines (minified files) stay responsive: lines over 20 KB are shown unstyled
+- [x] Chinese, Japanese and Korean text uses a system CJK font when one is installed
+- [x] Application icon, Linux `.desktop` file, and an Arch/CachyOS `PKGBUILD`
+- [x] CI builds and tests for Linux and Windows on every pull request
+- [~] Word wrap on huge files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines
 
 ## Core editor features still missing
 
@@ -60,9 +76,9 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [ ] Go to line (Ctrl+G)
 
 ### Editing
-- [ ] Multiple cursors and multi-selection
+- [~] Multiple cursors and multi-selection (basics in 0.2; select next occurrence still to come)
 - [ ] Column (block) selection and column editing
-- [ ] Auto-indent and smart indentation per language
+- [~] Auto-indent and smart indentation per language (keeps the previous line's indent; per-language rules still to come)
 - [ ] Brace and tag matching / highlighting
 - [ ] Auto-close brackets and quotes
 - [ ] Toggle line and block comments per language
@@ -97,7 +113,7 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [ ] Restore unsaved untitled tabs on restart
 - [ ] Rename / delete current file, open containing folder, open terminal here
 - [ ] Print and print preview
-- [ ] Very large file mode (incremental highlighting so 2 MB+ files keep colours)
+- [x] Very large file mode (incremental highlighting so 2 MB+ files keep colours), done in 0.2
 - [ ] Reload from disk
 
 ### Settings and customisation
@@ -111,9 +127,9 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [ ] Single-instance mode (opening a file sends it to the running window)
 
 ### Platform and distribution
-- [ ] Application icon and desktop integration (`.desktop` file, Windows file associations, "Open with NixPad")
-- [ ] Installers / packages: Windows installer or MSIX, AppImage / Flatpak / .deb
-- [ ] CI builds for Linux and Windows
+- [~] Application icon and desktop integration: icon and Linux `.desktop` file done in 0.2; Windows file associations still to come
+- [~] Installers / packages: Arch `PKGBUILD` done in 0.2; Windows installer, AppImage / Flatpak / .deb still to come
+- [x] CI builds for Linux and Windows, done in 0.2
 - [ ] Auto-update check
 
 ## Plugin system (Python and JavaScript)
