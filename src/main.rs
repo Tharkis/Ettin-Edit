@@ -17,7 +17,9 @@ mod search_ui;
 mod session;
 mod settings;
 mod system;
+mod text_tools_ui;
 mod theme;
+mod tools;
 mod tools_ui;
 
 use std::path::PathBuf;

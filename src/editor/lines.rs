@@ -866,6 +866,58 @@ impl Editor {
         }
         self.apply_blocks(ctx, edits);
     }
+
+    /// What a text tool works on: each selection, or the whole text when
+    /// nothing is selected.
+    pub fn tool_targets(&self) -> Vec<Range<usize>> {
+        if self.selections.has_selection() {
+            self.selections
+                .iter()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.range())
+                .collect()
+        } else {
+            std::iter::once(0..self.buffer.len_chars()).collect()
+        }
+    }
+
+    /// Replaces ranges with new text as one undo step. With `select`, each
+    /// new text is selected; otherwise the caret keeps its offset (clamped).
+    pub fn replace_ranges(
+        &mut self,
+        ctx: &egui::Context,
+        edits: Vec<(Range<usize>, String)>,
+        select: bool,
+    ) {
+        let caret = self.selections.primary().head;
+        let blocks = edits
+            .into_iter()
+            .map(|(range, text)| {
+                let len = text.chars().count();
+                let sel = if select {
+                    Selection::new(0, len)
+                } else {
+                    Selection::caret(caret.saturating_sub(range.start).min(len))
+                };
+                BlockEdit {
+                    range,
+                    text,
+                    sels: vec![sel],
+                }
+            })
+            .collect();
+        self.apply_blocks(ctx, blocks);
+    }
+
+    /// Selects a range of chars and scrolls to it.
+    pub fn select_range(&mut self, range: Range<usize>) {
+        let len = self.buffer.len_chars();
+        self.set_selections(Selections::single(Selection::new(
+            range.start.min(len),
+            range.end.min(len),
+        )));
+        self.reveal_carets();
+    }
 }
 
 /// Expands tabs in the indentation (or everywhere with `all`) before tabs are

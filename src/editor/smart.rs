@@ -30,6 +30,10 @@ pub struct EditOptions {
     pub colon_indents: bool,
     /// The language has markup tags to match (HTML, XML).
     pub markup: bool,
+    /// Typing `>` after an opening tag adds the closing tag (markup only).
+    pub close_tags: bool,
+    /// HTML's empty elements (`<br>`, `<img>`) get no closing tag.
+    pub html: bool,
 }
 
 impl Default for EditOptions {
@@ -41,6 +45,8 @@ impl Default for EditOptions {
             completion: true,
             colon_indents: false,
             markup: false,
+            close_tags: true,
+            html: false,
         }
     }
 }
@@ -85,11 +91,85 @@ fn opener_of(c: char) -> Option<char> {
     }
 }
 
+/// HTML elements that never have content or a closing tag.
+const HTML_VOID: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
+];
+
+/// How far back to look for the `<` of the tag being closed.
+const TAG_SCAN_LIMIT: usize = 4000;
+
 fn is_word(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
 impl Editor {
+    /// The name of the opening tag that a `>` typed at `pos` would finish,
+    /// if it needs a closing tag.
+    fn open_tag_before(&self, pos: usize) -> Option<String> {
+        let text = self
+            .buffer
+            .slice_string(pos.saturating_sub(TAG_SCAN_LIMIT)..pos);
+        let lt = text.rfind('<')?;
+        let tag = &text[lt + 1..];
+        if !tag.starts_with(|c: char| c.is_alphabetic() || c == '_') {
+            return None; // `</`, `<!`, `<?`, or a lone `<`
+        }
+        let mut quote = None;
+        for c in tag.chars() {
+            match (quote, c) {
+                (Some(q), c) if c == q => quote = None,
+                (None, '"' | '\'') => quote = Some(c),
+                (None, '>') => return None,
+                _ => {}
+            }
+        }
+        if quote.is_some() || tag.trim_end().ends_with('/') {
+            return None;
+        }
+        let name: String = tag
+            .chars()
+            .take_while(|&c| c.is_alphanumeric() || matches!(c, '_' | ':' | '-' | '.'))
+            .collect();
+        if self.opts.html && HTML_VOID.contains(&name.to_ascii_lowercase().as_str()) {
+            return None;
+        }
+        let closer = format!("</{name}>");
+        let after = self
+            .buffer
+            .slice_string(pos..(pos + closer.chars().count()).min(self.buffer.len_chars()));
+        (after != closer).then_some(name)
+    }
+
+    /// Typing `>` at the end of an opening tag: adds the closing tag after the
+    /// caret. Returns false if no caret is at the end of an opening tag.
+    pub(super) fn type_tag_end(&mut self, ctx: &egui::Context) -> bool {
+        if self.selections.has_selection() {
+            return false;
+        }
+        let names: Vec<(usize, String)> = self
+            .selections
+            .iter()
+            .filter_map(|s| self.open_tag_before(s.head).map(|n| (s.head, n)))
+            .collect();
+        if names.is_empty() {
+            return false;
+        }
+        self.edit(ctx, EditKind::Other, |_, s| {
+            let text = match names.iter().find(|(h, _)| *h == s.head) {
+                Some((_, name)) => format!("></{name}>"),
+                None => ">".to_owned(),
+            };
+            Replacement {
+                range: s.range(),
+                text,
+                caret: Selection::caret(1),
+            }
+        });
+        true
+    }
+
     /// One level of indentation.
     pub fn indent_unit(&self) -> String {
         if self.opts.use_spaces {
@@ -765,6 +845,38 @@ mod tests {
         let mut e = Editor::new(text);
         e.selections = Selections::caret(caret);
         e
+    }
+
+    #[test]
+    fn closing_tags_are_added() {
+        let ctx = egui::Context::default();
+        let typed = |text: &str, html: bool| {
+            let mut e = ed(text, text.chars().count());
+            e.opts.markup = true;
+            e.opts.html = html;
+            e.type_text(&ctx, ">");
+            (e.buffer.text(), e.selections.primary().head)
+        };
+        assert_eq!(
+            typed("<item id=\"a>b\"", false),
+            ("<item id=\"a>b\"></item>".into(), 15)
+        );
+        assert_eq!(typed("<ns:x-y", false).0, "<ns:x-y></ns:x-y>");
+        assert_eq!(typed("<a/", false).0, "<a/>");
+        assert_eq!(typed("</a", false).0, "</a>");
+        assert_eq!(typed("<!--", false).0, "<!-->");
+        assert_eq!(typed("<a title='x", false).0, "<a title='x>");
+        assert_eq!(typed("a <", false).0, "a <>");
+        assert_eq!(typed("<br", true).0, "<br>");
+        assert_eq!(typed("<br", false).0, "<br></br>");
+        let mut e = ed("<p</p>", 2);
+        e.opts.markup = true;
+        e.type_text(&ctx, ">");
+        assert_eq!(
+            e.buffer.text(),
+            "<p></p>",
+            "an existing closing tag isn't doubled"
+        );
     }
 
     #[test]

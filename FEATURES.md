@@ -156,6 +156,22 @@ Legend: `[x]` done · `[ ]` not started · `[~]` partly done (see note)
 - [x] The mouse pointer is an arrow over the gutter (fold arrows, bookmarks, line numbers), not a text cursor
 - [x] Theme > Open Themes Folder works on Windows (and on Linux it uses the desktop's file manager)
 
+## Release 0.6: JSON, JavaScript, MIME and XML tools (done)
+
+Everything is in the new Tools menu. The plugin-feature lists further down are
+ticked off too; this section covers what sits around them.
+
+- [x] Tools work on each selection (multi-cursor too) or on the whole document, as one undo step
+- [x] Errors show as a notice with line and column and a Go To button; the caret moves to the error
+- [x] JSON Format and Minify fall back to JavaScript when the text isn't strict JSON, and say so
+- [x] JavaScript formatter handles template strings, regex literals, comments, `switch`/`case` and modern syntax
+- [x] JSON tree (Ctrl+Alt+J): updates as you type, opens at the caret, has a filter box, and right-click copies a path like `$.items[2].name`
+- [x] XPath panel (Ctrl+Alt+Shift+E): full XPath 1.0 with every core function plus `ends-with`, `lower-case` and `upper-case`; node results jump to the text, other results show the value; recent expressions
+- [x] Current XPath on the status bar (click to copy), kept while you are still typing unclosed tags
+- [x] Auto-close tags in XML and HTML (skips HTML void elements like `<br>`); Tools > XML Tools > Close Tags Automatically
+- [x] Shortcuts: Ctrl+Alt+M format JSON/JS, Ctrl+Alt+N minify, Ctrl+Alt+Shift+B pretty print XML, Ctrl+Alt+Shift+L linearize, Ctrl+Alt+Shift+M check XML, Ctrl+Alt+Shift+P copy XPath
+- [ ] XPath variables and the namespace axis (rarely used; not planned yet)
+
 ## Core editor features still missing
 
 ### Editing
@@ -214,35 +230,35 @@ These can ship built in or as first-party plugins once the plugin system exists.
 - [ ] Column statistics (count, distinct, min, max, empty values)
 
 ### JSTool (JavaScript and JSON)
-- [ ] JS/JSON format (beautify) with configurable indent
-- [ ] JS/JSON minify
-- [ ] JSON tree viewer panel with expand/collapse and search
-- [ ] Clicking a tree node jumps to it in the text; copy the node's path, key or value
-- [ ] JSON validation with error position
-- [ ] Sort JSON keys
-- [ ] Format a selection only
+- [x] JS/JSON format (beautify), using the tab's indent setting
+- [x] JS/JSON minify
+- [x] JSON tree viewer panel with expand/collapse and search
+- [x] Clicking a tree node jumps to it in the text; copy the node's path, key or value
+- [x] JSON validation with error position
+- [x] Sort JSON keys
+- [x] Format a selection only
 
 ### MIME Tools (encoding and decoding)
-- [ ] Base64 encode / decode (selection or whole document), with optional line wrapping and padding
-- [ ] Base64 URL-safe variant
-- [ ] URL (percent) encode / decode, full and component modes
-- [ ] Quoted-printable encode / decode
-- [ ] SAML decode (Base64 + inflate) and pretty-print the resulting XML
-- [ ] HTML entity encode / decode
+- [x] Base64 encode / decode (selection or whole document), with optional line wrapping
+- [x] Base64 URL-safe variant
+- [x] URL (percent) encode / decode, full and component modes
+- [x] Quoted-printable encode / decode
+- [x] SAML decode (Base64 + inflate) and pretty-print the resulting XML
+- [x] HTML entity encode / decode
 
 ### XML Tools
-- [ ] Pretty print XML (indented) and pretty print "attributes on new lines"
-- [ ] Linearize XML (remove formatting)
-- [ ] Check XML syntax (well-formedness) with error line and column
-- [ ] Automatic syntax check on save (optional)
-- [ ] Validate against XSD or DTD (with schema picker and remembered association)
-- [ ] XPath expression evaluation with results list
-- [ ] Show the current XPath at the cursor in the status bar, copy it
-- [ ] XSL transformation of the current document into a new tab
-- [ ] Auto-close tags while typing
-- [ ] Escape / unescape XML special characters
+- [x] Pretty print XML (indented) and pretty print "attributes on new lines"
+- [x] Linearize XML (remove formatting)
+- [x] Check XML syntax (well-formedness) with error line and column
+- [x] Automatic syntax check on save (optional)
+- [ ] Validate against XSD or DTD (with schema picker and remembered association), planned for 0.10
+- [x] XPath expression evaluation with results list
+- [x] Show the current XPath at the cursor in the status bar, copy it
+- [ ] XSL transformation of the current document into a new tab, planned for 0.10
+- [x] Auto-close tags while typing
+- [x] Escape / unescape XML special characters
 - [ ] Comment / uncomment selection, convert text to XML
-- [ ] Namespace handling for XPath (prefix mapping)
+- [~] Namespace handling for XPath: prefixes declared in the document work, and unprefixed names also match the default namespace; custom prefix mappings are still missing
 
 ### ComparePlus (diff)
 - [ ] Compare two tabs side by side
