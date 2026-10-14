@@ -35,7 +35,10 @@ pub enum Action {
 }
 
 const CMD: Modifiers = Modifiers::COMMAND;
-const CMD_SHIFT: Modifiers = Modifiers { shift: true, ..Modifiers::COMMAND };
+const CMD_SHIFT: Modifiers = Modifiers {
+    shift: true,
+    ..Modifiers::COMMAND
+};
 
 /// Keyboard shortcuts for actions that have one.
 pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="#1B1F27"/>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="none" stroke="#2E3A52" stroke-width="6"/>
+  <!-- An "N" drawn as two strokes and a diagonal, beside a text caret -->
+  <path d="M68 190 V66 L156 190 V66" fill="none" stroke="#7AA2F7" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68 66 L156 190" fill="none" stroke="#B58CF5" stroke-width="26" stroke-linecap="round"/>
+  <rect x="184" y="150" width="16" height="40" rx="8" fill="#9CCF7F"/>
+</svg>
