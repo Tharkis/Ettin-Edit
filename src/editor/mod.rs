@@ -595,6 +595,28 @@ impl Editor {
         self.set_selections(sels);
     }
 
+    /// Replaces the whole text as one undoable step (reloading a file that
+    /// changed on disk), keeping the carets where they still fit.
+    pub fn reload_text(&mut self, text: &str) {
+        if *self.buffer.rope() == text {
+            return;
+        }
+        let read_only = std::mem::replace(&mut self.buffer.read_only, false);
+        let before = self.selections.clone();
+        let mut after = before.clone();
+        after.clamp(text.chars().count());
+        let replacement = Replacement {
+            range: 0..self.buffer.len_chars(),
+            text: text.to_owned(),
+            caret: Selection::caret(0),
+        };
+        self.buffer
+            .apply_explicit(&before, vec![replacement], after.clone(), 0.0);
+        self.buffer.read_only = read_only;
+        self.set_selections(after);
+        self.scroll_to_caret = false;
+    }
+
     /// Replaces the whole text (e.g. reload); clears history.
     #[allow(dead_code)]
     pub fn replace_all_text(&mut self, text: &str) {

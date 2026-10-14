@@ -108,7 +108,6 @@ impl Buffer {
         self.rope.len_chars() == 0
     }
 
-    #[cfg(test)]
     pub fn text(&self) -> String {
         self.rope.to_string()
     }

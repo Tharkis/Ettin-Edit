@@ -7,11 +7,11 @@ NixPad is an original, clean-room implementation written in Rust: it shares no c
 
 ## Status
 
-Release 0.4 adds editing power tools: select next/all occurrences, column editing and
-the Column Editor, line operations and sorting, case conversion, comment toggling,
-auto-close brackets, smart indent, word completion, code folding, indent guides,
-whitespace and end-of-line symbols, a long-line marker, read-only mode, and macros.
-It builds on 0.3's search tools and 0.2's own editor engine. See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
+Release 0.5 makes files safer: encodings beyond UTF-8 (detected automatically), backups
+so unsaved work survives a crash or restart, a warning when another program changes an
+open file, a single window that new files open into, pinned and draggable tabs, and file
+commands (rename, move to trash, open folder or terminal, summary). It builds on 0.4's
+editing tools, 0.3's search and 0.2's own editor engine. See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
 
 ## Installing on Arch / CachyOS
 
@@ -57,7 +57,12 @@ appears under **Theme > Custom** on the next start:
 | `src/main.rs` | Entry point: window setup, files from the command line |
 | `src/app.rs` | The window: menus, tabs, editor, status bar, dialogs |
 | `src/actions.rs` | Every command and its keyboard shortcut. Menus and shortcuts go through this list, and plugins will too |
-| `src/document.rs` | Loading and saving files: encodings, BOM, line endings |
+| `src/document.rs` | Loading, saving and reloading files: encodings, line endings, changes on disk |
+| `src/encoding.rs` | Encoding detection, decoding and encoding (UTF-8, UTF-16, legacy code pages) |
+| `src/session.rs` | The session and backups of unsaved changes |
+| `src/instance.rs` | Single-window mode: hands files to the NixPad already running |
+| `src/system.rs` | Opening the file manager and a terminal |
+| `src/file_ui.rs` | Rename, move to trash and summary dialogs, the changed-on-disk bar, the Encoding menu |
 | `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `view.rs` (drawing, keyboard and mouse) |
 | `src/search.rs` | Search queries (plain, whole word, regex), replacement templates, and Find in Files |
 | `src/search_ui.rs` | The find bar, results panel, and the Go to Line and Find in Files dialogs |

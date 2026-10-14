@@ -35,6 +35,20 @@ pub enum Action {
     OpenThemesFolder,
     ClearRecent,
     About,
+    // Files
+    ReloadFromDisk,
+    /// Keep the text as it is after the file changed or vanished on disk.
+    IgnoreDiskChange,
+    RenameFile,
+    MoveToTrash,
+    OpenContainingFolder,
+    OpenTerminalHere,
+    Summary,
+    TogglePin(usize),
+    /// Mark the text to be saved in another encoding (by name).
+    ConvertEncoding(String),
+    /// Read the file again in another encoding (by name).
+    ReopenWithEncoding(String),
     // Search
     Find,
     Replace,
@@ -122,6 +136,9 @@ pub enum Action {
     ToggleSmartIndent,
     ToggleUseSpaces,
     ToggleCompletion,
+    ToggleSingleInstance,
+    ToggleRememberUnsaved,
+    ToggleAutoReload,
     // Macros
     ToggleMacroRecording,
     PlayMacro,
@@ -152,6 +169,9 @@ impl Action {
                 | Action::ColumnEditor
                 | Action::RunMacroMultiple
                 | Action::SaveMacro
+                | Action::RenameFile
+                | Action::MoveToTrash
+                | Action::Summary
         )
     }
 

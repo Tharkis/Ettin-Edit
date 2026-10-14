@@ -20,7 +20,10 @@ pub struct Settings {
     pub show_line_numbers: bool,
     pub highlight_current_line: bool,
     pub restore_session: bool,
+    /// Tabs from before 0.5, read once when `session.json` doesn't exist yet.
+    #[serde(skip_serializing)]
     pub session_files: Vec<PathBuf>,
+    #[serde(skip_serializing)]
     pub session_active: usize,
     pub recent_files: Vec<PathBuf>,
     pub search: SearchOptions,
@@ -38,6 +41,12 @@ pub struct Settings {
     pub use_spaces: bool,
     pub word_completion: bool,
     pub macros: Vec<SavedMacro>,
+    /// Opening a file while NixPad runs sends it to the open window.
+    pub single_instance: bool,
+    /// Quit without asking about unsaved changes; they come back next time.
+    pub remember_unsaved: bool,
+    /// Reload files changed on disk without asking, if they have no unsaved changes.
+    pub auto_reload: bool,
 }
 
 impl Default for Settings {
@@ -70,6 +79,9 @@ impl Default for Settings {
             use_spaces: false,
             word_completion: true,
             macros: Vec::new(),
+            single_instance: true,
+            remember_unsaved: true,
+            auto_reload: false,
         }
     }
 }
