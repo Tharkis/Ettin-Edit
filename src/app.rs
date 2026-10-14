@@ -1382,6 +1382,19 @@ impl EttinApp {
             }
             Action::DeleteSavedMacro(i) if i < self.settings.macros.len() => {
                 self.settings.macros.remove(i);
+                // Shortcuts follow their macro: drop the deleted one's, move the later ones up.
+                let shortcuts = std::mem::take(&mut self.settings.shortcuts);
+                for (key, texts) in shortcuts {
+                    let key = match serde_json::from_str::<Action>(&key) {
+                        Ok(Action::PlaySavedMacro(j)) if j == i => continue,
+                        Ok(Action::PlaySavedMacro(j)) if j > i => {
+                            actions::command_key(&Action::PlaySavedMacro(j - 1))
+                        }
+                        _ => key,
+                    };
+                    self.settings.shortcuts.insert(key, texts);
+                }
+                actions::set_overrides(&self.settings.shortcuts);
             }
             _ => {}
         }
