@@ -1,5 +1,6 @@
 //! The Ettin Edit window: menu bar, tab strip, editor and status bar.
 
+mod commands;
 mod compare;
 mod csv_query;
 mod menus;
@@ -38,7 +39,6 @@ use crate::tools_ui::{ColumnDialog, RunMacroDialog, RunTimes, SaveMacroDialog};
 
 const MIN_FONT: f32 = 8.0;
 const MAX_FONT: f32 = 48.0;
-const DEFAULT_FONT: f32 = 14.0;
 
 /// Tabs waiting to be closed, one unsaved-changes prompt at a time.
 struct CloseQueue {
@@ -103,6 +103,10 @@ pub struct EttinApp {
     clipboard_compare: Option<f64>,
     plugins: crate::plugins::PluginHost,
     plugin_ui: plugins::PluginUi,
+    prefs: crate::prefs_ui::PrefsDialog,
+    shortcut_mapper: crate::shortcut_ui::ShortcutMapper,
+    command_palette: crate::palette_ui::Picker,
+    tab_picker: crate::palette_ui::Picker,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -184,12 +188,21 @@ impl EttinApp {
                 std::sync::Arc::new(move || ctx.request_repaint())
             }),
             plugin_ui: plugins::PluginUi::default(),
+            prefs: crate::prefs_ui::PrefsDialog::default(),
+            shortcut_mapper: crate::shortcut_ui::ShortcutMapper::default(),
+            command_palette: crate::palette_ui::Picker::default(),
+            tab_picker: crate::palette_ui::Picker::default(),
         };
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
         app.fif.subfolders = app.settings.fif_subfolders;
         app.fif.hidden = app.settings.fif_hidden;
-        crate::fonts::install_fallbacks(&cc.egui_ctx);
+        if let Err(e) = crate::fonts::install(&cc.egui_ctx, &app.settings.editor_font) {
+            app.errors.push(e);
+        }
+        crate::editor::layout::set_tab_width(app.settings.tab_width);
+        let shortcut_errors = actions::set_overrides(&app.settings.shortcuts);
+        app.errors.extend(shortcut_errors);
         app.apply_style(&cc.egui_ctx);
 
         if owner && let Some(dir) = settings::config_dir() {
@@ -245,7 +258,17 @@ impl EttinApp {
     fn new_tab(&mut self) {
         self.untitled_counter += 1;
         let id = self.alloc_id();
-        let doc = Document::new_untitled(id, self.untitled_counter);
+        let mut doc = Document::new_untitled(id, self.untitled_counter);
+        let s = &self.settings;
+        if let Some(le) = s.new_line_ending {
+            doc.line_ending = le;
+        }
+        if let Some(enc) = TextEncoding::from_name(&s.new_encoding) {
+            doc.encoding = enc;
+        }
+        if self.languages.contains(&s.new_language) {
+            doc.syntax = s.new_language.clone();
+        }
         self.add_doc(doc);
     }
 
@@ -874,7 +897,7 @@ impl EttinApp {
             Action::ZoomOut => {
                 self.settings.font_size = (self.settings.font_size - 1.0).max(MIN_FONT)
             }
-            Action::ZoomReset => self.settings.font_size = DEFAULT_FONT,
+            Action::ZoomReset => self.settings.font_size = self.settings.default_font_size,
             Action::ToggleWordWrap => self.settings.word_wrap = !self.settings.word_wrap,
             Action::ToggleLineNumbers => {
                 self.settings.show_line_numbers = !self.settings.show_line_numbers
@@ -990,6 +1013,24 @@ impl EttinApp {
                 }
             }
             Action::About => self.show_about = true,
+            Action::Preferences => {
+                self.prefs.show();
+                drop_focus(ctx);
+            }
+            Action::ShortcutMapper => {
+                self.shortcut_mapper.show();
+                drop_focus(ctx);
+            }
+            Action::CommandPalette => {
+                self.tab_picker.open = false;
+                self.command_palette
+                    .show("Command palette", "Type part of a command's name");
+            }
+            Action::TabList => {
+                self.command_palette.open = false;
+                self.tab_picker
+                    .show("Open tabs", "Type part of a tab's name");
+            }
             Action::Find | Action::Replace => {
                 let (seed, multi_line) = self.selection_seed();
                 self.find_bar
@@ -1332,6 +1373,10 @@ impl EttinApp {
             || self.trash_confirm.is_some()
             || self.summary.is_some()
             || self.plugin_modal_open()
+            || self.prefs.open
+            || self.shortcut_mapper.open
+            || self.command_palette.open
+            || self.tab_picker.open
     }
 
     // ---------------------------------------------------------------------
@@ -1591,18 +1636,17 @@ impl EttinApp {
     }
 
     fn handle_input(&mut self, ctx: &egui::Context) {
+        self.shortcut_mapper.grab_keys(ctx);
         if !self.any_dialog_open() {
             let mut fired = Vec::new();
-            let mut shortcuts = actions::shortcuts();
-            let extra = self.plugins.shortcuts();
-            if !extra.is_empty() {
-                // Shift and Alt may be held for a shortcut without them, so
-                // the ones with more modifiers must be tried first.
-                shortcuts.extend(extra);
-                shortcuts.sort_by_key(|(s, _)| {
-                    std::cmp::Reverse(crate::plugins::shortcut::modifier_count(s))
-                });
-            }
+            let mut shortcuts = actions::default_shortcuts();
+            // Shift and Alt may be held for a shortcut without them, so
+            // the ones with more modifiers must be tried first; this sorts too.
+            shortcuts.extend(self.plugins.shortcuts());
+            actions::apply_overrides(&mut shortcuts);
+            shortcuts.sort_by_key(|(s, _)| {
+                std::cmp::Reverse(crate::plugins::shortcut::modifier_count(s))
+            });
             ctx.input_mut(|i| {
                 for (shortcut, action) in shortcuts {
                     // A key can repeat more than once in a frame.
@@ -1819,12 +1863,16 @@ impl EttinApp {
                     }
                 }
                 ui.separator();
+                self.menu_item(ui, "Edit Theme Colours…", Action::StyleConfigurator);
                 self.menu_item(ui, "Open Themes Folder", Action::OpenThemesFolder);
                 self.menu_item(ui, "Reload Themes", Action::ReloadThemes);
                 self.menu_item(ui, "Restore Built-in Themes", Action::RestoreThemes);
             });
             ui.menu_button("Language", |ui| self.language_menu(ui));
             ui.menu_button("Settings", |ui| {
+                self.menu_item(ui, "Preferences…", Action::Preferences);
+                self.menu_item(ui, "Shortcut Mapper…", Action::ShortcutMapper);
+                ui.separator();
                 let s = self.settings.clone();
                 self.toggle_item(
                     ui,
@@ -1983,6 +2031,31 @@ impl EttinApp {
         let palette = self.palette();
         let tab_height = 32.0;
         let tabs = self.tabs_in(view);
+        // The tab list button stays at the right; the tabs scroll beside it.
+        let full = ui.available_rect_before_wrap();
+        let list_w = 26.0;
+        let strip = Rect::from_min_max(
+            full.min,
+            Pos2::new(full.right() - list_w, full.top() + tab_height),
+        );
+        let list_rect = Rect::from_min_max(
+            Pos2::new(full.right() - list_w, full.top()),
+            Pos2::new(full.right(), full.top() + tab_height - 2.0),
+        );
+        let list = ui.put(
+            list_rect,
+            egui::Button::new(RichText::new("⏷").size(12.0).color(palette.text_dim)).frame(false),
+        );
+        if list.on_hover_text("All open tabs").clicked() {
+            self.pending.push(Action::TabList);
+        }
+        ui.allocate_rect(
+            Rect::from_min_max(full.min, Pos2::new(full.right(), full.top() + tab_height)),
+            Sense::hover(),
+        );
+        let mut strip_ui = ui.new_child(egui::UiBuilder::new().max_rect(strip));
+        strip_ui.set_clip_rect(strip.intersect(ui.clip_rect()));
+        let ui = &mut strip_ui;
         ScrollArea::horizontal()
             .id_salt(("tab-strip", view))
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
@@ -2312,7 +2385,8 @@ impl EttinApp {
         let encoding = doc.encoding.name();
         let length = doc.editor.buffer.len_chars();
         let lines = doc.line_count();
-        let zoom = (self.settings.font_size / DEFAULT_FONT * 100.0).round();
+        let zoom =
+            (self.settings.font_size / self.settings.default_font_size.max(1.0) * 100.0).round();
         let read_only = doc.editor.buffer.read_only;
         let recording = self.recorder.is_recording();
         let dim = |s: String| RichText::new(s).size(12.0).color(palette.text_dim);
@@ -2477,6 +2551,81 @@ impl EttinApp {
 
     fn dialogs(&mut self, ctx: &egui::Context) {
         let palette = self.palette();
+        let languages = self.languages.clone();
+        for event in self.prefs.ui(ctx, &mut self.settings, &languages, &palette) {
+            match event {
+                crate::prefs_ui::PrefsEvent::Font(font) => {
+                    match crate::fonts::install(ctx, &font) {
+                        Ok(()) => self.settings.editor_font = font,
+                        Err(e) => {
+                            self.errors.push(e);
+                            let _ = crate::fonts::install(ctx, &self.settings.editor_font);
+                        }
+                    }
+                }
+                crate::prefs_ui::PrefsEvent::Shortcuts => self.pending.push(Action::ShortcutMapper),
+                crate::prefs_ui::PrefsEvent::Styles => self.pending.push(Action::StyleConfigurator),
+            }
+        }
+        crate::editor::layout::set_tab_width(self.settings.tab_width);
+        if self.command_palette.open {
+            let items: Vec<crate::palette_ui::Item<Action>> = self
+                .command_catalog(ctx)
+                .into_iter()
+                .map(|c| crate::palette_ui::Item {
+                    detail: actions::effective_shortcut(&c.action, c.plugin_shortcut)
+                        .or_else(|| {
+                            actions::all_shortcuts()
+                                .into_iter()
+                                .find(|(_, a)| *a == c.action)
+                                .map(|(s, _)| s)
+                        })
+                        .map(|s| ctx.format_shortcut(&s))
+                        .unwrap_or_default(),
+                    label: c.path,
+                    value: c.action,
+                })
+                .collect();
+            if let Some(action) = self.command_palette.ui(ctx, &items, &palette) {
+                self.pending.push(action);
+                self.focus_editor = true;
+            } else if !self.command_palette.open {
+                self.focus_editor = true;
+            }
+        }
+        if self.tab_picker.open {
+            let items: Vec<crate::palette_ui::Item<usize>> = self
+                .docs
+                .iter()
+                .enumerate()
+                .map(|(i, d)| crate::palette_ui::Item {
+                    label: format!("{}{}", if d.is_dirty() { "● " } else { "" }, d.title()),
+                    detail: d
+                        .path
+                        .as_ref()
+                        .and_then(|p| p.parent())
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default(),
+                    value: i,
+                })
+                .collect();
+            if let Some(i) = self.tab_picker.ui(ctx, &items, &palette) {
+                self.pending.push(Action::SelectTab(i));
+                self.focus_editor = true;
+            } else if !self.tab_picker.open {
+                self.focus_editor = true;
+            }
+        }
+        if self.shortcut_mapper.open {
+            let rows = self.shortcut_rows(ctx);
+            if self
+                .shortcut_mapper
+                .ui(ctx, &rows, &mut self.settings.shortcuts, &palette)
+            {
+                let errors = actions::set_overrides(&self.settings.shortcuts);
+                self.errors.extend(errors);
+            }
+        }
         if let Some(doc) = self.docs.get(self.active) {
             let lines = doc.line_count();
             if let Some((line, col)) = self.goto.ui(ctx, lines, &palette) {
@@ -2761,6 +2910,15 @@ impl eframe::App for EttinApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.plugins.shutdown();
     }
+}
+
+/// Takes keyboard focus from the editor, so a window that just opened gets the keys.
+fn drop_focus(ctx: &egui::Context) {
+    ctx.memory_mut(|m| {
+        if let Some(id) = m.focused() {
+            m.surrender_focus(id);
+        }
+    });
 }
 
 /// A small push-pin, drawn where a pinned tab's close button would be.

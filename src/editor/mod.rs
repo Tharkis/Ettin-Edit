@@ -538,7 +538,7 @@ impl Editor {
                 let line = ed.buffer.char_to_line(s.start());
                 let ls = ed.buffer.line_start(line);
                 let col = layout::line_cols(ed.buffer.rope().slice(ls..s.start()).chars());
-                let n = layout::TAB_WIDTH - col % layout::TAB_WIDTH;
+                let n = layout::tab_width() - col % layout::tab_width();
                 Replacement {
                     range: s.range(),
                     text: " ".repeat(n),
@@ -569,7 +569,7 @@ impl Editor {
             if outdent {
                 let mut n = 0;
                 let end = self.line_end(l);
-                while start + n < end && n < layout::TAB_WIDTH && rope.char(start + n) == ' ' {
+                while start + n < end && n < layout::tab_width() && rope.char(start + n) == ' ' {
                     n += 1;
                 }
                 if n == 0 && start < end && rope.char(start) == '\t' {

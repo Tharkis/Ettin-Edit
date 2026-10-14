@@ -880,15 +880,16 @@ impl EttinApp {
             any = true;
             ui.menu_button(p.name(), |ui| {
                 for c in &p.commands {
+                    let action = Action::PluginCommand {
+                        plugin: p.id.clone(),
+                        command: c.id.clone(),
+                    };
                     let mut button = egui::Button::new(&c.title);
-                    if let Some(s) = &c.shortcut {
-                        button = button.shortcut_text(ui.ctx().format_shortcut(s));
+                    if let Some(s) = crate::actions::effective_shortcut(&action, c.shortcut) {
+                        button = button.shortcut_text(ui.ctx().format_shortcut(&s));
                     }
                     if ui.add(button).clicked() {
-                        clicked = Some(Action::PluginCommand {
-                            plugin: p.id.clone(),
-                            command: c.id.clone(),
-                        });
+                        clicked = Some(action);
                     }
                 }
             });

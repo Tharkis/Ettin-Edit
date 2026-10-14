@@ -3,16 +3,29 @@
 //! The editor uses a monospace grid: every char has a width in columns
 //! (tabs expand to the next tab stop, wide CJK characters take two).
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use unicode_width::UnicodeWidthChar;
 
 use super::buffer::{Buffer, LineEdit};
 
-pub const TAB_WIDTH: usize = 4;
+pub const DEFAULT_TAB_WIDTH: usize = 4;
+
+/// Columns between tab stops, set from the preferences.
+static TAB_WIDTH: AtomicUsize = AtomicUsize::new(DEFAULT_TAB_WIDTH);
+
+pub fn tab_width() -> usize {
+    TAB_WIDTH.load(Ordering::Relaxed)
+}
+
+pub fn set_tab_width(width: usize) {
+    TAB_WIDTH.store(width.clamp(1, 16), Ordering::Relaxed);
+}
 
 /// Width of `c` in columns when it starts at column `col`.
 pub fn char_cols(c: char, col: usize) -> usize {
     match c {
-        '\t' => TAB_WIDTH - col % TAB_WIDTH,
+        '\t' => tab_width() - col % tab_width(),
         c if c.is_control() => 1,
         c => c.width().unwrap_or(1),
     }
@@ -66,6 +79,8 @@ pub fn wrap_points(line: &[char], cols: Option<usize>) -> Vec<usize> {
 /// given scroll position without laying out the whole file.
 pub struct RowIndex {
     wrap_cols: Option<usize>,
+    /// The tab width the rows were measured with.
+    tab_width: usize,
     rows: Vec<u32>,
     widths: Vec<u32>,
     /// Lines inside a folded region; they take no rows.
@@ -82,6 +97,7 @@ impl RowIndex {
     pub fn new(buffer: &Buffer, wrap_cols: Option<usize>) -> Self {
         let mut index = Self {
             wrap_cols,
+            tab_width: tab_width(),
             rows: Vec::new(),
             widths: Vec::new(),
             hidden: Vec::new(),
@@ -119,6 +135,7 @@ impl RowIndex {
     }
 
     pub fn rebuild(&mut self, buffer: &Buffer) {
+        self.tab_width = tab_width();
         let n = buffer.len_lines();
         self.rows.clear();
         self.widths.clear();
@@ -145,7 +162,7 @@ impl RowIndex {
     }
 
     pub fn set_wrap(&mut self, buffer: &Buffer, wrap_cols: Option<usize>) {
-        if self.wrap_cols != wrap_cols {
+        if self.wrap_cols != wrap_cols || self.tab_width != tab_width() {
             self.wrap_cols = wrap_cols;
             self.rebuild(buffer);
         }

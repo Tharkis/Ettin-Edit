@@ -830,7 +830,7 @@ impl Editor {
                                 ],
                                 Stroke::new(1.0, palette.guide.gamma_multiply(0.55)),
                             );
-                            col += super::layout::TAB_WIDTH;
+                            col += super::layout::tab_width();
                         }
                     }
                 }

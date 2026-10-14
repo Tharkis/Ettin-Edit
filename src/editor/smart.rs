@@ -6,7 +6,7 @@ use std::ops::Range;
 
 use super::Editor;
 use super::buffer::{EditKind, Replacement};
-use super::layout::{TAB_WIDTH, char_cols};
+use super::layout::{char_cols, tab_width};
 use super::selection::{Selection, Selections};
 
 /// How far brace and tag matching looks, in chars, so a stray bracket in a huge
@@ -173,7 +173,7 @@ impl Editor {
     /// One level of indentation.
     pub fn indent_unit(&self) -> String {
         if self.opts.use_spaces {
-            " ".repeat(TAB_WIDTH)
+            " ".repeat(tab_width())
         } else {
             "\t".to_owned()
         }
