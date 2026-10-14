@@ -181,7 +181,8 @@ mod tests {
         assert!(!send_to_running(&dir, &[]));
 
         let listener = listen(&dir, || {}).unwrap();
-        let file = PathBuf::from("/tmp/a.txt");
+        // An absolute path on every platform, so it arrives unchanged.
+        let file = dir.join("a.txt");
         assert!(send_to_running(&dir, std::slice::from_ref(&file)));
         assert_eq!(listener.files.recv_timeout(TIMEOUT).unwrap(), vec![file]);
 
