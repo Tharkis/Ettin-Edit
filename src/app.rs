@@ -110,6 +110,7 @@ pub struct EttinApp {
     style_editor: crate::style_ui::StyleEditor,
     tab_picker: crate::palette_ui::Picker,
     folders: crate::folder_ui::FolderPanel,
+    function_list: crate::function_list_ui::FunctionList,
     /// Full screen with only the text showing.
     distraction_free: bool,
 }
@@ -256,6 +257,7 @@ impl EttinApp {
             style_editor: crate::style_ui::StyleEditor::default(),
             tab_picker: crate::palette_ui::Picker::default(),
             folders: crate::folder_ui::FolderPanel::default(),
+            function_list: Default::default(),
             distraction_free: false,
         };
         if let Some(dir) = app.settings.workspace.clone() {
@@ -3062,6 +3064,8 @@ impl eframe::App for EttinApp {
             self.json_tree_panel(ui, &ctx);
             self.csv_query_panel(ui, &ctx);
             self.folder_panel(ui);
+            // The map sits next to the text, inside the function list.
+            self.function_list_panel(ui);
             self.doc_map_panel(ui);
         }
         self.record_editor_input(&ctx);

@@ -13,6 +13,8 @@ mod encoding;
 mod file_ui;
 mod folder_ui;
 mod fonts;
+mod function_list;
+mod function_list_ui;
 mod highlight;
 mod instance;
 mod macros;

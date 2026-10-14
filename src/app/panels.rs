@@ -62,3 +62,37 @@ impl EttinApp {
             .show(ui, |ui| doc.editor.show_map(ui, &palette, syntaxes, theme));
     }
 }
+
+impl EttinApp {
+    pub(super) fn function_list_panel(&mut self, ui: &mut Ui) {
+        if !self.settings.function_list || self.distraction_free || self.docs.is_empty() {
+            return;
+        }
+        let palette = self.palette();
+        let ctx = ui.ctx().clone();
+        let doc = &mut self.docs[self.active];
+        let key = (doc.id, doc.editor.buffer.version());
+        let editor = &mut doc.editor;
+        self.function_list
+            .update(&ctx, key, &doc.syntax, || editor.text_snapshot());
+        let caret_line = doc.editor.caret_line_col().0;
+        let mut jump = None;
+        egui::Panel::right("function-list")
+            .resizable(true)
+            .default_size(240.0)
+            .min_size(150.0)
+            .frame(
+                Frame::new()
+                    .fill(palette.chrome_bg)
+                    .inner_margin(Margin::symmetric(8, 4)),
+            )
+            .show(ui, |ui| {
+                jump = self.function_list.ui(ui, caret_line, &palette)
+            });
+        if let Some(line) = jump {
+            self.docs[self.active].editor.go_to_near_top(line);
+            self.focus_editor = true;
+            ctx.request_repaint();
+        }
+    }
+}

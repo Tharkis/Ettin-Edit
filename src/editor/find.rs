@@ -284,6 +284,15 @@ impl Editor {
         self.set_selections(Selections::caret(pos));
     }
 
+    /// Moves the caret to the start of `line` and scrolls it near the top of the view.
+    pub fn go_to_near_top(&mut self, line: usize) {
+        self.go_to(line, 0);
+        let row = self
+            .rows
+            .line_to_row(line.min(self.buffer.len_lines().saturating_sub(1)));
+        self.map_scroll = Some(row.saturating_sub(3) as f32);
+    }
+
     /// Selects `len` chars at `line`/`col` (0-based), for jumping to a search result.
     pub fn select_at(&mut self, line: usize, col: usize, len: usize) {
         let line = line.min(self.buffer.len_lines().saturating_sub(1));
