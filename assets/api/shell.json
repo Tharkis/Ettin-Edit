@@ -1,0 +1,14 @@
+{
+  "languages": ["Bourne Again Shell (bash)", "Shell-Unix-Generic"],
+  "keywords": [
+    "if", "then", "else", "elif", "fi", "case", "esac", "for", "select", "while", "until", "do",
+    "done", "in", "function", "time", "coproc", "return", "exit", "break", "continue", "local",
+    "declare", "export", "readonly", "typeset", "unset", "shift", "source", "alias", "echo",
+    "printf", "read", "cd", "pwd", "pushd", "popd", "test", "true", "false", "eval", "exec",
+    "trap", "wait", "kill", "set", "shopt", "getopts", "mapfile", "readarray", "basename",
+    "dirname", "grep", "sed", "awk", "find", "xargs", "sort", "uniq", "cut", "tr", "head", "tail",
+    "cat", "tee", "mkdir", "rm", "cp", "mv", "ln", "chmod", "chown", "touch", "curl", "wget",
+    "tar", "git", "sudo", "PATH", "HOME", "PWD", "IFS", "BASH_SOURCE", "FUNCNAME", "LINENO"
+  ],
+  "functions": []
+}

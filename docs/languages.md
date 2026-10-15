@@ -85,8 +85,8 @@ ignored, so you can keep them as comments:
   "operators": ["+", "-", "*", "/", "%", "=", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!"],
   "numbers": true,
 
-  "_folding": "Bracket pairs that open and close a block. They are coloured as brackets today and are kept for grammar-aware folding.",
-  "folding": [["{", "}"]]
+  "_folding": "Pairs that open and close a block, for code folding: brackets such as { } or words such as if … end.",
+  "folding": [["{", "}"], ["if", "end"]]
 }
 ```
 
@@ -105,7 +105,7 @@ Only `name` is required. Everything else is optional.
 | `keywords` | Groups of words, coloured by group (see below). Words match whole words only. | none |
 | `operators` | Symbols to colour as operators, such as `"+"` or `"=="`. | none |
 | `numbers` | Colour numbers (`42`, `3.14`, `1e-9`, `0xFF`). | `true` |
-| `folding` | Bracket pairs that open and close a block, such as `[["{", "}"]]`. They are coloured as brackets today. | none |
+| `folding` | Pairs that open and close a block, such as `[["{", "}"], ["begin", "end"]]`. Code folding follows them; word pairs are coloured as keywords. Without pairs, `( )`, `[ ]` and `{ }` fold, or failing that, indentation. | none |
 
 A key Ettin Edit does not recognise is reported as an error, so a typo such as
 `"line_coment"` does not go unnoticed.
@@ -152,3 +152,77 @@ Only use grammars whose licence lets you use them.
 Grammars only label the text (a keyword, a string, a comment). The theme
 decides the colours, so a new language follows whichever theme you pick from
 the **Theme** menu.
+
+## Code folding
+
+Folding follows each language's grammar, so a block ends where its closing
+bracket, tag or keyword is, wherever the indentation says it does. What folds:
+
+- brackets: `{ }`, `[ ]` and `( )` spread over several lines; brackets inside
+  strings and comments don't count
+- tags in HTML, XML, SVG and JSX (`<br>` and other empty HTML elements, and
+  `<tag/>`, don't open a block), and the code inside `<script>` and `<style>`
+- keyword blocks: Ruby and Lua (`def`/`function`/`if`/`do` … `end`), shell
+  scripts (`if` … `fi`, `case` … `esac`, `do` … `done`), Pascal (`begin` …
+  `end`), CMake (`if()` … `endif()` and the rest), and `folding` pairs in
+  `.lang.json` languages
+- LaTeX `\begin{…}` … `\end{…}`
+- `[sections]` in INI and TOML files, and Markdown headings (down to the next
+  heading of the same or a higher level) and fenced code blocks
+- comment blocks: a multi-line comment, or two or more lines of line comments
+- `#region` … `#endregion` markers, in a comment (`// #region Name`,
+  `<!-- #region -->`) or as C#'s and C++'s `#region` / `#pragma region`
+
+The line with the closing bracket stays visible, so `} else {` keeps working.
+Python, YAML, Haskell, Makefiles, plain text and files without any blocks fold
+by indentation, as do files over 300,000 lines.
+
+## Completion and parameter hints
+
+As you type, the completion list offers words from the document, the
+language's keywords, and the functions it knows about. A function shows its
+signature next to its name. Ctrl+Space opens the list early.
+
+Typing `(` after a function's name shows its parameters above the caret, with
+the one you're typing in bold. It follows the caret from argument to argument
+and closes when you leave the call or press Esc. Ctrl+Shift+Space shows it
+again. The signatures come from:
+
+- the functions the document itself defines (Rust, C, C#, Java, Kotlin, Go,
+  JavaScript, TypeScript, PHP, Python, Ruby, Lua and the other languages the
+  function list understands), and
+- lists of common built-in and library functions for Python, JavaScript and
+  TypeScript, Rust, C, C++, C#, Java, Go, PHP, Lua, Ruby, Kotlin, Swift, SQL,
+  PowerShell and CSS. HTML, CSS, SQL and shell scripts have keyword lists.
+
+Languages without a list (including your own `.lang.json` ones) still complete
+the keywords their grammar colours.
+
+Each of these can be turned off in the **Settings** menu or in **Preferences**:
+Word Completion, Keyword and Function Completion, and Parameter Hints.
+
+### Your own lists
+
+Put `.json` files in the `api` folder next to the `languages` folder
+(**Language > Open Completion Lists Folder** creates it with an example), then
+choose **Language > Reload Languages**. A list adds to the built-in one for the
+same language:
+
+```json
+{
+  "languages": ["Python"],
+  "ignore_case": false,
+  "keywords": ["my_keyword"],
+  "functions": [
+    "my_function(first, second=2) -> int",
+    {"signature": "mymodule.helper(path, *, verbose=False)", "doc": "Shown under the signature."}
+  ]
+}
+```
+
+| Key | What it is |
+| --- | --- |
+| `languages` | The languages the list is for, named as in the **Language** menu. |
+| `ignore_case` | `true` when `IF` and `if` are the same word (SQL, PowerShell). |
+| `keywords` | Words to offer in the completion list. |
+| `functions` | Signatures, `name(parameters)` with anything after the `)`, such as a return type. A qualified name (`os.path.join`, `std::mem::swap`, `Math.max`) matches calls written either way, `join(` or `os.path.join(`. Write `{"signature": …, "doc": …}` to add a description. |

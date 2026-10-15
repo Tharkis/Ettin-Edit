@@ -130,6 +130,7 @@ fn fixed_commands() -> Vec<(&'static str, Action)> {
         ("Theme › Restore Built-in Themes", RestoreThemes),
         ("Language › New Language…", NewLanguage),
         ("Language › Open Languages Folder", OpenLanguagesFolder),
+        ("Language › Open Completion Lists Folder", OpenApiFolder),
         ("Language › Reload Languages", ReloadLanguages),
         ("Language › Language Guide", LanguageGuide),
         ("Settings › Preferences…", Preferences),
@@ -138,6 +139,11 @@ fn fixed_commands() -> Vec<(&'static str, Action)> {
         ("Settings › Smart Indentation", ToggleSmartIndent),
         ("Settings › Indent With Spaces", ToggleUseSpaces),
         ("Settings › Word Completion", ToggleCompletion),
+        (
+            "Settings › Keyword and Function Completion",
+            ToggleLanguageCompletion,
+        ),
+        ("Settings › Parameter Hints", ToggleParameterHints),
         ("Settings › Single Window", ToggleSingleInstance),
         (
             "Settings › Remember Unsaved Changes on Exit",

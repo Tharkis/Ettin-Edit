@@ -56,6 +56,7 @@ pub enum Action {
     CheckForUpdates,
     NewLanguage,
     OpenLanguagesFolder,
+    OpenApiFolder,
     ReloadLanguages,
     LanguageGuide,
     Print,
@@ -144,6 +145,8 @@ pub enum Action {
     },
     SelectNextOccurrence,
     SelectAllOccurrences,
+    CompleteWord,
+    ShowParameterHint,
     ColumnEditor,
     ToggleReadOnly,
     // Folding
@@ -162,6 +165,8 @@ pub enum Action {
     ToggleSmartIndent,
     ToggleUseSpaces,
     ToggleCompletion,
+    ToggleLanguageCompletion,
+    ToggleParameterHints,
     ToggleSingleInstance,
     ToggleRememberUnsaved,
     ToggleAutoReload,
@@ -512,6 +517,8 @@ pub fn editor_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD, Key::C), Action::Copy),
         (s(CMD, Key::V), Action::Paste),
         (s(CMD, Key::A), Action::SelectAll),
+        (s(CMD_SHIFT, Key::Space), Action::ShowParameterHint),
+        (s(CMD, Key::Space), Action::CompleteWord),
     ]
 }
 

@@ -1,6 +1,6 @@
 //! Typing helpers: auto-closed brackets and quotes, smart indentation, brace
-//! and tag matching, word completion, selecting further occurrences, and
-//! column (block) selection and insertion.
+//! and tag matching, word and keyword completion, selecting further
+//! occurrences, and column (block) selection and insertion.
 
 use std::ops::Range;
 
@@ -25,7 +25,12 @@ pub struct EditOptions {
     pub smart_indent: bool,
     /// Tab inserts spaces instead of a tab character.
     pub use_spaces: bool,
+    /// Suggest words from the document.
     pub completion: bool,
+    /// Suggest the language's keywords and functions.
+    pub language_completion: bool,
+    /// Show a function's parameters while typing a call.
+    pub parameter_hints: bool,
     /// The language indents after a trailing colon (Python, YAML).
     pub colon_indents: bool,
     /// The language has markup tags to match (HTML, XML).
@@ -43,6 +48,8 @@ impl Default for EditOptions {
             smart_indent: true,
             use_spaces: false,
             completion: true,
+            language_completion: true,
+            parameter_hints: true,
             colon_indents: false,
             markup: false,
             close_tags: true,
@@ -51,13 +58,29 @@ impl Default for EditOptions {
     }
 }
 
-/// The word-completion popup's state.
+/// The completion popup's state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Completion {
     /// Where the word being completed starts.
     pub start: usize,
-    pub items: Vec<String>,
+    pub items: Vec<CompletionItem>,
     pub selected: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompletionItem {
+    pub text: String,
+    pub kind: ItemKind,
+    /// A function's signature, shown beside it.
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemKind {
+    /// A word from the document.
+    Word,
+    Keyword,
+    Function,
 }
 
 /// A rectangular selection, in visual rows and display columns.
@@ -612,62 +635,100 @@ impl Editor {
         }
         let prefix = self.buffer.slice_string(start..pos);
         let lower = prefix.to_lowercase();
-        let from = pos.saturating_sub(COMPLETION_WINDOW);
-        let to = (pos + COMPLETION_WINDOW).min(rope.len_chars());
-        let mut words: Vec<String> = Vec::new();
-        let mut seen = std::collections::HashSet::new();
-        let mut word = String::new();
-        let mut word_start = from;
-        for (i, c) in rope.slice(from..to).chars().enumerate() {
-            if is_word(c) {
-                if word.is_empty() {
-                    word_start = from + i;
+        let wanted =
+            |w: &str| w.chars().count() > prefix_len && w.to_lowercase().starts_with(&lower);
+        let mut items: Vec<CompletionItem> = Vec::new();
+        let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        if self.opts.completion || forced {
+            let from = pos.saturating_sub(COMPLETION_WINDOW);
+            let to = (pos + COMPLETION_WINDOW).min(rope.len_chars());
+            let mut word = String::new();
+            let mut word_start = from;
+            let mut take = |w: String, at: usize| {
+                if at != start && wanted(&w) && !seen.contains_key(&w) {
+                    seen.insert(w.clone(), items.len());
+                    items.push(CompletionItem {
+                        text: w,
+                        kind: ItemKind::Word,
+                        detail: None,
+                    });
                 }
-                word.push(c);
-                continue;
+            };
+            for (i, c) in rope.slice(from..to).chars().enumerate() {
+                if is_word(c) {
+                    if word.is_empty() {
+                        word_start = from + i;
+                    }
+                    word.push(c);
+                    continue;
+                }
+                if !word.is_empty() {
+                    take(std::mem::take(&mut word), word_start);
+                }
             }
             if !word.is_empty() {
-                let w = std::mem::take(&mut word);
-                if word_start != start
-                    && w.chars().count() > prefix_len
-                    && w.to_lowercase().starts_with(&lower)
-                    && seen.insert(w.clone())
-                {
-                    words.push(w);
+                take(word, word_start);
+            }
+        }
+        if self.opts.language_completion || forced {
+            let api = self.api.clone();
+            let language = api
+                .keywords
+                .iter()
+                .map(|k| (k, ItemKind::Keyword))
+                .chain(api.function_names.iter().map(|f| (f, ItemKind::Function)));
+            for (w, kind) in language {
+                if !wanted(w) {
+                    continue;
+                }
+                let detail = (kind == ItemKind::Function)
+                    .then(|| api.detail(w).map(str::to_owned))
+                    .flatten();
+                match seen.get(w) {
+                    // A document word that is also a keyword shows as the keyword.
+                    Some(&i) => {
+                        if items[i].kind == ItemKind::Word {
+                            items[i].kind = kind;
+                            items[i].detail = detail;
+                        }
+                    }
+                    None => {
+                        seen.insert(w.clone(), items.len());
+                        items.push(CompletionItem {
+                            text: w.clone(),
+                            kind,
+                            detail,
+                        });
+                    }
                 }
             }
         }
-        if !word.is_empty()
-            && word_start != start
-            && word.chars().count() > prefix_len
-            && word.to_lowercase().starts_with(&lower)
-            && seen.insert(word.clone())
-        {
-            words.push(word);
-        }
-        if words.is_empty() {
+        if items.is_empty() {
             self.completion = None;
             return;
         }
         // Exact-case matches first, then shorter words, then alphabetical.
-        words.sort_by(|a, b| {
-            (!a.starts_with(&prefix), a.chars().count(), a.as_str()).cmp(&(
-                !b.starts_with(&prefix),
-                b.chars().count(),
-                b.as_str(),
-            ))
+        items.sort_by(|a, b| {
+            let key = |i: &CompletionItem| {
+                (
+                    !i.text.starts_with(&prefix),
+                    i.text.chars().count(),
+                    i.text.clone(),
+                )
+            };
+            key(a).cmp(&key(b))
         });
-        words.truncate(COMPLETION_MAX_ITEMS);
+        items.truncate(COMPLETION_MAX_ITEMS);
         let selected = self
             .completion
             .as_ref()
             .filter(|c| c.start == start)
             .and_then(|c| c.items.get(c.selected))
-            .and_then(|w| words.iter().position(|x| x == w))
+            .and_then(|w| items.iter().position(|x| x.text == w.text))
             .unwrap_or(0);
         self.completion = Some(Completion {
             start,
-            items: words,
+            items,
             selected,
         });
     }
@@ -677,7 +738,7 @@ impl Editor {
         let Some(c) = self.completion.take() else {
             return;
         };
-        let Some(word) = c.items.get(index.unwrap_or(c.selected)) else {
+        let Some(word) = c.items.get(index.unwrap_or(c.selected)).map(|i| &i.text) else {
             return;
         };
         let pos = self.selections.primary().head;
@@ -944,9 +1005,35 @@ mod tests {
         let mut e = ed("alpha alphabet beta al", 22);
         e.update_completion(false);
         let c = e.completion.clone().unwrap();
-        assert_eq!(c.items, vec!["alpha", "alphabet"]);
+        let texts: Vec<&str> = c.items.iter().map(|i| i.text.as_str()).collect();
+        assert_eq!(texts, vec!["alpha", "alphabet"]);
         e.accept_completion(&ctx, Some(1));
         assert_eq!(e.buffer.text(), "alpha alphabet beta alphabet");
+    }
+
+    #[test]
+    fn completion_adds_language_keywords_and_functions() {
+        let (mut lib, _) = crate::lang_api::ApiLibrary::load(None, Default::default());
+        let mut e = ed("let printer = 1;\npr", 19);
+        e.api = lib.get("Rust");
+        e.update_completion(false);
+        let c = e.completion.clone().unwrap();
+        let items: Vec<(&str, ItemKind)> =
+            c.items.iter().map(|i| (i.text.as_str(), i.kind)).collect();
+        assert!(items.contains(&("printer", ItemKind::Word)));
+        assert!(items.contains(&("println!", ItemKind::Function)));
+        let f = c.items.iter().find(|i| i.text == "println!").unwrap();
+        assert_eq!(f.detail.as_deref(), Some("println!(format, ...args)"));
+        // Turning language completion off leaves the document's words.
+        e.opts.language_completion = false;
+        e.update_completion(false);
+        assert!(
+            e.completion
+                .unwrap()
+                .items
+                .iter()
+                .all(|i| i.kind == ItemKind::Word)
+        );
     }
 
     #[test]

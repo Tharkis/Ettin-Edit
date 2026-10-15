@@ -253,6 +253,13 @@ impl EttinApp {
                     m.item("Select All Occurrences", Action::SelectAllOccurrences),
                 ],
             ),
+            submenu(
+                "Auto-Completion",
+                vec![
+                    m.item("Complete Word", Action::CompleteWord),
+                    m.item("Show Parameter Hint", Action::ShowParameterHint),
+                ],
+            ),
             m.item("Column Editor…", Action::ColumnEditor),
             MenuEntry::Separator,
             m.toggle("Read-Only", read_only, Action::ToggleReadOnly),

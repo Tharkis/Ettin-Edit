@@ -45,7 +45,7 @@ pub struct ViewConfig<'a> {
     pub highlight_current_line: bool,
     pub palette: &'a Palette,
     pub syntax: &'a SyntaxReference,
-    pub syntaxes: &'a SyntaxSet,
+    pub syntaxes: &'a Arc<SyntaxSet>,
     pub theme: &'a Theme,
     pub theme_name: &'a str,
     pub plain: bool,
@@ -210,6 +210,44 @@ fn paint_ranges(
     }
 }
 
+/// A completion entry: the word, with its kind or signature dimmed after it.
+fn completion_label(
+    item: &super::smart::CompletionItem,
+    cfg: &ViewConfig,
+) -> egui::text::LayoutJob {
+    use super::smart::ItemKind;
+    let palette = cfg.palette;
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        &item.text,
+        0.0,
+        egui::TextFormat::simple(cfg.font.clone(), palette.text),
+    );
+    let note = match (&item.detail, item.kind) {
+        (Some(d), _) => {
+            let mut d = d.clone();
+            if d.chars().count() > 48 {
+                d = d.chars().take(47).collect::<String>() + "…";
+            }
+            Some(d)
+        }
+        (None, ItemKind::Keyword) => Some("keyword".to_owned()),
+        (None, ItemKind::Function) => Some("function".to_owned()),
+        (None, ItemKind::Word) => None,
+    };
+    if let Some(note) = note {
+        job.append(
+            &note,
+            cfg.font.size,
+            egui::TextFormat::simple(
+                FontId::proportional((cfg.font.size * 0.85).max(10.0)),
+                palette.gutter_fg,
+            ),
+        );
+    }
+    job
+}
+
 /// Font metrics for the editor grid.
 #[derive(Clone, Copy)]
 struct Metrics {
@@ -224,6 +262,7 @@ impl Editor {
         if let Some(first) = edits.iter().map(|e| e.start_line).min() {
             self.rows.apply_edits(&self.buffer, &edits);
             self.map_folds(&edits);
+            self.fold_scan.edited(&edits, self.buffer.len_lines());
             self.highlighter.invalidate_from(first);
             if !self.bookmarks.is_empty() {
                 self.bookmarks = map_bookmarks(&self.bookmarks, &edits);
@@ -242,6 +281,7 @@ impl Editor {
             });
             other.column = None;
             other.completion = None;
+            other.hint = None;
         }
         if !char_edits.is_empty() && !self.marks.is_empty() {
             if char_edits.len().saturating_mul(self.marks.len()) > 5_000_000 {
@@ -667,7 +707,10 @@ impl Editor {
 
         self.highlighter
             .configure(cfg.syntax, cfg.theme_name, cfg.theme, cfg.plain);
+        self.fold_scan
+            .configure(cfg.syntax, cfg.syntaxes, cfg.plain);
         self.sync_caches();
+        self.fold_scan.poll(&self.buffer, ui.ctx());
         self.rows.set_wrap(&self.buffer, wrap_cols);
 
         let version_before = self.buffer.version();
@@ -690,8 +733,11 @@ impl Editor {
         }
         self.sync_caches();
         self.reveal_carets();
-        if !has_focus {
+        if has_focus {
+            self.update_hint(false);
+        } else {
             self.completion = None;
+            self.hint = None;
         }
         if changed {
             cache = FrameCache::default();
@@ -707,7 +753,7 @@ impl Editor {
 
         let mut budget = HIGHLIGHT_BUDGET;
         let mut needs_repaint = false;
-        let mut popup_at: Option<Pos2> = None;
+        let mut popup_at: Option<(Pos2, Pos2)> = None;
         let mut scroll = ScrollArea::both()
             .id_salt(id.with("scroll"))
             .auto_shrink(false);
@@ -1202,14 +1248,17 @@ impl Editor {
                 );
             }
 
-            if self.completion.is_some()
+            if (self.completion.is_some() || self.hint.is_some())
                 && let Some(caret) = primary_caret_rect
             {
                 let to_global = ui
                     .ctx()
                     .layer_transform_to_global(ui.layer_id())
                     .unwrap_or_default();
-                popup_at = Some(to_global * caret.left_bottom());
+                popup_at = Some((
+                    to_global * caret.left_bottom(),
+                    to_global * caret.left_top(),
+                ));
             }
 
             if focused && let Some(caret) = primary_caret_rect {
@@ -1230,8 +1279,9 @@ impl Editor {
             menu_clicked = self.context_menu(&response, cfg.context_menu);
         });
         let _ = scroll;
-        if let Some(at) = popup_at {
-            self.completion_popup(ui, id, at, cfg);
+        if let Some((below, above)) = popup_at {
+            self.completion_popup(ui, id, below, cfg);
+            self.hint_popup(ui, id, above, cfg);
         }
         // Search highlights are recomputed next frame after the text changes.
         if needs_repaint || self.buffer.version() != version_before {
@@ -1256,15 +1306,16 @@ impl Editor {
                     .inner_margin(egui::Margin::same(3))
                     .show(ui, |ui| {
                         ui.set_min_width(160.0);
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
                         ScrollArea::vertical()
                             .max_height(220.0)
                             .auto_shrink([true, true])
                             .show(ui, |ui| {
                                 for (i, item) in c.items.iter().enumerate() {
-                                    let text = egui::RichText::new(item)
-                                        .font(cfg.font.clone())
-                                        .color(palette.text);
-                                    let r = ui.add(egui::Button::selectable(i == c.selected, text));
+                                    let r = ui.add(egui::Button::selectable(
+                                        i == c.selected,
+                                        completion_label(item, cfg),
+                                    ));
                                     if i == c.selected {
                                         r.scroll_to_me(None);
                                     }
@@ -1280,6 +1331,58 @@ impl Editor {
             self.accept_completion(&ctx, Some(i));
             ui.memory_mut(|m| m.request_focus(id));
         }
+    }
+
+    /// The parameter hint above the caret: each signature, with the
+    /// parameter being typed in bold.
+    fn hint_popup(&mut self, ui: &Ui, id: Id, at: Pos2, cfg: &ViewConfig) {
+        let Some(hint) = self.hint.clone() else {
+            return;
+        };
+        let palette = cfg.palette;
+        let mut sigs: Vec<_> = hint.signatures.iter().collect();
+        // Overloads that take the argument being typed come first.
+        sigs.sort_by_key(|s| hint.param_in(s).is_none());
+        sigs.truncate(6);
+        let small = FontId::proportional((cfg.font.size * 0.85).max(10.0));
+        egui::Area::new(id.with("hint"))
+            .order(egui::Order::Foreground)
+            .pivot(egui::Align2::LEFT_BOTTOM)
+            .fixed_pos(at + Vec2::new(-4.0, -2.0))
+            .interactable(false)
+            .show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style())
+                    .fill(palette.chrome_bg)
+                    .inner_margin(egui::Margin::symmetric(8, 4))
+                    .show(ui, |ui| {
+                        ui.set_max_width(720.0);
+                        for sig in sigs {
+                            let mut job = egui::text::LayoutJob::default();
+                            let plain = egui::TextFormat::simple(cfg.font.clone(), palette.text);
+                            let mut bold =
+                                egui::TextFormat::simple(cfg.font.clone(), palette.accent);
+                            bold.underline = Stroke::new(1.0, palette.accent);
+                            let active = hint.param_in(sig).map(|i| sig.params[i].clone());
+                            match active {
+                                Some(r) => {
+                                    job.append(&sig.label[..r.start], 0.0, plain.clone());
+                                    job.append(&sig.label[r.clone()], 0.0, bold);
+                                    job.append(&sig.label[r.end..], 0.0, plain);
+                                }
+                                None => job.append(&sig.label, 0.0, plain),
+                            }
+                            job.wrap.max_width = 720.0;
+                            ui.label(job);
+                            if let Some(doc) = &sig.doc {
+                                ui.label(
+                                    egui::RichText::new(doc)
+                                        .font(small.clone())
+                                        .color(palette.gutter_fg),
+                                );
+                            }
+                        }
+                    });
+            });
     }
 
     fn context_menu(&mut self, response: &egui::Response, extra: &[MenuEntry]) -> Option<usize> {
@@ -1331,12 +1434,14 @@ impl Editor {
         let events = ui.input(|i| i.events.clone());
         let mut edited = false;
         let mut typed_word = false;
+        let mut open_hint = false;
         for event in events {
             match event {
                 Event::Text(text) => {
                     if !text.is_empty() && !text.chars().any(|c| c.is_control()) {
                         self.type_text(&ctx, &text);
                         edited = true;
+                        open_hint |= text == "(" && self.opts.parameter_hints;
                         typed_word |= text.chars().all(|c| c.is_alphanumeric() || c == '_');
                         if !typed_word {
                             self.completion = None;
@@ -1381,10 +1486,14 @@ impl Editor {
                 _ => {}
             }
         }
-        if typed_word && self.opts.completion {
+        if typed_word && (self.opts.completion || self.opts.language_completion) {
             self.update_completion(false);
         } else if typed_word {
             self.completion = None;
+        }
+        if open_hint {
+            self.sync_caches();
+            self.update_hint(true);
         }
         edited
     }
@@ -1453,8 +1562,16 @@ impl Editor {
             }
         }
         match key {
+            Key::Space if m.command && m.shift => {
+                self.update_hint(true);
+                return false;
+            }
             Key::Space if m.command => {
                 self.update_completion(true);
+                return false;
+            }
+            Key::Escape if self.hint.is_some() => {
+                self.hint = None;
                 return false;
             }
             Key::ArrowLeft => self.move_horizontal(false, word, extend),

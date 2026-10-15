@@ -38,8 +38,8 @@ pub const UDL_TEMPLATE: &str = r##"{
   "operators": ["+", "-", "*", "/", "%", "=", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!"],
   "numbers": true,
 
-  "_folding": "Bracket pairs that open and close a block. They are coloured as brackets today and are kept for grammar-aware folding.",
-  "folding": [["{", "}"]]
+  "_folding": "Pairs that open and close a block, for code folding: brackets such as { } or words such as if … end.",
+  "folding": [["{", "}"], ["if", "end"]]
 }
 "##;
 
@@ -285,6 +285,27 @@ impl UserLanguage {
             ));
         }
 
+        // Word-like folding pairs (`if` … `end`) go before the keywords so they
+        // keep their block scopes for folding; they are coloured as keywords.
+        let is_word = |t: &str| t.chars().all(|c| c.is_alphanumeric() || c == '_');
+        for [open, close] in &self.folding {
+            for (token, end) in [(open, "begin"), (close, "end")] {
+                if token.is_empty() || !is_word(token) {
+                    continue;
+                }
+                check_text("a folding word", token)?;
+                let body = if self.case_sensitive {
+                    regex::escape(token)
+                } else {
+                    format!("(?i:{})", regex::escape(token))
+                };
+                push_rule(format!(
+                    "    - match: {}\n      scope: keyword.control.{slug} punctuation.section.block.{end}.{slug}\n",
+                    yaml(&format!("(?<![\\w]){body}(?![\\w])"))
+                ));
+            }
+        }
+
         for (group, words) in &self.keywords {
             let scope = group_scope(group)?;
             if words.is_empty() {
@@ -318,11 +339,14 @@ impl UserLanguage {
         for [open, close] in &self.folding {
             check_text("a folding bracket", open)?;
             check_text("a folding bracket", close)?;
-            push_rule(format!(
-                "    - match: {}\n      scope: punctuation.section.block.begin.{slug}\n    - match: {}\n      scope: punctuation.section.block.end.{slug}\n",
-                yaml(&regex::escape(open)),
-                yaml(&regex::escape(close))
-            ));
+            for (token, end) in [(open, "begin"), (close, "end")] {
+                if !is_word(token) {
+                    push_rule(format!(
+                        "    - match: {}\n      scope: punctuation.section.block.{end}.{slug}\n",
+                        yaml(&regex::escape(token))
+                    ));
+                }
+            }
         }
 
         out.push_str(&extra_contexts);

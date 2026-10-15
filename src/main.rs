@@ -17,6 +17,7 @@ mod function_list;
 mod function_list_ui;
 mod highlight;
 mod instance;
+mod lang_api;
 mod macros;
 mod menu;
 mod palette_ui;
