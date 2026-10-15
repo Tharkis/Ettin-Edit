@@ -7,7 +7,19 @@ Ettin Edit is an original, clean-room implementation written in Rust: it shares 
 
 ## Status
 
-Release 0.10 renames NixPad to Ettin Edit (settings, sessions, themes and plugins are
+Ettin Edit 1.0 makes it yours. Settings > Preferences (Ctrl+,) sets the editor font
+from your installed fonts, tab width, new-document defaults and more; the Shortcut
+Mapper rebinds any command; Theme > Edit Theme Colours changes any colour with a live
+preview; and F1 opens a command palette. New panels show a function list, a document
+map and a folder as a workspace, and F11 hides everything but the text. There are 17
+more languages (TOML, INI, TypeScript, PowerShell, Dockerfile, HL7, Kotlin, Swift and
+others) and you can add your own with a short `.lang.json` file
+([docs/languages.md](docs/languages.md)). XML Tools validate against an XSD or DTD and
+run XSL transforms. File > Print goes through your browser's print preview, Help >
+Check for Updates looks for new releases, and Plugins > Manage Plugins installs,
+updates and removes plugins. Windows gets an installer and Debian/Ubuntu a `.deb`.
+
+Release 0.10 renamed NixPad to Ettin Edit (settings, sessions, themes and plugins are
 copied over the first time it starts). Ettin Dark, based on Base16 Eighties, is the new
 default theme, and every built-in theme is now a file in the themes folder that you can
 edit. Tabs show as an arrow across their full width when whitespace is shown, and code
@@ -31,7 +43,17 @@ XPath on the status bar, and close tags as you type. Release 0.6.1 put the Edit 
 backups and file commands, 0.4's editing tools, 0.3's search and 0.2's editor engine.
 See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
 
-## Installing on Arch / CachyOS
+## Installing
+
+Download the latest build from the
+[releases page](https://github.com/Tharkis/Ettin-Edit/releases/latest):
+
+- **Windows:** the `setup.exe` installer (no admin rights needed), or the `.zip` to run without installing.
+- **Arch / CachyOS:** `sudo pacman -U ./ettin-edit-*.pkg.tar.zst`
+- **Debian / Ubuntu:** `sudo apt install ./ettin-edit_*_amd64.deb`
+- **Other Linux:** extract the `.tar.gz` and run `./ettin-edit`.
+
+### Building the Arch package yourself
 
 From a checkout of this repository:
 
@@ -105,13 +127,23 @@ left alone.
 | `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
 | `docs/plugins.md` | The plugin guide |
 | `src/macros.rs` | Macro recording and playback steps |
+| `src/prefs_ui.rs`, `src/shortcut_ui.rs`, `src/style_ui.rs` | Preferences, the Shortcut Mapper and the theme colour editor |
+| `src/palette_ui.rs`, `src/app/commands.rs` | The command palette and tab list, and the list of every command |
+| `src/folder_ui.rs`, `src/function_list_ui.rs`, `src/editor/map.rs`, `src/app/panels.rs` | The folder panel, function list and document map |
+| `src/function_list.rs` | Finding functions, classes and headings in about 40 languages |
+| `src/user_lang.rs`, `src/app/languages.rs`, `assets/syntaxes/` | User-defined languages (`.lang.json` to a grammar) and the extra built-in grammars |
+| `src/tools/xsd.rs`, `src/tools/dtd.rs`, `src/tools/xslt.rs`, `src/app/xml_schema.rs` | XSD and DTD validation and XSLT 1.0 |
+| `src/print.rs`, `src/app/printing.rs` | Printing and HTML export |
+| `src/update.rs` | Checking GitHub for a newer release |
+| `src/plugins/store.rs` | The plugin manager: the plugin index, downloads and safe installs |
+| `docs/languages.md` | The language guide |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |
-| `src/fonts.rs` | Fallback fonts for Chinese, Japanese and Korean text |
+| `src/fonts.rs` | The editor font, installed fonts, and fallback fonts for Chinese, Japanese and Korean text |
 | `src/theme.rs` | Built-in and custom themes: copying the built-ins to the themes folder, loading them, and the window colours derived from them |
 | `src/settings.rs` | Settings, recent files and session, saved as JSON |
 | `assets/themes/` | The nine built-in themes as `.tmTheme` files |
 | `assets/icons/` | The app icon (SVG, PNG, ICO) |
-| `packaging/` | Linux `.desktop` file and the Arch `PKGBUILD` |
+| `packaging/` | Linux `.desktop` file, the Arch `PKGBUILD`, the Debian `control` file and the Windows installer script (Inno Setup) |
 
 The GUI uses [egui](https://github.com/emilk/egui)/eframe, which draws everything itself
 with OpenGL, so the look is identical on Linux and Windows.

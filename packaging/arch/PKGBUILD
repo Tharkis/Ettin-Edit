@@ -1,7 +1,7 @@
 # Builds Ettin Edit from the checkout this file lives in.
 # Usage: cd packaging/arch && makepkg -si
 pkgname=ettin-edit
-pkgver=0.10.0
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="A modern, cross-platform text editor"
 arch=('x86_64' 'aarch64')
