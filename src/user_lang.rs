@@ -1,6 +1,6 @@
 //! User-defined languages: a small JSON format (`*.lang.json` in the
 //! languages folder) that Ettin Edit turns into a sublime-syntax grammar when
-//! it loads. See `docs/languages.md` for the format.
+//! it loads. See `docs/manual/src/languages.md` for the format.
 
 use std::collections::BTreeMap;
 

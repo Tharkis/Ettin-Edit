@@ -163,6 +163,8 @@ fn fixed_commands() -> Vec<(&'static str, Action)> {
         ("Plugins › Reload Plugins", ReloadPlugins),
         ("Plugins › Install Sample Plugins", InstallSamplePlugins),
         ("Plugins › Plugin Guide", PluginGuide),
+        ("Help › User Manual", UserManual),
+        ("Help › User Manual on the Web", WebManual),
         ("Help › Check for Updates…", CheckForUpdates),
         ("Help › Check for Updates Automatically", ToggleUpdateCheck),
         ("Help › About Ettin Edit", About),

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="#2D2D2D"/>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="none" stroke="#515151" stroke-width="6"/>
+  <!-- Two letter Es back to back, the two heads of an ettin -->
+  <g fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M114 62 H58 M114 62 V194 H58 M114 128 H72" stroke="#CC99CC"/>
+    <path d="M142 62 H198 M142 62 V194 H198 M142 128 H184" stroke="#6699CC"/>
+  </g>
+</svg>

@@ -19,6 +19,7 @@ mod highlight;
 mod instance;
 mod lang_api;
 mod macros;
+mod manual;
 mod menu;
 mod palette_ui;
 mod plugins;

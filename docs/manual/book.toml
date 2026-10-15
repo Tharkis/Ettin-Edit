@@ -1,0 +1,27 @@
+# The Ettin Edit user manual. The same Markdown is built into the app
+# (Help > User Manual) and published to GitHub Pages by
+# .github/workflows/manual.yml. See README.md in this folder.
+
+[book]
+title = "Ettin Edit User Manual"
+authors = ["Ettin Edit"]
+description = "How to use and customise Ettin Edit, a text editor for Linux and Windows."
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+site-url = "/Ettin-Edit/"
+default-theme = "light"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/Tharkis/Ettin-Edit"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/Tharkis/Ettin-Edit/edit/main/docs/manual/{path}"
+additional-css = ["theme/ettin.css"]
+no-section-label = true
+
+[output.html.search]
+limit-results = 20

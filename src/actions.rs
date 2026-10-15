@@ -53,6 +53,8 @@ pub enum Action {
     RestoreThemes,
     ClearRecent,
     About,
+    UserManual,
+    WebManual,
     CheckForUpdates,
     NewLanguage,
     OpenLanguagesFolder,
@@ -266,6 +268,9 @@ impl Action {
                 | Action::StyleConfigurator
                 | Action::CommandPalette
                 | Action::TabList
+                | Action::UserManual
+                | Action::LanguageGuide
+                | Action::PluginGuide
         )
     }
 
@@ -435,6 +440,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(SHIFT, Key::F7), Action::PrevDifference),
         (s(NONE, Key::F7), Action::NextDifference),
         (s(CMD, Key::Comma), Action::Preferences),
+        (s(SHIFT, Key::F1), Action::UserManual),
         (s(NONE, Key::F1), Action::CommandPalette),
         (s(NONE, Key::F11), Action::ToggleDistractionFree),
         (s(CMD, Key::N), Action::NewTab),

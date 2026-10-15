@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Edda and Ottar, the two heads of the Ettin Edit mascot</title>
+  <!-- Original artwork for Ettin Edit. A friendly two-headed giant (an ettin):
+       Edda on the left wears the helmet and keeps the tabs tidy,
+       Ottar on the right wears the glasses and writes everything down. -->
+  <defs>
+    <radialGradient id="skin" cx="45%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#F7D3B0"/>
+      <stop offset="1" stop-color="#E5AE84"/>
+    </radialGradient>
+    <radialGradient id="tunic" cx="50%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#9C6B45"/>
+      <stop offset="1" stop-color="#6E4628"/>
+    </radialGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C9D1DA"/>
+      <stop offset="1" stop-color="#8E99A6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="256" cy="482" rx="150" ry="16" fill="#000" opacity="0.18"/>
+
+  <!-- feet -->
+  <ellipse cx="200" cy="462" rx="44" ry="22" fill="#4A2F1B"/>
+  <ellipse cx="312" cy="462" rx="44" ry="22" fill="#4A2F1B"/>
+
+  <!-- body -->
+  <path d="M100 360 C 100 250, 170 214, 256 214 C 342 214, 412 250, 412 360 C 412 430, 350 460, 256 460 C 162 460, 100 430, 100 360 Z" fill="url(#tunic)"/>
+  <!-- fur collar -->
+  <path d="M136 262 q 20 -22 40 -6 q 20 -20 40 -4 q 20 -18 40 -2 q 20 -18 40 2 q 20 -16 40 4 q 20 -14 36 8 q -10 26 -116 26 q -110 0 -120 -28 Z" fill="#D8C8AE"/>
+  <!-- belt -->
+  <rect x="104" y="368" width="304" height="26" rx="6" fill="#4A2F1B"/>
+  <rect x="236" y="362" width="40" height="38" rx="6" fill="#FFCC66" stroke="#C99A3A" stroke-width="4"/>
+  <rect x="249" y="374" width="14" height="14" rx="2" fill="#4A2F1B"/>
+  <!-- tunic stitches -->
+  <path d="M168 300 v 50 M344 300 v 50" stroke="#5A3820" stroke-width="4" stroke-dasharray="8 8" stroke-linecap="round"/>
+
+  <!-- left arm, holding a curly-brace scroll -->
+  <path d="M132 296 C 100 312, 92 340, 104 376" fill="none" stroke="url(#skin)" stroke-width="34" stroke-linecap="round"/>
+  <g transform="translate(56 -12) rotate(-8 86 404)">
+    <rect x="40" y="378" width="92" height="56" rx="8" fill="#F3E9D2" stroke="#C9B48A" stroke-width="4"/>
+    <ellipse cx="40" cy="406" rx="9" ry="28" fill="#E2D3B0" stroke="#C9B48A" stroke-width="4"/>
+    <ellipse cx="132" cy="406" rx="9" ry="28" fill="#E2D3B0" stroke="#C9B48A" stroke-width="4"/>
+    <text x="86" y="418" text-anchor="middle" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="30" font-weight="bold" fill="#6699CC">{ }</text>
+  </g>
+  <circle cx="104" cy="378" r="18" fill="url(#skin)"/>
+
+  <!-- right arm, raised with a giant quill -->
+  <path d="M384 296 C 420 284, 440 256, 442 226" fill="none" stroke="url(#skin)" stroke-width="34" stroke-linecap="round"/>
+  <g transform="translate(442 222) rotate(10)">
+    <path d="M0 30 L 0 -150" stroke="#5A3820" stroke-width="5" stroke-linecap="round"/>
+    <path d="M0 -20 C -28 -50, -32 -120, 0 -178 C 32 -120, 28 -50, 0 -20 Z" fill="#CC99CC"/>
+    <path d="M0 -28 C -14 -60, -16 -110, 0 -160" fill="none" stroke="#B57DB5" stroke-width="3"/>
+    <path d="M0 -60 l -16 -10 M0 -90 l -18 -12 M0 -60 l 16 -10 M0 -90 l 18 -12 M0 -120 l 12 -10 M0 -120 l -12 -10" stroke="#B57DB5" stroke-width="3" stroke-linecap="round"/>
+    <path d="M0 26 l -6 16 l 6 10 l 6 -10 Z" fill="#2D2D2D"/>
+  </g>  <circle cx="442" cy="222" r="18" fill="url(#skin)"/>
+
+  <!-- ===== left head: Edda ===== -->
+  <g>
+    <circle cx="180" cy="188" r="76" fill="url(#skin)"/>
+    <!-- ears -->
+    <ellipse cx="104" cy="196" rx="12" ry="18" fill="#E5AE84"/>
+    <!-- helmet horns -->
+    <path d="M118 150 C 86 140, 70 106, 78 72 C 92 98, 108 112, 136 120 Z" fill="#F3E9D2" stroke="#C9B48A" stroke-width="3"/>
+    <path d="M242 150 C 274 140, 290 106, 282 72 C 268 98, 252 112, 224 120 Z" fill="#F3E9D2" stroke="#C9B48A" stroke-width="3"/>
+    <!-- helmet -->
+    <path d="M106 168 C 106 108, 140 100, 180 100 C 220 100, 254 108, 254 168 Z" fill="url(#steel)"/>
+    <rect x="102" y="160" width="156" height="18" rx="9" fill="#7D8794"/>
+    <circle cx="130" cy="169" r="4" fill="#C9D1DA"/>
+    <circle cx="180" cy="169" r="4" fill="#C9D1DA"/>
+    <circle cx="230" cy="169" r="4" fill="#C9D1DA"/>
+    <path d="M180 100 v 60" stroke="#7D8794" stroke-width="10"/>
+    <!-- eyebrows: very serious about indentation -->
+    <path d="M140 188 l 26 6 M220 188 l -26 6" stroke="#8A5A3A" stroke-width="6" stroke-linecap="round"/>
+    <!-- eyes -->
+    <ellipse cx="156" cy="208" rx="11" ry="14" fill="#2D2D2D"/>
+    <ellipse cx="204" cy="208" rx="11" ry="14" fill="#2D2D2D"/>
+    <circle cx="160" cy="203" r="4" fill="#fff"/>
+    <circle cx="208" cy="203" r="4" fill="#fff"/>
+    <!-- cheeks -->
+    <ellipse cx="134" cy="232" rx="12" ry="7" fill="#F28E8E" opacity="0.55"/>
+    <ellipse cx="226" cy="232" rx="12" ry="7" fill="#F28E8E" opacity="0.55"/>
+    <!-- braided pink beard -->
+    <path d="M128 236 C 140 262, 160 270, 180 270 C 200 270, 220 262, 232 236 C 222 250, 200 252, 180 252 C 160 252, 138 250, 128 236 Z" fill="#CC99CC"/>
+    <path d="M180 262 c -12 8 -12 18 0 24 c 12 6 12 16 0 24 c -12 8 -12 16 0 20" fill="none" stroke="#CC99CC" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="180" cy="336" r="7" fill="#FFCC66"/>
+    <!-- determined little mouth -->
+    <path d="M168 238 q 12 8 24 0" fill="none" stroke="#8A3B3B" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===== right head: Ottar ===== -->
+  <g>
+    <circle cx="332" cy="188" r="76" fill="url(#skin)"/>
+    <ellipse cx="408" cy="196" rx="12" ry="18" fill="#E5AE84"/>
+    <!-- wild blue hair -->
+    <path d="M262 168 C 254 128, 272 100, 296 104 C 296 84, 320 72, 336 86 C 346 66, 380 70, 380 96 C 404 92, 418 120, 404 140 C 418 150, 414 170, 402 174 C 392 146, 370 132, 340 130 C 306 128, 276 140, 262 168 Z" fill="#6699CC"/>
+    <path d="M330 86 c -6 -16 4 -28 16 -30" fill="none" stroke="#6699CC" stroke-width="8" stroke-linecap="round"/>
+    <!-- raised eyebrows -->
+    <path d="M290 172 q 14 -10 28 -2 M346 170 q 14 -8 28 2" fill="none" stroke="#4A6E99" stroke-width="6" stroke-linecap="round"/>
+    <!-- eyes behind round glasses -->
+    <ellipse cx="308" cy="204" rx="10" ry="12" fill="#2D2D2D"/>
+    <ellipse cx="358" cy="204" rx="10" ry="12" fill="#2D2D2D"/>
+    <circle cx="312" cy="199" r="4" fill="#fff"/>
+    <circle cx="362" cy="199" r="4" fill="#fff"/>
+    <g fill="#fff" fill-opacity="0.18" stroke="#2D2D2D" stroke-width="5">
+      <circle cx="306" cy="204" r="22"/>
+      <circle cx="360" cy="204" r="22"/>
+    </g>
+    <path d="M328 202 q 5 -6 10 0" fill="none" stroke="#2D2D2D" stroke-width="5"/>
+    <path d="M284 200 l -20 -6 M382 200 l 22 -6" stroke="#2D2D2D" stroke-width="5" stroke-linecap="round"/>
+    <!-- cheeks -->
+    <ellipse cx="290" cy="238" rx="12" ry="7" fill="#F28E8E" opacity="0.55"/>
+    <ellipse cx="378" cy="238" rx="12" ry="7" fill="#F28E8E" opacity="0.55"/>
+    <!-- big happy grin with one tooth -->
+    <path d="M308 236 C 316 262, 352 262, 360 236 Z" fill="#8A3B3B"/>
+    <rect x="326" y="236" width="14" height="10" rx="2" fill="#fff"/>
+    <path d="M326 254 q 8 -6 16 0" fill="#F28E8E"/>
+  </g>
+</svg>

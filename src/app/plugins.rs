@@ -933,34 +933,8 @@ impl EttinApp {
             }
             Action::InstallSamplePlugins => self.install_samples(now),
             Action::PluginGuide => {
-                // A file, so the tab has a proper name; read-only, as it's
-                // rewritten by each Ettin Edit version.
-                let Some(dir) = self.plugins.dir.as_ref().map(|d| d.join(".sdk")) else {
-                    return;
-                };
-                let path = dir.join("Plugin Guide.md");
-                let written = std::fs::create_dir_all(&dir).and_then(|_| {
-                    if std::fs::read_to_string(&path).ok().as_deref() == Some(crate::plugins::GUIDE)
-                    {
-                        Ok(())
-                    } else {
-                        std::fs::write(&path, crate::plugins::GUIDE)
-                    }
-                });
-                if let Err(e) = written {
-                    self.errors
-                        .push(format!("Couldn't write {}: {e}", path.display()));
-                    return;
-                }
-                self.open_path(&path, false);
-                if let Some(doc) = self.docs.get_mut(self.active)
-                    && doc
-                        .path
-                        .as_deref()
-                        .is_some_and(|p| p.ends_with("Plugin Guide.md"))
-                {
-                    doc.editor.buffer.read_only = true;
-                }
+                self.manual.show("plugin-guide.md", None);
+                super::drop_focus(ctx);
             }
             _ => {}
         }
