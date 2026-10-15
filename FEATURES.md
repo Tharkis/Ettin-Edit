@@ -286,6 +286,7 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 - [x] Folder as workspace (file tree side panel) (1.0)
 - [x] Distraction-free / full-screen mode (1.0)
 - [x] Tabs list dropdown (1.0)
+- [ ] Application icon in the top-left corner of the window, next to the menu bar (Joe's ask; Edda and Ottar, the README mascot, could be the icon)
 
 ### Files and encodings
 - [x] Print and print preview, through the browser (1.0)
