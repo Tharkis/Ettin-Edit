@@ -1,0 +1,60 @@
+/* Ettin Edit colours: Edda's pink and Ottar's blue, from the Ettin Dark theme. */
+:root {
+    --ettin-pink: #cc99cc;
+    --ettin-blue: #6699cc;
+}
+
+.light, .rust {
+    --links: #3d6fa3;
+    --sidebar-active: #a0569f;
+}
+
+.coal, .navy, .ayu {
+    --links: var(--ettin-blue);
+    --sidebar-active: var(--ettin-pink);
+}
+
+.content h1 a.header:link, .content h1 a.header:visited,
+.content h2 a.header:link, .content h2 a.header:visited {
+    color: #3d6fa3;
+}
+
+.coal .content h1 a.header:link, .coal .content h1 a.header:visited,
+.coal .content h2 a.header:link, .coal .content h2 a.header:visited,
+.navy .content h1 a.header:link, .navy .content h1 a.header:visited,
+.navy .content h2 a.header:link, .navy .content h2 a.header:visited,
+.ayu .content h1 a.header:link, .ayu .content h1 a.header:visited,
+.ayu .content h2 a.header:link, .ayu .content h2 a.header:visited {
+    color: var(--ettin-pink);
+}
+
+.content h2 {
+    border-bottom: 1px solid var(--table-border-color);
+    padding-bottom: 0.2em;
+}
+
+kbd {
+    font-family: var(--mono-font);
+    font-size: 0.85em;
+    padding: 0.1em 0.4em;
+    border: 1px solid var(--table-border-color);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--quote-bg);
+    white-space: nowrap;
+}
+
+blockquote {
+    border-inline-start: 4px solid var(--ettin-pink);
+}
+
+.content img.hero {
+    display: block;
+    margin: 0 auto;
+}
+
+.content img.screenshot {
+    max-width: 100%;
+    border-radius: 6px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}

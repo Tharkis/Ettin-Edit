@@ -32,6 +32,7 @@ plist = "1.10"
 ureq = { version = "3", features = ["platform-verifier"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 sha2 = "0.11"
+pulldown-cmark = { version = "0.13.4", default-features = false }
 
 [profile.release]
 opt-level = 3

@@ -65,6 +65,12 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 Everything that works today, and the few things that don't yet, is ticked off in
 [FEATURES.md](FEATURES.md).
 
+## User manual
+
+The [Ettin Edit User Manual](https://tharkis.github.io/Ettin-Edit/) explains every
+part of the editor and how to make it your own. It's also built into the app, so it
+works offline: Help > User Manual, or <kbd>Shift</kbd>+<kbd>F1</kbd>.
+
 ## Install
 
 Grab the latest build from the
@@ -105,7 +111,7 @@ ettin.run()
 Plugins can read and change text, open and save files, react to events and show
 panels with trees, tables and forms. Plugins > Install Sample Plugins gives you
 three to poke at, including the HL7 Viewer, and the
-[plugin guide](docs/plugins.md) covers the rest.
+[plugin guide](https://tharkis.github.io/Ettin-Edit/plugin-guide.html) covers the rest.
 
 ## Themes
 
@@ -187,7 +193,6 @@ See [LICENSE](LICENSE).
 | `src/app/plugins.rs` | Answers plugin calls on the open documents, sends events, draws plugin panels |
 | `plugins/sdk/` | The Python and JavaScript SDKs that plugins import |
 | `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
-| `docs/plugins.md` | The plugin guide |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/prefs_ui.rs`, `src/shortcut_ui.rs`, `src/style_ui.rs` | Preferences, the Shortcut Mapper and the theme colour editor |
 | `src/palette_ui.rs`, `src/app/commands.rs` | The command palette and tab list, and the list of every command |
@@ -199,7 +204,7 @@ See [LICENSE](LICENSE).
 | `src/print.rs`, `src/app/printing.rs` | Printing and HTML export |
 | `src/update.rs` | Checking GitHub for a newer release |
 | `src/plugins/store.rs` | The plugin manager: the plugin index, downloads and safe installs |
-| `docs/languages.md` | The language guide |
+| `docs/manual/`, `src/manual.rs` | The user manual (mdBook sources, also built into the app) and its in-app viewer; see `docs/manual/README.md` |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |
 | `src/fonts.rs` | The editor font, installed fonts, and fallback fonts for Chinese, Japanese and Korean text |
 | `src/theme.rs` | Built-in and custom themes: copying the built-ins to the themes folder, loading them, and the window colours derived from them |

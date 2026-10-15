@@ -18,6 +18,14 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### Unreleased: User manual
+
+- [x] A user manual covering every part of the editor and how to customise it: 23 pages from installing to troubleshooting
+- [x] Built into the app and readable offline: Help > User Manual (<kbd>Shift</kbd>+<kbd>F1</kbd>), with contents, search, back and forward, links between pages and a Copy button on examples
+- [x] The same manual on the web at https://tharkis.github.io/Ettin-Edit/, published by GitHub Pages whenever it changes on `main`
+- [x] Language > Language Guide and Plugins > Plugin Guide open their pages of the manual
+- [x] Tests check that every page is in the contents, every link and heading anchor works, and every default shortcut is listed
+
 ### 1.1: Syntax-aware folding, keyword completion and parameter hints
 
 #### Code folding
@@ -31,7 +39,7 @@ work that remains. It is updated with every release.
 - [x] Parameter hints: typing `(` after a function shows its signatures above the caret, with the current parameter in bold; it follows the caret between arguments and nested calls, Esc closes it, Ctrl+Shift+Space shows it again (Edit > Auto-Completion)
 - [x] Signatures of the functions the document defines, read from their definitions (parameters spread over several lines too), for the ~25 languages the function list understands
 - [x] Built-in keyword and function lists for Python, JavaScript/TypeScript, Rust, C, C++, C#, Java, Go, PHP, Lua, Ruby, Kotlin, Swift, SQL, PowerShell, CSS, HTML and shell scripts; other languages complete the keywords their grammar colours
-- [x] Your own lists: `.json` files in the `api` folder (Language > Open Completion Lists Folder) add keywords and signatures for any language ([docs/languages.md](docs/languages.md#completion-and-parameter-hints))
+- [x] Your own lists: `.json` files in the `api` folder (Language > Open Completion Lists Folder) add keywords and signatures for any language ([Languages](docs/manual/src/languages.md#completion-and-parameter-hints))
 - [x] Settings > Keyword and Function Completion and Settings > Parameter Hints, also in Preferences
 
 #### Other
@@ -244,7 +252,7 @@ features are listed under [Notepad++ plugin equivalents](#notepad-plugin-equival
 
 Plugins are folders in the plugins folder (`~/.config/EttinEdit/plugins/` on Linux,
 `%APPDATA%\EttinEdit\plugins\` on Windows) with a `plugin.json` and a Python or
-JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > Plugin Guide.
+JavaScript script. See [Writing plugins](docs/manual/src/plugin-guide.md), also under Plugins > Plugin Guide.
 
 - [x] Plugins menu: each running plugin's commands with their shortcuts, Manage Plugins, Plugin Log, Open Plugins Folder, Reload Plugins, Install Sample Plugins and Plugin Guide; the right-click menu has the plugin commands too
 - [x] Plugins run as their own processes; Ettin Edit finds `python3`/`python` (`python`, `py -3` on Windows) and `node`, or the paths set in Manage Plugins
@@ -288,7 +296,7 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 
 #### Languages
 - [x] 17 more grammars: TOML, INI (and cfg, conf, properties, systemd units, .editorconfig, .gitconfig), TypeScript, TSX, PowerShell, Dockerfile, HL7, Kotlin, Swift, Dart, Zig, CMake, Nginx, `.env`, Protobuf, GraphQL and Terraform/HCL
-- [x] User-defined languages: short `.lang.json` files (keywords, comments, strings, operators, numbers, folding), or any `.sublime-syntax` grammar, in the languages folder; Language > New Language…, Open Languages Folder, Reload Languages and Language Guide ([docs/languages.md](docs/languages.md))
+- [x] User-defined languages: short `.lang.json` files (keywords, comments, strings, operators, numbers, folding), or any `.sublime-syntax` grammar, in the languages folder; Language > New Language…, Open Languages Folder, Reload Languages and Language Guide ([Languages](docs/manual/src/languages.md))
 
 #### XML Tools
 - [x] Validate: against the XSD named by `xsi:schemaLocation` / `noNamespaceSchemaLocation`, the DOCTYPE's DTD, or the schema last used for that file; Validate Against… picks one. Problems are listed in the results panel and jump to their line
@@ -306,7 +314,7 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 
 ## Plugin system
 
-Plugins are written in Python or JavaScript. See [docs/plugins.md](docs/plugins.md) for the
+Plugins are written in Python or JavaScript. See [Writing plugins](docs/manual/src/plugin-guide.md) for the
 full API.
 
 - [x] Runtime model: out-of-process plugins over JSON-RPC (one JSON message per line on standard input and output), so a crashing plugin can't take the editor down and any installed Python 3 or Node.js works

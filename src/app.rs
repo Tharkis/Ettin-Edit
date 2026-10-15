@@ -110,6 +110,8 @@ pub struct EttinApp {
     plugins: crate::plugins::PluginHost,
     plugin_ui: plugins::PluginUi,
     prefs: crate::prefs_ui::PrefsDialog,
+    /// Help > User Manual.
+    manual: crate::manual::ManualWindow,
     shortcut_mapper: crate::shortcut_ui::ShortcutMapper,
     command_palette: crate::palette_ui::Picker,
     style_editor: crate::style_ui::StyleEditor,
@@ -266,6 +268,7 @@ impl EttinApp {
             }),
             plugin_ui: plugins::PluginUi::default(),
             prefs: crate::prefs_ui::PrefsDialog::default(),
+            manual: crate::manual::ManualWindow::default(),
             shortcut_mapper: crate::shortcut_ui::ShortcutMapper::default(),
             command_palette: crate::palette_ui::Picker::default(),
             style_editor: crate::style_ui::StyleEditor::default(),
@@ -1112,7 +1115,19 @@ impl EttinApp {
             Action::OpenLanguagesFolder => self.open_languages_folder(),
             Action::OpenApiFolder => self.open_api_folder(),
             Action::ReloadLanguages => self.reload_languages(),
-            Action::LanguageGuide => self.language_guide(),
+            Action::LanguageGuide => {
+                self.manual.show("languages.md", None);
+                drop_focus(ctx);
+            }
+            Action::UserManual => {
+                self.manual.show("introduction.md", None);
+                drop_focus(ctx);
+            }
+            Action::WebManual => {
+                if let Err(e) = system::open_url(crate::manual::WEB_URL) {
+                    self.errors.push(e);
+                }
+            }
             Action::ExportHtml => self.print(true),
             Action::ToggleUpdateCheck => self.settings.check_updates = !self.settings.check_updates,
             Action::Preferences => {
@@ -2175,6 +2190,9 @@ impl EttinApp {
             ui.menu_button("Plugins", |ui| self.plugins_menu(ui));
             ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
+                self.menu_item(ui, "User Manual", Action::UserManual);
+                self.menu_item(ui, "User Manual on the Web", Action::WebManual);
+                ui.separator();
                 self.menu_item(ui, "Check for Updates…", Action::CheckForUpdates);
                 self.toggle_item(
                     ui,
@@ -2829,6 +2847,9 @@ impl EttinApp {
                 }
                 crate::update::UpdateEvent::StopChecking => self.settings.check_updates = false,
             }
+        }
+        if let Some(e) = self.manual.ui(ctx, &palette) {
+            self.errors.push(e);
         }
         let languages = self.languages.clone();
         for event in self.prefs.ui(ctx, &mut self.settings, &languages, &palette) {

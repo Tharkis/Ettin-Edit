@@ -40,7 +40,6 @@ pub const SDK_JS: &str = include_str!("../../plugins/sdk/ettin.js");
 /// Plugins written before the rename import `nixpad`; these point it at `ettin`.
 const SDK_PYTHON_OLD_NAME: &str = "import sys\nimport ettin\n\nsys.modules[__name__] = ettin\n";
 const SDK_JS_OLD_NAME: &str = "module.exports = require('./ettin');\n";
-pub const GUIDE: &str = include_str!("../../docs/plugins.md");
 
 /// The sample plugins: (folder, [(file, contents)]).
 pub const SAMPLES: &[(&str, &[(&str, &str)])] = &[
