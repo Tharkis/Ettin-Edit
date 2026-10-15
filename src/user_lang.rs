@@ -8,9 +8,8 @@ use serde::Deserialize;
 
 /// A commented starting point for a new `.lang.json` file. It is valid JSON:
 /// keys that start with `_` are notes and are ignored.
-#[allow(dead_code)] // Written by the UI's "New Language" command once it is wired.
 pub const UDL_TEMPLATE: &str = r##"{
-  "_about": "An Ettin Edit user-defined language. Keep it in the languages folder as <something>.lang.json, then restart Ettin Edit. Keys that start with _ are notes and are ignored.",
+  "_about": "An Ettin Edit user-defined language. Keep it in the languages folder as <something>.lang.json, then choose Language > Reload Languages. Keys that start with _ are notes and are ignored.",
 
   "name": "My Language",
   "extensions": ["mylang"],

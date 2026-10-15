@@ -3,6 +3,7 @@
 mod commands;
 mod compare;
 mod csv_query;
+mod languages;
 mod menus;
 mod panels;
 mod plugins;
@@ -1099,6 +1100,10 @@ impl EttinApp {
             Action::About => self.show_about = true,
             Action::CheckForUpdates => self.updates.start(ctx, true),
             Action::Print => self.print(false),
+            Action::NewLanguage => self.new_language(),
+            Action::OpenLanguagesFolder => self.open_languages_folder(),
+            Action::ReloadLanguages => self.reload_languages(),
+            Action::LanguageGuide => self.language_guide(),
             Action::ExportHtml => self.print(true),
             Action::ToggleUpdateCheck => self.settings.check_updates = !self.settings.check_updates,
             Action::Preferences => {
@@ -2218,6 +2223,11 @@ impl EttinApp {
                 }
             });
         }
+        ui.separator();
+        self.menu_item(ui, "New Language…", Action::NewLanguage);
+        self.menu_item(ui, "Open Languages Folder", Action::OpenLanguagesFolder);
+        self.menu_item(ui, "Reload Languages", Action::ReloadLanguages);
+        self.menu_item(ui, "Language Guide", Action::LanguageGuide);
     }
 
     /// The tabs of one view.

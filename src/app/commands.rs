@@ -50,6 +50,8 @@ fn fixed_commands() -> Vec<(&'static str, Action)> {
         ("File › Move to Trash…", MoveToTrash),
         ("File › Open Containing Folder", OpenContainingFolder),
         ("File › Open Terminal Here", OpenTerminalHere),
+        ("File › Print…", Print),
+        ("File › Export as HTML…", ExportHtml),
         ("File › Open Folder as Workspace…", OpenFolderAsWorkspace),
         ("File › Close Workspace", CloseWorkspace),
         ("File › Close", CloseTab),
@@ -126,6 +128,10 @@ fn fixed_commands() -> Vec<(&'static str, Action)> {
         ("Theme › Open Themes Folder", OpenThemesFolder),
         ("Theme › Reload Themes", ReloadThemes),
         ("Theme › Restore Built-in Themes", RestoreThemes),
+        ("Language › New Language…", NewLanguage),
+        ("Language › Open Languages Folder", OpenLanguagesFolder),
+        ("Language › Reload Languages", ReloadLanguages),
+        ("Language › Language Guide", LanguageGuide),
         ("Settings › Preferences…", Preferences),
         ("Settings › Shortcut Mapper…", ShortcutMapper),
         ("Settings › Auto-Close Brackets and Quotes", ToggleAutoClose),
@@ -151,6 +157,8 @@ fn fixed_commands() -> Vec<(&'static str, Action)> {
         ("Plugins › Reload Plugins", ReloadPlugins),
         ("Plugins › Install Sample Plugins", InstallSamplePlugins),
         ("Plugins › Plugin Guide", PluginGuide),
+        ("Help › Check for Updates…", CheckForUpdates),
+        ("Help › Check for Updates Automatically", ToggleUpdateCheck),
         ("Help › About Ettin Edit", About),
     ]
 }

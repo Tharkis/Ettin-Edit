@@ -33,11 +33,13 @@ folder:
 - Linux: `~/.config/EttinEdit/languages`
 - Windows: `%APPDATA%\EttinEdit\languages`
 
-Create the folder if it is not there. Ettin Edit reads it when it starts, so
-restart Ettin Edit after adding or changing a file.
+Language > Open Languages Folder opens it (and creates it the first time).
+Language > New Language… puts a commented template there and opens it.
+Ettin Edit reads the folder when it starts; after adding or changing a file,
+choose Language > Reload Languages to use it straight away.
 
 - A file that cannot be loaded is skipped. Ettin Edit tells you which file it
-  was and why when it starts; the other files still load.
+  was and why; the other files still load.
 - A language with the same name as a built-in one replaces it. For example, a
   file with `"name": "Python"` takes over `.py` files.
 - If two of your files use the same name, the one that comes later in
@@ -54,7 +56,7 @@ ignored, so you can keep them as comments:
 
 ```json
 {
-  "_about": "An Ettin Edit user-defined language. Keep it in the languages folder as <something>.lang.json, then restart Ettin Edit. Keys that start with _ are notes and are ignored.",
+  "_about": "An Ettin Edit user-defined language. Keep it in the languages folder as <something>.lang.json, then choose Language > Reload Languages. Keys that start with _ are notes and are ignored.",
 
   "name": "My Language",
   "extensions": ["mylang"],
