@@ -65,8 +65,8 @@ pub struct EttinApp {
     close_queue: Option<CloseQueue>,
     errors: Vec<String>,
     show_about: bool,
-    /// The app icon shown in About, loaded the first time it opens.
-    about_icon: Option<egui::TextureHandle>,
+    /// The app icon shown in the menu bar and About, loaded on first use.
+    app_icon: Option<egui::TextureHandle>,
     quitting: bool,
     focus_editor: bool,
     scroll_to_active_tab: bool,
@@ -220,7 +220,7 @@ impl EttinApp {
             close_queue: None,
             errors: theme_errors,
             show_about: false,
-            about_icon: None,
+            app_icon: None,
             quitting: false,
             focus_editor: true,
             scroll_to_active_tab: true,
@@ -1859,8 +1859,36 @@ impl EttinApp {
         }
     }
 
+    /// The app icon as a texture, loaded the first time it is drawn.
+    fn app_icon(&mut self, ctx: &egui::Context) -> egui::TextureHandle {
+        self.app_icon
+            .get_or_insert_with(|| {
+                let png = include_bytes!("../assets/icons/ettin-edit-128.png");
+                let image = eframe::icon_data::from_png_bytes(png).unwrap_or_default();
+                let size = [image.width as usize, image.height as usize];
+                ctx.load_texture(
+                    "app-icon",
+                    egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba),
+                    egui::TextureOptions::LINEAR,
+                )
+            })
+            .clone()
+    }
+
     fn menu_bar(&mut self, ui: &mut Ui) {
+        let icon = self.app_icon(ui.ctx());
         egui::MenuBar::new().ui(ui, |ui| {
+            let size = Vec2::splat(ui.spacing().interact_size.y);
+            let response = ui
+                .add(
+                    egui::Image::new(&icon)
+                        .fit_to_exact_size(size)
+                        .sense(Sense::click()),
+                )
+                .on_hover_text("About Ettin Edit");
+            if response.clicked() {
+                self.pending.push(Action::About);
+            }
             ui.menu_button("File", |ui| {
                 self.menu_item(ui, "New", Action::NewTab);
                 self.menu_item(ui, "Open…", Action::Open);
@@ -2920,19 +2948,7 @@ impl EttinApp {
         if self.show_about {
             let response = egui::Modal::new(Id::new("about")).show(ctx, |ui| {
                 ui.set_width(380.0);
-                let icon = self
-                    .about_icon
-                    .get_or_insert_with(|| {
-                        let png = include_bytes!("../assets/icons/ettin-edit-64.png");
-                        let image = eframe::icon_data::from_png_bytes(png).unwrap_or_default();
-                        let size = [image.width as usize, image.height as usize];
-                        ctx.load_texture(
-                            "about-icon",
-                            egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba),
-                            egui::TextureOptions::LINEAR,
-                        )
-                    })
-                    .clone();
+                let icon = self.app_icon(ctx);
                 ui.vertical_centered(|ui| {
                     ui.add_space(4.0);
                     ui.add(egui::Image::new(&icon).fit_to_exact_size(Vec2::splat(64.0)));
