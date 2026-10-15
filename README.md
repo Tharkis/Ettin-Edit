@@ -1,68 +1,127 @@
-# Ettin Edit
+<p align="center">
+  <img src="docs/mascot/ettin.svg" width="240" alt="Edda and Ottar, the two-headed Ettin Edit mascot, holding a scroll and a quill">
+</p>
 
-A modern, cross-platform text editor for Linux and Windows, inspired by Notepad++.
-Ettin Edit is an original, clean-room implementation written in Rust: it shares no code with Notepad++.
+<h1 align="center">Ettin Edit</h1>
 
-![Ettin Edit dark theme](docs/screenshots/dark.png)
+<p align="center">
+  <b>A text editor with two heads, because one opinion about tabs was never enough.</b><br>
+  Fast, friendly and free of Notepad++ code. Runs on Linux and Windows.
+</p>
 
-## Status
+<p align="center">
+  <a href="https://github.com/Tharkis/Ettin-Edit/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Tharkis/Ettin-Edit?color=6699CC&label=release"></a>
+  <img alt="Linux and Windows" src="https://img.shields.io/badge/runs%20on-Linux%20%7C%20Windows-CC99CC">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-FFCC66"></a>
+  <img alt="Written in Rust" src="https://img.shields.io/badge/written%20in-Rust-F99157">
+  <img alt="Plugins in Python or JavaScript" src="https://img.shields.io/badge/plugins-Python%20%7C%20JavaScript-99CC99">
+</p>
 
-Ettin Edit 1.0 makes it yours. Settings > Preferences (Ctrl+,) sets the editor font
-from your installed fonts, tab width, new-document defaults and more; the Shortcut
-Mapper rebinds any command; Theme > Edit Theme Colours changes any colour with a live
-preview; and F1 opens a command palette. New panels show a function list, a document
-map and a folder as a workspace, and F11 hides everything but the text. There are 17
-more languages (TOML, INI, TypeScript, PowerShell, Dockerfile, HL7, Kotlin, Swift and
-others) and you can add your own with a short `.lang.json` file
-([docs/languages.md](docs/languages.md)). XML Tools validate against an XSD or DTD and
-run XSL transforms. File > Print goes through your browser's print preview, Help >
-Check for Updates looks for new releases, and Plugins > Manage Plugins installs,
-updates and removes plugins. Windows gets an installer and Debian/Ubuntu a `.deb`.
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#what-it-does">Features</a> ·
+  <a href="#plugins">Plugins</a> ·
+  <a href="#building">Build</a> ·
+  <a href="FEATURES.md">Full feature list</a>
+</p>
 
-Release 0.10 renamed NixPad to Ettin Edit (settings, sessions, themes and plugins are
-copied over the first time it starts). Ettin Dark, based on Base16 Eighties, is the new
-default theme, and every built-in theme is now a file in the themes folder that you can
-edit. Tabs show as an arrow across their full width when whitespace is shown, and code
-folding has boxed −/+ markers with lines showing where each region starts and ends. The
-new HL7 Viewer plugin shows HL7 v2 messages as a tree and explains any field: its
-designation, name, data type, optionality and repeatability, with a box to change it.
-Release 0.9 added plugins in Python or JavaScript. A plugin can read and change text,
-open and save files, add menu commands and shortcuts, react to events and show panels
-with trees, tables and forms. Plugins > Install Sample Plugins adds them to try, and
-Plugins > Plugin Guide explains how to write your own ([docs/plugins.md](docs/plugins.md)).
-Release 0.8 added CsvQuery: SQL over the CSV or TSV file you have open, with joins
-across open tabs, a sortable results grid, column statistics, and results to a new tab.
-Release 0.7 added split view (two tabs side by side, or one document in both views)
-and Compare, a built-in take on ComparePlus: compare two tabs, the last save, the
-clipboard, the last Git commit or two selections, with word-level highlights, moved
-blocks, an overview bar and patch export. Release 0.6 added the Tools menu, with built-in versions of three favourite Notepad++
-plugins. JSON and JavaScript tools format, minify, validate and sort, with a live JSON
-tree. MIME tools cover Base64, URL, quoted-printable, HTML entities and SAML. XML tools
-pretty print, check syntax (optionally on save), run XPath queries, show the current
-XPath on the status bar, and close tags as you type. Release 0.6.1 put the Edit and Tools menus in the editor's right-click menu. It all builds on 0.5's encodings,
-backups and file commands, 0.4's editing tools, 0.3's search and 0.2's editor engine.
-See [FEATURES.md](FEATURES.md) for what works today and what is still missing.
+---
 
-## Installing
+## Meet the heads
 
-Download the latest build from the
+In Norse myth an *ettin* is a giant, and the famous ones had more than one head.
+Ours has two, and they share one body, one tunic and, sadly, one breakfast bowl.
+
+- **Edda** (left, helmet) keeps your tabs in order, your indentation straight and
+  your JSON sorted. She has never once lost an unsaved file and would like you to
+  know it.
+- **Ottar** (right, glasses) writes everything down, compares everything with
+  everything else and keeps asking for one more plugin.
+
+They argue a lot. You get an editor that does both.
+
+![Ettin Edit with a JSON file open and the JSON tree panel beside it](docs/screenshots/dark.png)
+
+## What it does
+
+Ettin Edit is a clean-room editor inspired by Notepad++. It looks the same on every
+platform because it draws its own window with [egui](https://github.com/emilk/egui),
+and it carries built-in versions of the Notepad++ plugins people install first.
+
+| | |
+| --- | --- |
+| ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing, code folding, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second. |
+| 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with live preview. Drop in any `.tmTheme` you like. |
+| 🔎 **Finds things** | Find and replace with regex, Find All in open tabs, Find in Files in the background, marks and a results panel. |
+| 🧰 **Tools menu** | JSON and JavaScript formatting, minifying and a live JSON tree (JSTool). Base64, URL, HTML entities and SAML (MIME tools). XPath, pretty print, XSD/DTD validation and XSLT (XML Tools). |
+| ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
+| 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
+| 🌍 **Text in any shape** | About 80 languages, plus your own with a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
+| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts and panels, and install them from Plugins > Manage Plugins. |
+| 🧭 **Panels** | Function list, document map, a folder workspace, and a command palette on F1. F11 hides everything except your words. |
+| 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
+| ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
+
+Everything that works today, and the few things that don't yet, is ticked off in
+[FEATURES.md](FEATURES.md).
+
+## Install
+
+Grab the latest build from the
 [releases page](https://github.com/Tharkis/Ettin-Edit/releases/latest):
 
-- **Windows:** the `setup.exe` installer (no admin rights needed), or the `.zip` to run without installing.
-- **Arch / CachyOS:** `sudo pacman -U ./ettin-edit-*.pkg.tar.zst`
-- **Debian / Ubuntu:** `sudo apt install ./ettin-edit_*_amd64.deb`
-- **Other Linux:** extract the `.tar.gz` and run `./ettin-edit`.
+| You're on | Get this | Then |
+| --- | --- | --- |
+| **Windows** | `setup.exe` (no admin rights needed), or the `.zip` | Run it |
+| **Arch / CachyOS** | `.pkg.tar.zst` | `sudo pacman -U ./ettin-edit-*.pkg.tar.zst` |
+| **Debian / Ubuntu** | `.deb` | `sudo apt install ./ettin-edit_*_amd64.deb` |
+| **Any other Linux** | `.tar.gz` | Extract it and run `./ettin-edit` |
 
-### Building the Arch package yourself
+Help > Check for Updates tells you when a newer one is out.
 
-From a checkout of this repository:
+To build the Arch package yourself from a checkout:
 
 ```sh
 cd packaging/arch
 makepkg -si
 ```
 
-This builds a release binary and installs it with its icon and menu entry.
+## Plugins
+
+Write a plugin in whichever language you already know. This one adds a command that
+shouts the selection back at you:
+
+```python
+import ettin
+
+@ettin.command("Shout", shortcut="Ctrl+Alt+H")
+def shout():
+    doc = ettin.active()
+    doc.replace_selections(doc.selected_text().upper())
+
+ettin.run()
+```
+
+Plugins can read and change text, open and save files, react to events and show
+panels with trees, tables and forms. Plugins > Install Sample Plugins gives you
+three to poke at, including the HL7 Viewer, and the
+[plugin guide](docs/plugins.md) covers the rest.
+
+## Themes
+
+Ettin Edit ships with nine themes. Ettin Dark, the default, is based on Base16 Eighties;
+Ettin Night and Ettin Light are its own; the rest are classic schemes bundled with syntect.
+All of them live as TextMate `.tmTheme` files in the themes folder, so you can change
+any colour and pick **Theme > Reload Themes** to see it, or use
+**Theme > Edit Theme Colours** for a live preview. Any other `.tmTheme` file you
+put there appears under **Theme > Custom**. **Theme > Restore Built-in Themes** puts the
+originals back and keeps your edited copy as `<name>.tmTheme.bak`.
+
+- Linux: `~/.config/EttinEdit/themes/`
+- Windows: `%APPDATA%\EttinEdit\themes\`
+
+A built-in theme you haven't edited is updated when Ettin Edit is; one you have edited is
+left alone.
 
 ## Building
 
@@ -81,22 +140,25 @@ On Debian/Ubuntu: `sudo apt install libxkbcommon-x11-0 libgl1`.
 cross-compiled from Linux with `rustup target add x86_64-pc-windows-gnu` and the MinGW linker
 (`cargo build --release --target x86_64-pc-windows-gnu`).
 
-## Themes
+## FAQ
 
-Ettin Edit ships with nine themes. Ettin Dark, the default, is based on Base16 Eighties;
-Ettin Night and Ettin Light are its own; the rest are classic schemes bundled with syntect.
-All of them live as TextMate `.tmTheme` files in the themes folder, so you can change
-any colour and pick **Theme > Reload Themes** to see it. Any other `.tmTheme` file you
-put there appears under **Theme > Custom**. **Theme > Restore Built-in Themes** puts the
-originals back and keeps your edited copy as `<name>.tmTheme.bak`.
+**Is this Notepad++?** No. It's inspired by Notepad++ and shares none of its code.
+Every line was written from scratch for Ettin Edit.
 
-- Linux: `~/.config/EttinEdit/themes/`
-- Windows: `%APPDATA%\EttinEdit\themes\`
+**Why two heads?** One to write the code and one to review it. Also because the
+name was free.
 
-A built-in theme you haven't edited is updated when Ettin Edit is; one you have edited is
-left alone.
+**Does it run on Windows?** Yes, and on Linux, from the same code. Edda prefers
+Linux. Ottar won't say.
 
-## Code layout
+**Can I use it at work, fork it or ship it?** Yes. Ettin Edit is MIT licensed, so
+you can use, change and share it freely as long as you keep the copyright notice.
+See [LICENSE](LICENSE).
+
+**Who gets the spoon?** Still being decided. Please don't open an issue about it.
+
+<details>
+<summary><b>Where things live in the code</b></summary>
 
 | File | What it does |
 | --- | --- |
@@ -147,3 +209,9 @@ left alone.
 
 The GUI uses [egui](https://github.com/emilk/egui)/eframe, which draws everything itself
 with OpenGL, so the look is identical on Linux and Windows.
+
+</details>
+
+---
+
+<p align="center"><sub>Mascot drawn for Ettin Edit. Edda and Ottar are not available for parties.</sub></p>
