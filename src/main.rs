@@ -33,6 +33,7 @@ mod text_tools_ui;
 mod theme;
 mod tools;
 mod tools_ui;
+mod update;
 
 use std::path::PathBuf;
 

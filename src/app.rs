@@ -111,6 +111,7 @@ pub struct EttinApp {
     style_editor: crate::style_ui::StyleEditor,
     tab_picker: crate::palette_ui::Picker,
     folders: crate::folder_ui::FolderPanel,
+    updates: crate::update::UpdateCheck,
     function_list: crate::function_list_ui::FunctionList,
     /// Full screen with only the text showing.
     distraction_free: bool,
@@ -258,6 +259,7 @@ impl EttinApp {
             style_editor: crate::style_ui::StyleEditor::default(),
             tab_picker: crate::palette_ui::Picker::default(),
             folders: crate::folder_ui::FolderPanel::default(),
+            updates: Default::default(),
             function_list: Default::default(),
             distraction_free: false,
         };
@@ -275,6 +277,14 @@ impl EttinApp {
         let shortcut_errors = actions::set_overrides(&app.settings.shortcuts);
         app.errors.extend(shortcut_errors);
         app.apply_style(&cc.egui_ctx);
+        let now = chrono::Utc::now().timestamp();
+        if app.settings.check_updates
+            && now - app.settings.last_update_check
+                >= crate::update::CHECK_EVERY_DAYS * 24 * 60 * 60
+        {
+            app.settings.last_update_check = now;
+            app.updates.start(&cc.egui_ctx, false);
+        }
 
         if owner && let Some(dir) = settings::config_dir() {
             let ctx = cc.egui_ctx.clone();
@@ -1084,6 +1094,8 @@ impl EttinApp {
                 }
             }
             Action::About => self.show_about = true,
+            Action::CheckForUpdates => self.updates.start(ctx, true),
+            Action::ToggleUpdateCheck => self.settings.check_updates = !self.settings.check_updates,
             Action::Preferences => {
                 self.prefs.show();
                 drop_focus(ctx);
@@ -1498,6 +1510,7 @@ impl EttinApp {
     fn any_dialog_open(&self) -> bool {
         self.close_queue.is_some()
             || self.show_about
+            || self.updates.is_open()
             || self.goto.open
             || self.fif.open
             || self.column.open
@@ -2092,6 +2105,14 @@ impl EttinApp {
             ui.menu_button("Plugins", |ui| self.plugins_menu(ui));
             ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
+                self.menu_item(ui, "Check for Updates…", Action::CheckForUpdates);
+                self.toggle_item(
+                    ui,
+                    "Check for Updates Automatically",
+                    self.settings.check_updates,
+                    Action::ToggleUpdateCheck,
+                );
+                ui.separator();
                 self.menu_item(ui, "About Ettin Edit", Action::About);
             });
         });
@@ -2716,6 +2737,16 @@ impl EttinApp {
 
     fn dialogs(&mut self, ctx: &egui::Context) {
         let palette = self.palette();
+        for event in self.updates.ui(ctx, &palette) {
+            match event {
+                crate::update::UpdateEvent::OpenPage(url) => {
+                    if let Err(e) = system::open_url(&url) {
+                        self.errors.push(e);
+                    }
+                }
+                crate::update::UpdateEvent::StopChecking => self.settings.check_updates = false,
+            }
+        }
         let languages = self.languages.clone();
         for event in self.prefs.ui(ctx, &mut self.settings, &languages, &palette) {
             match event {

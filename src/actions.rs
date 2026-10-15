@@ -53,6 +53,8 @@ pub enum Action {
     RestoreThemes,
     ClearRecent,
     About,
+    CheckForUpdates,
+    ToggleUpdateCheck,
     // Files
     ReloadFromDisk,
     /// Keep the text as it is after the file changed or vanished on disk.

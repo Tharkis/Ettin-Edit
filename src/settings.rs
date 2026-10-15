@@ -59,6 +59,10 @@ pub struct Settings {
     pub xml_schemas: BTreeMap<String, PathBuf>,
     /// The last XSL stylesheet run, where the next one is picked from.
     pub last_xsl: Option<PathBuf>,
+    /// Look for a newer release once a week.
+    pub check_updates: bool,
+    /// When the last automatic update check ran (Unix seconds).
+    pub last_update_check: i64,
     /// How Compare matches lines.
     pub compare: crate::compare::CompareOptions,
     /// Per plugin (by folder name): turned off, and which version was allowed to run.
@@ -134,6 +138,8 @@ impl Default for Settings {
             xml_check_on_save: false,
             xml_schemas: BTreeMap::new(),
             last_xsl: None,
+            check_updates: true,
+            last_update_check: 0,
             compare: crate::compare::CompareOptions::default(),
             plugins: BTreeMap::new(),
             python_path: String::new(),
