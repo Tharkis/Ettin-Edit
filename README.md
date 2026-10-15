@@ -12,6 +12,7 @@
 <p align="center">
   <a href="https://github.com/Tharkis/Ettin-Edit/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Tharkis/Ettin-Edit?color=6699CC&label=release"></a>
   <img alt="Linux and Windows" src="https://img.shields.io/badge/runs%20on-Linux%20%7C%20Windows-CC99CC">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-FFCC66"></a>
   <img alt="Written in Rust" src="https://img.shields.io/badge/written%20in-Rust-F99157">
   <img alt="Plugins in Python or JavaScript" src="https://img.shields.io/badge/plugins-Python%20%7C%20JavaScript-99CC99">
 </p>
@@ -149,6 +150,10 @@ name was free.
 
 **Does it run on Windows?** Yes, and on Linux, from the same code. Edda prefers
 Linux. Ottar won't say.
+
+**Can I use it at work, fork it or ship it?** Yes. Ettin Edit is MIT licensed, so
+you can use, change and share it freely as long as you keep the copyright notice.
+See [LICENSE](LICENSE).
 
 **Who gets the spoon?** Still being decided. Please don't open an issue about it.
 

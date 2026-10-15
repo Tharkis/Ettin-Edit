@@ -87,7 +87,7 @@ jobs:
         run: |
           dir="ettin-edit-$VERSION-linux-x86_64"
           mkdir -p "$dir/icons"
-          cp target/release/ettin-edit README.md "$dir/"
+          cp target/release/ettin-edit README.md LICENSE "$dir/"
           cp packaging/linux/ettin-edit.desktop "$dir/"
           cp assets/icons/ettin-edit.svg assets/icons/ettin-edit-256.png "$dir/icons/"
           tar czf "$dir.tar.gz" "$dir"
@@ -99,6 +99,7 @@ jobs:
           install -Dm644 assets/icons/ettin-edit.svg "$root/usr/share/icons/hicolor/scalable/apps/ettin-edit.svg"
           install -Dm644 assets/icons/ettin-edit-256.png "$root/usr/share/icons/hicolor/256x256/apps/ettin-edit.png"
           install -Dm644 README.md "$root/usr/share/doc/ettin-edit/README.md"
+          install -Dm644 LICENSE "$root/usr/share/doc/ettin-edit/copyright"
           mkdir -p "$root/DEBIAN"
           size=$(du -sk "$root/usr" | cut -f1)
           sed -e "s/@VERSION@/$VERSION/" -e "s/@SIZE@/$size/" packaging/debian/control > "$root/DEBIAN/control"
@@ -157,7 +158,7 @@ jobs:
         run: |
           $dir = "ettin-edit-$env:VERSION-windows-x86_64"
           New-Item -ItemType Directory $dir | Out-Null
-          Copy-Item target/release/ettin-edit.exe, README.md $dir
+          Copy-Item target/release/ettin-edit.exe, README.md, LICENSE $dir
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
       - name: Installer
         shell: pwsh

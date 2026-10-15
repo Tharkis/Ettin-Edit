@@ -46,6 +46,7 @@ Name: "addtopath"; Description: "Add Ettin Edit to the PATH, so ettin-edit works
 [Files]
 Source: "{#SourceExe}"; DestDir: "{app}"; DestName: "ettin-edit.exe"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\icons\ettin-edit.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

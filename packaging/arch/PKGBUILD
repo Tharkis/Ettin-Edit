@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc="A modern, cross-platform text editor"
 arch=('x86_64' 'aarch64')
 url="https://github.com/Tharkis/Ettin-Edit"
-license=('custom')
+license=('MIT')
 depends=('gcc-libs' 'glibc' 'libxkbcommon' 'libxkbcommon-x11' 'libgl' 'xdg-desktop-portal' 'hicolor-icon-theme')
 makedepends=('cargo')
 options=('!lto' '!debug')
@@ -39,4 +39,5 @@ package() {
   install -Dm644 packaging/linux/ettin-edit.desktop "$pkgdir/usr/share/applications/ettin-edit.desktop"
   install -Dm644 assets/icons/ettin-edit.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/ettin-edit.svg"
   install -Dm644 assets/icons/ettin-edit-256.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/ettin-edit.png"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/ettin-edit/LICENSE"
 }
