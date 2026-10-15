@@ -302,7 +302,7 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 
 ### Platform and distribution
 - [x] Application icon and desktop integration: icon and Linux `.desktop` file in 0.2; Windows "Open with", right-click menu and Start menu entries from the installer in 1.0
-- [x] App icon in the top left corner of the window (click it for About), redrawn from the Edda and Ottar mascot and used for the window, taskbar, Windows `.exe` and installer, and Linux icon theme sizes
+- [x] App icon in the top left corner of the window (click it for About), plus 32 to 128 px sizes in the Linux icon theme
 - [~] Installers / packages: Arch package (0.2), Windows installer and `.deb` (1.0); AppImage and Flatpak not yet
 - [x] CI builds for Linux and Windows, done in 0.2
 - [x] Update check, by hand or weekly (1.0)
