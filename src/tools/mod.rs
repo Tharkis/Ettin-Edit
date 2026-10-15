@@ -5,12 +5,15 @@
 //! the editor.
 
 pub mod csv;
+pub mod dtd;
 pub mod js;
 pub mod json;
 pub mod mime;
 pub mod sql;
 pub mod xml;
 pub mod xpath;
+pub mod xsd;
+pub mod xslt;
 
 use std::fmt;
 
@@ -45,6 +48,14 @@ impl fmt::Display for ToolError {
 }
 
 pub type ToolResult = Result<String, ToolError>;
+
+/// A validation problem in a document (XSD or DTD), with where it is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Problem {
+    pub message: String,
+    /// Byte offset into the validated document.
+    pub offset: usize,
+}
 
 /// 1-based line and column (in chars) of a byte offset.
 pub fn line_col(text: &str, offset: usize) -> (usize, usize) {
