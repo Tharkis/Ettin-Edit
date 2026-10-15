@@ -1,0 +1,90 @@
+%YAML 1.2
+---
+# Zig grammar for Ettin Edit, written from the Zig language reference.
+name: Zig
+file_extensions: [zig, zon]
+scope: source.zig
+
+variables:
+  ident: '(?:[A-Za-z_]\w*|@"[^"\n]*")'
+
+contexts:
+  main:
+    - include: statements
+
+  statements:
+    - match: '//[/!].*'
+      scope: comment.line.documentation.zig
+    - match: '//.*'
+      scope: comment.line.double-slash.zig
+    - include: strings
+    - match: '@[A-Za-z_]\w*'
+      scope: support.function.builtin.zig
+    - include: declarations
+    - include: keywords
+    - match: '(?<![\w$])(?:0x[0-9A-Fa-f_]+(?:\.[0-9A-Fa-f_]+)?(?:[pP][+-]?\d+)?|0o[0-7_]+|0b[01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d[\d_]*)?)(?![\w$])'
+      scope: constant.numeric.zig
+    - include: identifiers
+    - include: operators
+
+  strings:
+    - match: '\\\\.*'
+      scope: string.quoted.other.multiline.zig
+    - match: '"'
+      scope: punctuation.definition.string.begin.zig
+      push: string
+    - match: '''(?:\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|.)|[^''\\\n])'''
+      scope: string.quoted.single.zig
+
+  string:
+    - meta_scope: string.quoted.double.zig
+    - match: '\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|.)'
+      scope: constant.character.escape.zig
+    - match: '\{[\w.:<>^ ]*\}'
+      scope: constant.other.placeholder.zig
+    - match: '"'
+      scope: punctuation.definition.string.end.zig
+      pop: true
+    - match: '\n'
+      pop: true
+
+  declarations:
+    - match: '\b(fn)\s+({{ident}})'
+      captures:
+        1: storage.type.function.zig
+        2: entity.name.function.zig
+    - match: '\b(const|var)\s+({{ident}})(?=\s*(?::[^=]*)?=\s*(?:(?:extern|packed)\s+)?(?:struct|enum|union|opaque)\b)'
+      captures:
+        1: storage.type.zig
+        2: entity.name.class.zig
+    - match: '\b(test)\s+(?=")'
+      captures:
+        1: storage.type.test.zig
+
+  keywords:
+    - match: '\b(?:if|else|switch|while|for|break|continue|return|try|catch|orelse|defer|errdefer|unreachable|suspend|resume|nosuspend|await|async)\b'
+      scope: keyword.control.zig
+    - match: '\b(?:fn|const|var|struct|enum|union|error|opaque|test)\b'
+      scope: storage.type.zig
+    - match: '\b(?:pub|export|extern|inline|noinline|comptime|threadlocal|packed|volatile|allowzero|align|linksection|callconv|noalias|usingnamespace|addrspace)\b'
+      scope: storage.modifier.zig
+    - match: '\b(?:and|or)\b'
+      scope: keyword.operator.word.zig
+    - match: '\b(?:[iu]\d+|isize|usize|f16|f32|f64|f80|f128|c_char|c_short|c_ushort|c_int|c_uint|c_long|c_ulong|c_longlong|c_ulonglong|c_longdouble|bool|void|noreturn|type|anyerror|anyopaque|anytype|anyframe|comptime_int|comptime_float)\b'
+      scope: storage.type.primitive.zig
+    - match: '\b(?:true|false|null|undefined)\b'
+      scope: constant.language.zig
+
+  identifiers:
+    - match: '({{ident}})(?=\s*\()'
+      captures:
+        1: variable.function.zig
+    - match: '\b[A-Z][\w]*'
+      scope: support.class.zig
+    - match: '{{ident}}'
+
+  operators:
+    - match: '=>|\.\*|\.\?|\+\+|\*\*|\|\||[-+*/%=!<>&|^~?]+%?'
+      scope: keyword.operator.zig
+    - match: '[;,]'
+      scope: punctuation.separator.zig

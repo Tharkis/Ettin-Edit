@@ -1,0 +1,99 @@
+%YAML 1.2
+---
+# Dockerfile grammar for Ettin Edit, written from the Dockerfile reference.
+# Also used for Podman's Containerfile.
+name: Dockerfile
+file_extensions: [Dockerfile, dockerfile, Containerfile, containerfile]
+first_line_match: '^(?:#\s*(?:syntax|escape)=\S|FROM\s+\S+(?:\s+AS\s+\S+)?\s*$)'
+scope: source.dockerfile
+
+variables:
+  onbuild: '(?i)^\s*(?:(ONBUILD)\s+)?'
+
+contexts:
+  main:
+    - match: '^\s*#\s*(syntax|escape|check)\s*(=)\s*(.*)'
+      captures:
+        1: keyword.other.directive.dockerfile
+        2: keyword.operator.assignment.dockerfile
+        3: string.unquoted.dockerfile
+    - match: '^\s*#.*'
+      scope: comment.line.number-sign.dockerfile
+    - match: '{{onbuild}}(FROM)\b'
+      captures:
+        1: keyword.control.dockerfile
+        2: keyword.control.dockerfile
+      push: from-arguments
+    - match: '{{onbuild}}(RUN|CMD|ENTRYPOINT|SHELL|HEALTHCHECK)\b'
+      captures:
+        1: keyword.control.dockerfile
+        2: keyword.control.dockerfile
+      push: shell-arguments
+    - match: '{{onbuild}}(ADD|ARG|COPY|ENV|EXPOSE|LABEL|MAINTAINER|STOPSIGNAL|USER|VOLUME|WORKDIR)\b'
+      captures:
+        1: keyword.control.dockerfile
+        2: keyword.control.dockerfile
+      push: arguments
+
+  from-arguments:
+    - match: '(?i)\bAS\b'
+      scope: keyword.control.dockerfile
+    - include: arguments
+
+  shell-arguments:
+    - match: '(?<!\\)<<-?\s*(["'']?)([A-Za-z_]\w*)\1'
+      scope: keyword.operator.heredoc.dockerfile
+      push: heredoc
+    - match: '&&|\|\||[;|]'
+      scope: keyword.operator.dockerfile
+    - include: arguments
+
+  heredoc:
+    - meta_scope: string.unquoted.heredoc.dockerfile
+    - match: '^\s*\2\s*$'
+      scope: keyword.operator.heredoc.dockerfile
+      pop: true
+
+  arguments:
+    - match: '(?<!\\)\n'
+      pop: true
+    - match: '^\s*#.*'
+      scope: comment.line.number-sign.dockerfile
+    - match: '\\(?=\s*\n)'
+      scope: constant.character.escape.line-continuation.dockerfile
+    - match: '(?<![\w-])--[A-Za-z][\w-]*'
+      scope: variable.parameter.dockerfile
+    - include: variables
+    - match: '"'
+      scope: punctuation.definition.string.begin.dockerfile
+      push: double-string
+    - match: "'"
+      scope: punctuation.definition.string.begin.dockerfile
+      push: single-string
+    - match: '(?<![\w.:/-])\d+(?:/(?:tcp|udp))?(?![\w.:/-])'
+      scope: constant.numeric.dockerfile
+    - match: '[=,\[\]]'
+      scope: punctuation.separator.dockerfile
+
+  variables:
+    - match: '\$\{[^}\n]*\}|\$[A-Za-z_]\w*'
+      scope: variable.other.readwrite.dockerfile
+
+  double-string:
+    - meta_scope: string.quoted.double.dockerfile
+    - match: '\\.'
+      scope: constant.character.escape.dockerfile
+    - include: variables
+    - match: '"'
+      scope: punctuation.definition.string.end.dockerfile
+      pop: true
+    - match: '\n'
+      pop: true
+
+  single-string:
+    - meta_scope: string.quoted.single.dockerfile
+    - match: "'"
+      scope: punctuation.definition.string.end.dockerfile
+      pop: true
+    - match: '\n'
+      pop: true

@@ -35,6 +35,7 @@ mod theme;
 mod tools;
 mod tools_ui;
 mod update;
+mod user_lang;
 
 use std::path::PathBuf;
 

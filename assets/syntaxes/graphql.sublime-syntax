@@ -1,0 +1,74 @@
+%YAML 1.2
+---
+# GraphQL grammar for Ettin Edit, written from the GraphQL specification
+# (schema definitions and executable documents).
+name: GraphQL
+file_extensions: [graphql, graphqls, gql]
+scope: source.graphql
+
+variables:
+  name: '[_A-Za-z][_0-9A-Za-z]*'
+
+contexts:
+  main:
+    - match: '#.*'
+      scope: comment.line.number-sign.graphql
+    - match: '"""'
+      scope: punctuation.definition.string.begin.graphql
+      push:
+        - meta_scope: string.quoted.triple.graphql
+        - match: '"""'
+          scope: punctuation.definition.string.end.graphql
+          pop: true
+    - match: '"'
+      scope: punctuation.definition.string.begin.graphql
+      push:
+        - meta_scope: string.quoted.double.graphql
+        - match: '\\(?:u[0-9A-Fa-f]{4}|.)'
+          scope: constant.character.escape.graphql
+        - match: '"'
+          scope: punctuation.definition.string.end.graphql
+          pop: true
+        - match: '\n'
+          pop: true
+    - match: '\b(type|interface|union|enum|input|scalar)\s+({{name}})'
+      captures:
+        1: storage.type.graphql
+        2: entity.name.class.graphql
+    - match: '\b(directive)\s+(@{{name}})'
+      captures:
+        1: storage.type.graphql
+        2: entity.name.function.graphql
+    - match: '\b(query|mutation|subscription)\b(?:\s+({{name}}))?'
+      captures:
+        1: keyword.other.operation.graphql
+        2: entity.name.function.graphql
+    - match: '\b(fragment)\s+({{name}})(?:\s+(on)\s+({{name}}))?'
+      captures:
+        1: keyword.other.fragment.graphql
+        2: entity.name.function.graphql
+        3: keyword.other.on.graphql
+        4: support.class.graphql
+    - match: '\b(?:schema|extend|on|repeatable)\b'
+      scope: keyword.other.graphql
+    - match: '\bimplements\b'
+      scope: storage.modifier.graphql
+    - match: '\$\s*{{name}}'
+      scope: variable.other.graphql
+    - match: '@{{name}}'
+      scope: storage.modifier.directive.graphql
+    - match: '\.\.\.'
+      scope: keyword.operator.spread.graphql
+    - match: '\b(?:true|false|null)\b'
+      scope: constant.language.graphql
+    - match: '-?(?<![\w.])(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w.])'
+      scope: constant.numeric.graphql
+    - match: '\b(?:Int|Float|String|Boolean|ID)\b'
+      scope: support.type.graphql
+    - match: '\b[A-Z]\w*'
+      scope: support.class.graphql
+    - match: '({{name}})(?=\s*[:(])'
+      captures:
+        1: variable.other.member.graphql
+    - match: '[!=|&]'
+      scope: keyword.operator.graphql

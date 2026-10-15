@@ -1,0 +1,65 @@
+  # JSX tags, put in place of the TypeScript grammar's empty `jsx` context.
+  jsx:
+    - match: '(?<=[(=,?:\[{}&|>])\s*(<)(?=[A-Za-z>])'
+      captures:
+        1: punctuation.definition.tag.begin.tsx
+      push: jsx-tag-name
+    - match: '(?<=\breturn)\s+(<)(?=[A-Za-z>])'
+      captures:
+        1: punctuation.definition.tag.begin.tsx
+      push: jsx-tag-name
+    - match: '^\s*(<)(?=[A-Za-z>])'
+      captures:
+        1: punctuation.definition.tag.begin.tsx
+      push: jsx-tag-name
+
+  jsx-tag-name:
+    - match: '[A-Za-z][\w.:-]*'
+      scope: entity.name.tag.tsx
+      set: jsx-attributes
+    - match: '(?=>)'
+      set: jsx-attributes
+
+  jsx-attributes:
+    - meta_scope: meta.tag.tsx
+    - match: '/>'
+      scope: punctuation.definition.tag.end.tsx
+      pop: true
+    - match: '>'
+      scope: punctuation.definition.tag.end.tsx
+      set: jsx-children
+    - include: comments
+    - match: '[A-Za-z_$][\w$.:-]*'
+      scope: entity.other.attribute-name.tsx
+    - match: '='
+      scope: punctuation.separator.key-value.tsx
+    - match: '"[^"]*"'
+      scope: string.quoted.double.tsx
+    - match: "'[^']*'"
+      scope: string.quoted.single.tsx
+    - match: '\{'
+      scope: punctuation.section.embedded.begin.tsx
+      push: jsx-expression
+
+  jsx-children:
+    - match: '(</)([A-Za-z][\w.:-]*)?\s*(>)'
+      captures:
+        1: punctuation.definition.tag.begin.tsx
+        2: entity.name.tag.tsx
+        3: punctuation.definition.tag.end.tsx
+      pop: true
+    - match: '<(?=[A-Za-z>])'
+      scope: punctuation.definition.tag.begin.tsx
+      push: jsx-tag-name
+    - match: '\{'
+      scope: punctuation.section.embedded.begin.tsx
+      push: jsx-expression
+    - match: '&(?:[A-Za-z]\w*|#\d+|#x[0-9A-Fa-f]+);'
+      scope: constant.character.entity.tsx
+
+  jsx-expression:
+    - meta_scope: meta.embedded.expression.tsx
+    - match: '\}'
+      scope: punctuation.section.embedded.end.tsx
+      pop: true
+    - include: braces-or-statements

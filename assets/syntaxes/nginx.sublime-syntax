@@ -1,0 +1,93 @@
+%YAML 1.2
+---
+# nginx configuration grammar for Ettin Edit, written from the nginx
+# configuration documentation.
+name: Nginx
+file_extensions: [nginx.conf, nginx, mime.types, fastcgi_params, proxy_params, uwsgi_params, scgi_params]
+first_line_match: '^\s*(?:user\s+\S+;|worker_processes\s|events\s*\{|http\s*\{)'
+scope: source.nginx
+
+variables:
+  sections: '(?:http|server|location|upstream|events|stream|mail|map|geo|split_clients|limit_except|types|charset_map|match|split_clients)'
+
+contexts:
+  main:
+    - include: statements
+
+  statements:
+    - include: comments
+    - match: '\b(if)\b'
+      scope: keyword.control.nginx
+      push: section-arguments
+    - match: '\b({{sections}})\b(?=[^;{}\n]*\{)'
+      scope: entity.name.section.nginx
+      push: section-arguments
+    - match: '\{'
+      scope: punctuation.section.block.begin.nginx
+      push: block
+    - match: '[A-Za-z_][\w]*'
+      scope: keyword.other.directive.nginx
+      push: arguments
+
+  comments:
+    - match: '#.*'
+      scope: comment.line.number-sign.nginx
+
+  block:
+    - meta_scope: meta.block.nginx
+    - match: '\}'
+      scope: punctuation.section.block.end.nginx
+      pop: true
+    - include: statements
+
+  section-arguments:
+    - match: '\{'
+      scope: punctuation.section.block.begin.nginx
+      set: block
+    - match: '(?<=\s)(?:=|~\*?|\^~|!~\*?)(?=\s)'
+      scope: keyword.operator.nginx
+    - include: values
+
+  arguments:
+    - match: ';'
+      scope: punctuation.terminator.nginx
+      pop: true
+    - match: '\{'
+      scope: punctuation.section.block.begin.nginx
+      set: block
+    - match: '(?=\})'
+      pop: true
+    - include: values
+
+  values:
+    - include: comments
+    - match: '\$\{\w+\}|\$\w+'
+      scope: variable.other.readwrite.nginx
+    - match: '"'
+      scope: punctuation.definition.string.begin.nginx
+      push: double-string
+    - match: "'"
+      scope: punctuation.definition.string.begin.nginx
+      push: single-string
+    - match: '\b(?:on|off)\b'
+      scope: constant.language.nginx
+    - match: '(?<![\w./:-])\d+(?:\.\d+)?(?:ms|[kKmMgGsShHdDwWyY])?(?![\w./:-])'
+      scope: constant.numeric.nginx
+
+  double-string:
+    - meta_scope: string.quoted.double.nginx
+    - match: '\\.'
+      scope: constant.character.escape.nginx
+    - match: '\$\{\w+\}|\$\w+'
+      scope: variable.other.readwrite.nginx
+    - match: '"'
+      scope: punctuation.definition.string.end.nginx
+      pop: true
+
+  single-string:
+    - meta_scope: string.quoted.single.nginx
+    - match: '\\.'
+      scope: constant.character.escape.nginx
+    - match: "'"
+      scope: punctuation.definition.string.end.nginx
+      pop: true

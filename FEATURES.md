@@ -262,8 +262,8 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 - [ ] Font family picker
 - [ ] Shortcut mapper (rebind any command)
 - [ ] Style configurator (edit theme colours in the app)
-- [ ] User-defined languages (custom keywords, comments, operators)
-- [ ] More grammars (TOML, INI, TypeScript, PowerShell, Dockerfile, etc.), and loading `.sublime-syntax` files from the user folder
+- [x] User-defined languages (custom keywords, comments, operators): `.lang.json` files in the `languages` folder; see [docs/languages.md](docs/languages.md)
+- [x] More grammars (TOML, INI, TypeScript, PowerShell, Dockerfile, etc.), and loading `.sublime-syntax` files from the user folder: also TSX, HL7, Kotlin, Swift, Dart, Zig, CMake, Nginx, `.env`, Protobuf, GraphQL and Terraform/HCL; user grammars replace built-ins of the same name
 - [ ] Localisation / translations
 
 ### Platform and distribution
