@@ -100,11 +100,11 @@ impl FunctionList {
     pub fn ui(&mut self, ui: &mut Ui, caret_line: usize, palette: &Palette) -> Option<usize> {
         let mut jump = None;
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Function List").strong());
+            ui.label(RichText::new(t!("function-list")).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button("⊙")
-                    .on_hover_text("Show where the caret is")
+                    .on_hover_text(t!("show-caret-symbol"))
                     .clicked()
                 {
                     self.follow = true;
@@ -113,7 +113,7 @@ impl FunctionList {
         });
         ui.add(
             egui::TextEdit::singleline(&mut self.filter)
-                .hint_text("Filter")
+                .hint_text(t!("filter-hint"))
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(2.0);
@@ -127,9 +127,9 @@ impl FunctionList {
                 ui.spacing_mut().item_spacing.y = 1.0;
                 if self.symbols.is_empty() {
                     let text = if self.pending.is_some() {
-                        "Reading the document…"
+                        t!("reading-document")
                     } else {
-                        "Nothing found in this document."
+                        t!("nothing-found-in-document")
                     };
                     ui.label(RichText::new(text).weak());
                 }
@@ -155,7 +155,7 @@ impl FunctionList {
                                     .frame_when_inactive(false)
                                     .truncate(),
                             )
-                            .on_hover_text(format!("Line {}", symbol.line + 1))
+                            .on_hover_text(t!("line-number", line = symbol.line + 1))
                         })
                         .inner;
                     if is_current && std::mem::take(&mut self.follow) {

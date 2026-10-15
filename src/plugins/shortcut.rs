@@ -26,20 +26,18 @@ pub fn parse(text: &str) -> Result<KeyboardShortcut, String> {
             }
             "alt" | "option" => mods |= Modifiers::ALT,
             "shift" => mods |= Modifiers::SHIFT,
-            other => return Err(format!("Unknown modifier \"{other}\" in \"{text}\"")),
+            other => return Err(t!("unknown-modifier", modifier = other, shortcut = text)),
         }
     }
     let key = key_from_name(key_name.trim())
-        .ok_or_else(|| format!("Unknown key \"{}\" in \"{text}\"", key_name.trim()))?;
+        .ok_or_else(|| t!("unknown-key", key = key_name.trim(), shortcut = text))?;
     let function_key = key.name().starts_with('F') && key.name().len() > 1;
     if !mods.command && !mods.alt && !function_key {
-        return Err(format!(
-            "\"{text}\" needs Ctrl or Alt, or it would get in the way of typing"
-        ));
+        return Err(t!("shortcut-needs-modifier", shortcut = text));
     }
     // winit turns Ctrl with X, C or V into cut, copy and paste.
     if mods.command && matches!(key, Key::X | Key::C | Key::V) {
-        return Err(format!("\"{text}\" is kept for cut, copy and paste"));
+        return Err(t!("shortcut-reserved", shortcut = text));
     }
     Ok(KeyboardShortcut::new(mods, key))
 }

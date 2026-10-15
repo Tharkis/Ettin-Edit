@@ -46,9 +46,9 @@ impl RenameDialog {
         let mut close = false;
         let response = egui::Modal::new(Id::new("rename-file")).show(ctx, |ui| {
             ui.set_width(360.0);
-            ui.heading("Rename File");
+            ui.heading(t!("rename-file-title"));
             ui.add_space(6.0);
-            ui.label("New name");
+            ui.label(t!("new-name"));
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.name)
                     .desired_width(f32::INFINITY)
@@ -78,12 +78,16 @@ impl RenameDialog {
             }
             ui.add_space(8.0);
             button_row(ui, |ui| {
-                if ui.button("Cancel").clicked() {
+                if ui.button(t!("cancel")).clicked() {
                     close = true;
                 }
                 let name = self.name.trim();
                 let ok = !name.is_empty();
-                if ui.add_enabled(ok, egui::Button::new("Rename")).clicked() || (enter && ok) {
+                if ui
+                    .add_enabled(ok, egui::Button::new(t!("rename")))
+                    .clicked()
+                    || (enter && ok)
+                {
                     result = Some(name.to_owned());
                 }
             });
@@ -98,26 +102,23 @@ impl RenameDialog {
 /// Asks before moving a file to the trash. Returns Some(true) to go ahead,
 /// Some(false) to cancel.
 pub fn confirm_trash(ctx: &egui::Context, name: &str, palette: &Palette) -> Option<bool> {
-    let bin = if cfg!(windows) {
-        "the Recycle Bin"
-    } else {
-        "the trash"
-    };
+    let windows = if cfg!(windows) { "yes" } else { "no" };
     let mut choice = None;
     let response = egui::Modal::new(Id::new("trash-file")).show(ctx, |ui| {
         ui.set_width(380.0);
-        ui.heading("Move to Trash");
+        ui.heading(t!("move-to-trash-title"));
         ui.add_space(6.0);
-        ui.label(format!(
-            "Move \"{name}\" to {bin} and close its tab? You can restore it from {bin}."
-        ));
+        ui.label(t!("move-to-trash-question", name = name, windows = windows));
         ui.add_space(12.0);
         button_row(ui, |ui| {
-            if ui.button("Cancel").clicked() {
+            if ui.button(t!("cancel")).clicked() {
                 choice = Some(false);
             }
             if ui
-                .add(egui::Button::new("Move to Trash").fill(palette.modified.gamma_multiply(0.5)))
+                .add(
+                    egui::Button::new(t!("move-to-trash-title"))
+                        .fill(palette.modified.gamma_multiply(0.5)),
+                )
                 .clicked()
             {
                 choice = Some(true);
@@ -149,9 +150,9 @@ pub fn summary_ui(ctx: &egui::Context, s: &Summary) -> bool {
     let mut keep = true;
     let response = egui::Modal::new(Id::new("summary")).show(ctx, |ui| {
         ui.set_width(420.0);
-        ui.heading("Summary");
+        ui.heading(t!("summary-title"));
         ui.add_space(6.0);
-        ui.label(RichText::new("File").weak());
+        ui.label(RichText::new(t!("summary-file")).weak());
         ui.add(egui::Label::new(&s.path).wrap());
         ui.add_space(6.0);
         let num = |n: usize| {
@@ -175,35 +176,36 @@ pub fn summary_ui(ctx: &egui::Context, s: &Summary) -> bool {
                     ui.end_row();
                 };
                 if let Some(c) = &s.created {
-                    row("Created", c.clone());
+                    row(&t!("summary-created"), c.clone());
                 }
                 if let Some(m) = &s.modified {
-                    row("Modified", m.clone());
+                    row(&t!("summary-modified"), m.clone());
                 }
-                row("Encoding", s.encoding.clone());
-                row("Characters (without line endings)", num(s.chars));
-                row("Words", num(s.words));
-                row("Lines", num(s.lines));
+                row(&t!("menu-encoding"), s.encoding.clone());
+                row(&t!("summary-characters"), num(s.chars));
+                row(&t!("summary-words"), num(s.words));
+                row(&t!("summary-lines"), num(s.lines));
                 row(
-                    "Size when saved",
+                    &t!("summary-size"),
                     s.bytes
-                        .map(|b| format!("{} bytes", num(b)))
-                        .unwrap_or_else(|| "can't be saved in this encoding".into()),
+                        .map(|b| t!("summary-bytes", count = b, bytes = num(b)))
+                        .unwrap_or_else(|| t!("summary-cant-encode")),
                 );
                 if s.selected_chars > 0 {
                     row(
-                        "Selection",
-                        format!(
-                            "{} characters on {} lines",
-                            num(s.selected_chars),
-                            num(s.selected_lines)
+                        &t!("summary-selection"),
+                        t!(
+                            "summary-selection-size",
+                            characters = num(s.selected_chars),
+                            lines = num(s.selected_lines),
+                            line_count = s.selected_lines
                         ),
                     );
                 }
             });
         ui.add_space(12.0);
         button_row(ui, |ui| {
-            if ui.button("Close").clicked() {
+            if ui.button(t!("close")).clicked() {
                 keep = false;
             }
         });
@@ -223,27 +225,25 @@ pub fn disk_notice(
         ui.spacing_mut().item_spacing.x = 10.0;
         ui.label(RichText::new("●").color(palette.modified));
         let text = match (change, dirty) {
-            (DiskChange::Modified, false) => "This file was changed by another program.",
-            (DiskChange::Modified, true) => {
-                "This file was changed by another program, and you have unsaved changes here. Reloading replaces them (Undo brings them back)."
-            }
-            (DiskChange::Deleted, _) => "This file was deleted or moved by another program.",
+            (DiskChange::Modified, false) => t!("disk-changed"),
+            (DiskChange::Modified, true) => t!("disk-changed-unsaved"),
+            (DiskChange::Deleted, _) => t!("disk-deleted"),
         };
         ui.label(text);
         match change {
             DiskChange::Modified => {
-                if ui.button("Reload").clicked() {
+                if ui.button(t!("reload")).clicked() {
                     action = Some(Action::ReloadFromDisk);
                 }
-                if ui.button("Keep My Version").clicked() {
+                if ui.button(t!("keep-my-version")).clicked() {
                     action = Some(Action::IgnoreDiskChange);
                 }
             }
             DiskChange::Deleted => {
-                if ui.button("Keep Open").clicked() {
+                if ui.button(t!("keep-open")).clicked() {
                     action = Some(Action::IgnoreDiskChange);
                 }
-                if ui.button("Close").clicked() {
+                if ui.button(t!("close")).clicked() {
                     action = Some(Action::CloseTab);
                 }
             }
@@ -274,7 +274,7 @@ pub fn encoding_menu(
     }
     ui.separator();
     for (group, list) in legacy_groups() {
-        ui.menu_button(group, |ui| {
+        ui.menu_button(crate::i18n::tr(group), |ui| {
             for (label, enc) in list {
                 item(ui, label, TextEncoding::Legacy(enc));
             }

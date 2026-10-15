@@ -103,7 +103,7 @@ impl FolderPanel {
         palette: &Palette,
     ) -> Option<FolderAction> {
         let Some(root) = self.root.clone() else {
-            ui.label(RichText::new("No folder is open.").weak());
+            ui.label(RichText::new(t!("no-folder-open")).weak());
             return None;
         };
         // Opens the folders down to the current document when it changes.
@@ -139,21 +139,21 @@ impl FolderPanel {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button("×")
-                    .on_hover_text("Close the folder panel")
+                    .on_hover_text(t!("close-folder-panel"))
                     .clicked()
                 {
                     action = Some(FolderAction::Close);
                 }
                 if ui
                     .small_button("⟳")
-                    .on_hover_text("Read the folder again")
+                    .on_hover_text(t!("refresh-folder"))
                     .clicked()
                 {
                     self.refresh();
                 }
                 if ui
                     .small_button("⊟")
-                    .on_hover_text("Collapse all folders")
+                    .on_hover_text(t!("collapse-folders"))
                     .clicked()
                 {
                     self.expanded.clear();
@@ -161,7 +161,7 @@ impl FolderPanel {
                 }
                 if ui
                     .selectable_label(self.show_hidden, RichText::new(".*").monospace())
-                    .on_hover_text("Show hidden files")
+                    .on_hover_text(t!("show-hidden-files"))
                     .clicked()
                 {
                     self.show_hidden = !self.show_hidden;
@@ -233,7 +233,7 @@ impl FolderPanel {
                 }
             }
             response.context_menu(|ui| {
-                if !entry.is_dir && ui.button("Open").clicked() {
+                if !entry.is_dir && ui.button(t!("open")).clicked() {
                     *action = Some(FolderAction::Open(entry.path.clone()));
                 }
                 let folder = if entry.is_dir {
@@ -241,13 +241,13 @@ impl FolderPanel {
                 } else {
                     dir.to_path_buf()
                 };
-                if ui.button("Find in Files Here…").clicked() {
+                if ui.button(t!("find-in-files-here")).clicked() {
                     *action = Some(FolderAction::FindInFolder(folder.clone()));
                 }
-                if ui.button("Open Terminal Here").clicked() {
+                if ui.button(t!("open-terminal-here")).clicked() {
                     *action = Some(FolderAction::OpenTerminal(folder));
                 }
-                if ui.button("Copy Path").clicked() {
+                if ui.button(t!("copy-path")).clicked() {
                     ui.ctx().copy_text(entry.path.display().to_string());
                 }
             });
@@ -259,7 +259,7 @@ impl FolderPanel {
             ui.horizontal(|ui| {
                 ui.add_space(depth as f32 * 14.0 + 18.0);
                 ui.label(
-                    RichText::new(format!("Only the first {MAX_ENTRIES} entries are shown"))
+                    RichText::new(t!("folder-truncated", count = MAX_ENTRIES))
                         .small()
                         .weak(),
                 );

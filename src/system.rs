@@ -26,7 +26,7 @@ pub fn open_url(url: &str) -> Result<(), String> {
     let result = Command::new("xdg-open").arg(url).spawn();
     result
         .map(|_| ())
-        .map_err(|e| format!("Couldn't open {url}: {e}"))
+        .map_err(|e| t!("open-url-failed", url = url, error = e.to_string()))
 }
 
 /// Opens a folder in the system file manager.
@@ -37,9 +37,13 @@ pub fn open_folder(dir: &Path) -> Result<(), String> {
     let result = Command::new("open").arg(dir).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
     let result = Command::new("xdg-open").arg(dir).spawn();
-    result
-        .map(|_| ())
-        .map_err(|e| format!("Couldn't open {}: {e}", dir.display()))
+    result.map(|_| ()).map_err(|e| {
+        t!(
+            "open-url-failed",
+            url = dir.display().to_string(),
+            error = e.to_string()
+        )
+    })
 }
 
 /// Opens the folder holding `file`, with the file selected where the
@@ -56,7 +60,7 @@ pub fn reveal_file(file: &Path) -> Result<(), String> {
             .raw_arg(arg)
             .spawn()
             .map(|_| ())
-            .map_err(|e| format!("Couldn't open Explorer: {e}"))
+            .map_err(|e| t!("explorer-failed", error = e.to_string()))
     }
     #[cfg(not(windows))]
     {
@@ -80,7 +84,7 @@ pub fn reveal_file(file: &Path) -> Result<(), String> {
         }
         match file.parent() {
             Some(dir) => open_folder(dir),
-            None => Err(format!("{} has no folder", file.display())),
+            None => Err(t!("no-parent-folder", path = file.display().to_string())),
         }
     }
 }
@@ -95,7 +99,7 @@ pub fn open_terminal(dir: &Path) -> Result<(), String> {
         hidden(cmd)
             .spawn()
             .map(|_| ())
-            .map_err(|e| format!("Couldn't open a terminal: {e}"))
+            .map_err(|e| t!("terminal-failed", error = e.to_string()))
     }
     #[cfg(target_os = "macos")]
     {
@@ -104,7 +108,7 @@ pub fn open_terminal(dir: &Path) -> Result<(), String> {
             .arg(dir)
             .spawn()
             .map(|_| ())
-            .map_err(|e| format!("Couldn't open a terminal: {e}"))
+            .map_err(|e| t!("terminal-failed", error = e.to_string()))
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
@@ -135,7 +139,7 @@ pub fn open_terminal(dir: &Path) -> Result<(), String> {
                 return Ok(());
             }
         }
-        Err("Couldn't find a terminal. Set the TERMINAL environment variable to your terminal's command.".into())
+        Err(t!("no-terminal"))
     }
 }
 
@@ -173,9 +177,9 @@ fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     let mut cmd = hidden(cmd);
     let out = cmd.output().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
-            "Git isn't installed (or isn't on the PATH).".to_owned()
+            t!("git-missing")
         } else {
-            format!("Couldn't run git: {e}")
+            t!("git-failed", error = e.to_string())
         }
     })?;
     if out.status.success() {
@@ -189,17 +193,17 @@ fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
 pub fn git_head_text(file: &Path) -> Result<String, String> {
     let dir = file
         .parent()
-        .ok_or_else(|| format!("{} has no folder", file.display()))?;
+        .ok_or_else(|| t!("no-parent-folder", path = file.display().to_string()))?;
     let root = git(dir, &["rev-parse", "--show-toplevel"])
-        .map_err(|_| format!("{} isn't in a Git repository.", file.display()))?;
+        .map_err(|_| t!("not-in-git", path = file.display().to_string()))?;
     let root = std::path::PathBuf::from(String::from_utf8_lossy(&root).trim());
     let root = root.canonicalize().unwrap_or(root);
     let file = file.canonicalize().unwrap_or_else(|_| file.to_path_buf());
     let rel = file.strip_prefix(&root).map_err(|_| {
-        format!(
-            "{} isn't in the repository at {}.",
-            file.display(),
-            root.display()
+        t!(
+            "not-in-repository",
+            path = file.display().to_string(),
+            root = root.display().to_string()
         )
     })?;
     // Git wants forward slashes, also on Windows.
@@ -210,9 +214,9 @@ pub fn git_head_text(file: &Path) -> Result<String, String> {
     let spec = format!("HEAD:{}", rel.join("/"));
     let bytes = git(&root, &["show", &spec]).map_err(|e| {
         if e.contains("exists on disk, but not in") || e.contains("does not exist in") {
-            "This file isn't in the last commit yet.".to_owned()
+            t!("git-not-committed")
         } else if e.contains("invalid object name") || e.contains("bad revision") {
-            "The repository has no commits yet.".to_owned()
+            t!("git-no-commits")
         } else {
             e
         }

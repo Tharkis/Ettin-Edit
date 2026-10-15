@@ -76,9 +76,9 @@ impl EttinApp {
             Some(s) => s,
             None => {
                 let mut dialog = rfd::FileDialog::new()
-                    .set_title("Validate Against Schema")
-                    .add_filter("XML Schema or DTD", &["xsd", "dtd"])
-                    .add_filter("All files", &["*"]);
+                    .set_title(t!("dialog-validate-against"))
+                    .add_filter(t!("filter-schema"), &["xsd", "dtd"])
+                    .add_filter(t!("filter-all-files"), &["*"]);
                 if let Some(dir) = doc_dir {
                     dialog = dialog.set_directory(dir);
                 }
@@ -93,7 +93,7 @@ impl EttinApp {
         };
 
         let (name, result) = match &schema {
-            Schema::InternalDtd => ("the DOCTYPE".to_owned(), dtd::validate_dtd(&text, None)),
+            Schema::InternalDtd => (t!("the-doctype"), dtd::validate_dtd(&text, None)),
             Schema::File(path) => {
                 let name = path
                     .file_name()
@@ -104,8 +104,12 @@ impl EttinApp {
                     Err(e) => {
                         self.tool_error(
                             ctx,
-                            "Validate",
-                            &format!("Couldn't read {}: {e}", path.display()),
+                            &t!("xml-validate"),
+                            &t!(
+                                "read-failed",
+                                path = path.display().to_string(),
+                                error = e.to_string()
+                            ),
                             None,
                             false,
                         );
@@ -123,14 +127,14 @@ impl EttinApp {
         match result {
             Err(e) => self.tool_error(
                 ctx,
-                &format!("Validate against {name}"),
+                &t!("validate-against", schema = name.clone()),
                 &e.message,
                 None,
                 false,
             ),
             Ok(problems) if problems.is_empty() => {
                 self.results.open = false;
-                self.notify(ctx, format!("The document is valid against {name}"), None);
+                self.notify(ctx, t!("valid-against", schema = name), None);
             }
             Ok(problems) => self.show_problems(&name, &problems),
         }
@@ -158,8 +162,8 @@ impl EttinApp {
             .collect();
         let label = doc.title();
         let id = doc.id;
-        self.results.start(format!("Validate against {schema}"));
-        self.results.unit = Some("problem");
+        self.results.start(t!("validate-against", schema = schema));
+        self.results.unit = Some("results-problems");
         self.results.truncated = problems.len() > MAX_PROBLEMS;
         self.results.add_group(Source::Doc(id), label, hits);
     }
@@ -181,9 +185,9 @@ impl EttinApp {
                     .map(Path::to_path_buf)
             });
         let mut dialog = rfd::FileDialog::new()
-            .set_title("XSL Transform")
-            .add_filter("XSL stylesheet", &["xsl", "xslt"])
-            .add_filter("All files", &["*"]);
+            .set_title(t!("xsl-transform"))
+            .add_filter(t!("filter-xsl"), &["xsl", "xslt"])
+            .add_filter(t!("filter-all-files"), &["*"]);
         if let Some(dir) = start {
             dialog = dialog.set_directory(dir);
         }
@@ -194,13 +198,17 @@ impl EttinApp {
         let stylesheet = match std::fs::read_to_string(&path) {
             Ok(s) => s,
             Err(e) => {
-                let message = format!("Couldn't read {}: {e}", path.display());
-                self.tool_error(ctx, "XSL Transform", &message, None, false);
+                let message = t!(
+                    "read-failed",
+                    path = path.display().to_string(),
+                    error = e.to_string()
+                );
+                self.tool_error(ctx, &t!("xsl-transform"), &message, None, false);
                 return;
             }
         };
         match xslt::transform_with_messages(&text, &stylesheet) {
-            Err(e) => self.tool_error(ctx, "XSL Transform", &e.message, None, false),
+            Err(e) => self.tool_error(ctx, &t!("xsl-transform"), &e.message, None, false),
             Ok(out) => {
                 let head = out
                     .output

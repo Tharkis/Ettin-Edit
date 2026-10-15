@@ -474,7 +474,7 @@ impl ManualWindow {
         let nav = &mut self.nav;
         let mut open = true;
         let mut error = None;
-        egui::Window::new("User Manual")
+        egui::Window::new(t!("user-manual"))
             .id(Id::new("user-manual"))
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
@@ -488,7 +488,7 @@ impl ManualWindow {
                 ui.horizontal(|ui| {
                     if ui
                         .add_enabled(!nav.back.is_empty(), egui::Button::new("←"))
-                        .on_hover_text("Back")
+                        .on_hover_text(t!("back"))
                         .clicked()
                         && let Some(p) = nav.back.pop()
                     {
@@ -498,7 +498,7 @@ impl ManualWindow {
                     }
                     if ui
                         .add_enabled(!nav.forward.is_empty(), egui::Button::new("→"))
-                        .on_hover_text("Forward")
+                        .on_hover_text(t!("forward"))
                         .clicked()
                         && let Some(p) = nav.forward.pop()
                     {
@@ -509,7 +509,7 @@ impl ManualWindow {
                     ui.add(
                         egui::TextEdit::singleline(&mut nav.search)
                             .id(Id::new("manual-search"))
-                            .hint_text("Search the manual")
+                            .hint_text(t!("search-manual"))
                             .desired_width(220.0),
                     );
                     if !nav.search.is_empty() && ui.small_button("×").clicked() {
@@ -517,12 +517,12 @@ impl ManualWindow {
                     }
                     let file = book.pages[nav.page].file;
                     if ui
-                        .button("Open on the Web")
+                        .button(t!("open-on-web"))
                         .on_hover_text(web_url(file))
                         .clicked()
                         && let Err(e) = crate::system::open_url(&web_url(file))
                     {
-                        error = Some(format!("Couldn't open the web manual: {e}"));
+                        error = Some(t!("web-manual-failed", error = e));
                     }
                 });
                 ui.separator();
@@ -592,7 +592,7 @@ impl ManualWindow {
                     match target(&href) {
                         Target::Web(url) => {
                             if let Err(e) = crate::system::open_url(&url) {
-                                error = Some(format!("Couldn't open {url}: {e}"));
+                                error = Some(t!("open-url-failed", url = url.clone(), error = e));
                             }
                         }
                         Target::Page(file, anchor) => {
@@ -675,7 +675,7 @@ fn search_results(ui: &mut Ui, book: &Book, nav: &mut Nav, terms: &[String]) {
         .collect();
     hits.sort_by_key(|&(i, n)| (std::cmp::Reverse(n), i));
     if hits.is_empty() {
-        ui.label(RichText::new("Nothing matches").weak());
+        ui.label(RichText::new(t!("nothing-matches")).weak());
     }
     for (page, _) in hits {
         if ui
@@ -846,8 +846,8 @@ impl Render<'_> {
                     corner + Vec2::new(0.0, 18.0),
                 );
                 if ui
-                    .place(button, egui::Button::new(RichText::new("Copy").small()))
-                    .on_hover_text("Copy this to the clipboard")
+                    .place(button, egui::Button::new(RichText::new(t!("copy")).small()))
+                    .on_hover_text(t!("copy-to-clipboard"))
                     .clicked()
                 {
                     ui.ctx().copy_text(text.to_owned());

@@ -47,7 +47,11 @@ impl EttinApp {
             .into_iter()
             .map(|r| {
                 let line = editor.buffer.char_to_line(r.start);
-                let title = format!("{} (selection at line {})", doc.title(), line + 1);
+                let title = t!(
+                    "compare-selection-title",
+                    name = doc.title(),
+                    line = line + 1
+                );
                 let mut side = Side::new(Source::Text, title, &editor.buffer.slice_string(r), 0);
                 side.first_line = line;
                 side
@@ -75,7 +79,7 @@ impl EttinApp {
     fn start_compare(&mut self, left: Side, right: Side) {
         let view = CompareView::new(left, right, self.settings.compare);
         if view.result.summary.is_empty() {
-            self.notify_plain("The two sides are the same.");
+            self.notify_plain(&t!("compare-same"));
         }
         self.compare = Some(view);
     }
@@ -120,9 +124,7 @@ impl EttinApp {
                         let (left, right) = (self.doc_side(l), self.doc_side(r));
                         self.start_compare(left, right);
                     }
-                    _ => self.notify_error(
-                        "Open a second tab to compare with, or pick one in Tools > Compare > Compare With.".into(),
-                    ),
+                    _ => self.notify_error(t!("compare-need-second-tab")),
                 }
             }
             Action::CompareWith(i) => {
@@ -134,30 +136,32 @@ impl EttinApp {
             Action::CompareToSaved => {
                 let doc = &self.docs[self.active];
                 let Some(path) = doc.path.clone() else {
-                    self.notify_error("This tab hasn't been saved yet.".into());
+                    self.notify_error(t!("compare-not-saved"));
                     return;
                 };
                 match Document::open(0, &path, Some(doc.encoding)) {
                     Ok(saved) => {
                         let left = Side::new(
                             Source::Text,
-                            format!("{} (saved)", doc.title()),
+                            t!("compare-saved-title", name = doc.title()),
                             &saved.editor.buffer.text(),
                             0,
                         );
                         let right = self.doc_side(self.active);
                         self.start_compare(left, right);
                     }
-                    Err(e) => self.notify_error(format!("Couldn't read the saved file: {e}")),
+                    Err(e) => {
+                        self.notify_error(t!("compare-read-saved-failed", error = e.to_string()))
+                    }
                 }
             }
             Action::CompareToGitHead => {
                 let doc = &self.docs[self.active];
                 let Some(path) = doc.path.clone() else {
-                    self.notify_error("This tab hasn't been saved yet.".into());
+                    self.notify_error(t!("compare-not-saved"));
                     return;
                 };
-                let title = format!("{} (last commit)", doc.title());
+                let title = t!("compare-commit-title", name = doc.title());
                 match crate::system::git_head_text(&path) {
                     Ok(text) => {
                         let left = Side::new(Source::Text, title, &text, 0);
@@ -169,10 +173,7 @@ impl EttinApp {
             }
             Action::CompareSelections => match self.two_selections() {
                 Some((left, right)) => self.start_compare(left, right),
-                None => self.notify_error(
-                    "Select two pieces of text: Ctrl+drag for a second selection, or select in each view."
-                        .into(),
-                ),
+                None => self.notify_error(t!("compare-need-selections")),
             },
             Action::CompareToClipboard => {
                 // The text arrives as a paste event (see `take_clipboard`).
@@ -223,13 +224,13 @@ impl EttinApp {
         if let Some(text) = text {
             self.clipboard_compare = None;
             if let Some(i) = self.docs.get(self.active).map(|_| self.active) {
-                let left = Side::new(Source::Text, "Clipboard".into(), &text, 0);
+                let left = Side::new(Source::Text, t!("clipboard"), &text, 0);
                 let right = self.doc_side(i);
                 self.start_compare(left, right);
             }
         } else if ctx.input(|i| i.time) - asked > CLIPBOARD_WAIT {
             self.clipboard_compare = None;
-            self.notify_error("The clipboard has no text to compare.".into());
+            self.notify_error(t!("compare-clipboard-empty"));
         } else {
             ctx.request_repaint();
         }
@@ -272,7 +273,7 @@ impl EttinApp {
             match self.docs.iter().find(|d| d.id == id) {
                 None => {
                     side.source = Source::Text;
-                    side.title.push_str(" (closed)");
+                    side.title = t!("compare-closed-title", name = side.title.clone());
                 }
                 Some(doc) if doc.editor.buffer.version() != side.version => changed = true,
                 _ => {}
@@ -327,7 +328,11 @@ impl EttinApp {
             return;
         };
         let shown = c.shown;
-        let title = format!("Compare: {} | {}", c.left.title, c.right.title);
+        let title = t!(
+            "compare-tab-title",
+            left = c.left.title.clone(),
+            right = c.right.title.clone()
+        );
         let font = FontId::proportional(13.0);
         let color = if shown {
             palette.text

@@ -164,7 +164,7 @@ impl EttinApp {
                                 self.themes[i] = def;
                                 self.applied_theme = None;
                             }
-                            Err(e) => self.errors.push(format!("The theme has a problem: {e}")),
+                            Err(e) => self.errors.push(t!("theme-problem", error = e.to_string())),
                         }
                     }
                 }
@@ -179,9 +179,10 @@ impl EttinApp {
                             self.reload_themes();
                             self.run(ctx, Action::SetTheme(name));
                         }
-                        Err(e) => self.errors.push(format!(
-                            "Couldn't save the theme to {}: {e}",
-                            path.display()
+                        Err(e) => self.errors.push(t!(
+                            "theme-save-failed",
+                            path = path.display().to_string(),
+                            error = e.to_string()
                         )),
                     }
                 }
@@ -199,7 +200,9 @@ impl EttinApp {
     /// `owner` is false when another Ettin Edit window already runs and owns the session.
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, owner: bool) -> Self {
         let settings = Settings::load();
-        let (themes, mut theme_errors) = theme::load_themes(settings::themes_dir().as_deref());
+        let mut theme_errors = crate::i18n::set_language(&settings.ui_language);
+        let (themes, more_errors) = theme::load_themes(settings::themes_dir().as_deref());
+        theme_errors.extend(more_errors);
         let theme_idx = themes
             .iter()
             .position(|t| t.name == settings.theme)
@@ -412,10 +415,10 @@ impl EttinApp {
                     .highlighter
                     .detect(doc.path.as_deref(), &doc.editor.buffer.line_text(0));
                 if doc.lossy {
-                    self.errors.push(format!(
-                        "{} has bytes that aren't valid {}. They are shown as \u{FFFD} and will be replaced if you save. If the text looks wrong, pick its encoding in Encoding > Reopen With.",
-                        path.display(),
-                        doc.encoding.name()
+                    self.errors.push(t!(
+                        "open-lossy",
+                        path = path.display().to_string(),
+                        encoding = doc.encoding.name()
                     ));
                 }
                 // Opening a file replaces an untouched "new" tab, like most editors.
@@ -437,14 +440,16 @@ impl EttinApp {
                     self.settings.push_recent(path);
                 }
             }
-            Err(e) => self
-                .errors
-                .push(format!("Could not open {}: {e}", path.display())),
+            Err(e) => self.errors.push(t!(
+                "open-failed",
+                path = path.display().to_string(),
+                error = e.to_string()
+            )),
         }
     }
 
     fn open_dialog(&mut self) {
-        let mut dialog = rfd::FileDialog::new().set_title("Open");
+        let mut dialog = rfd::FileDialog::new().set_title(t!("dialog-open"));
         if let Some(dir) = self
             .docs
             .get(self.active)
@@ -468,7 +473,7 @@ impl EttinApp {
             (Some(p), false) => p.clone(),
             _ => {
                 let mut dialog = rfd::FileDialog::new()
-                    .set_title("Save As")
+                    .set_title(t!("dialog-save-as"))
                     .set_file_name(doc.title());
                 if let Some(dir) = doc.path.as_ref().and_then(|p| p.parent()) {
                     dialog = dialog.set_directory(dir);
@@ -494,8 +499,11 @@ impl EttinApp {
                 true
             }
             Err(e) => {
-                self.errors
-                    .push(format!("Could not save {}: {e}", path.display()));
+                self.errors.push(t!(
+                    "save-failed",
+                    path = path.display().to_string(),
+                    error = e.to_string()
+                ));
                 false
             }
         }
@@ -740,8 +748,11 @@ impl EttinApp {
             match doc.check_disk() {
                 Some(DiskChange::Modified) if self.settings.auto_reload && !doc.is_dirty() => {
                     if let Err(e) = doc.reload(None) {
-                        self.errors
-                            .push(format!("Could not reload {}: {e}", doc.title()));
+                        self.errors.push(t!(
+                            "reload-failed",
+                            name = doc.title(),
+                            error = e.to_string()
+                        ));
                     }
                 }
                 Some(change) => doc.disk_change = Some(change),
@@ -808,7 +819,7 @@ impl EttinApp {
             return Ok(());
         };
         if name.contains(['/', '\\']) {
-            return Err("The name can't contain / or \\.".into());
+            return Err(t!("rename-bad-name"));
         }
         let new = old.with_file_name(name);
         if new == old {
@@ -817,9 +828,9 @@ impl EttinApp {
         let only_case =
             old.to_string_lossy().to_lowercase() == new.to_string_lossy().to_lowercase();
         if new.exists() && !only_case {
-            return Err(format!("\"{name}\" already exists in this folder."));
+            return Err(t!("rename-exists", name = name));
         }
-        std::fs::rename(&old, &new).map_err(|e| format!("Couldn't rename the file: {e}"))?;
+        std::fs::rename(&old, &new).map_err(|e| t!("rename-failed", error = e.to_string()))?;
         let doc = &mut self.docs[i];
         doc.path = Some(new.clone());
         doc.disk = DiskStamp::read(&new).ok();
@@ -879,7 +890,7 @@ impl EttinApp {
                 .path
                 .as_ref()
                 .map(|p| p.display().to_string())
-                .unwrap_or_else(|| format!("{} (not saved yet)", doc.title())),
+                .unwrap_or_else(|| t!("not-saved-yet", name = doc.title())),
             created: meta.as_ref().and_then(|m| time(m.created())),
             modified: meta.as_ref().and_then(|m| time(m.modified())),
             encoding: doc.encoding.name(),
@@ -1032,7 +1043,7 @@ impl EttinApp {
                     && let Err(e) = theme::install_builtins(&dir, true)
                 {
                     self.errors
-                        .push(format!("Couldn't restore the built-in themes: {e}"));
+                        .push(t!("restore-themes-failed", error = e.to_string()));
                 }
                 self.reload_themes();
             }
@@ -1042,8 +1053,11 @@ impl EttinApp {
                 if doc.path.is_some()
                     && let Err(e) = doc.reload(None)
                 {
-                    self.errors
-                        .push(format!("Could not reload {}: {e}", doc.title()));
+                    self.errors.push(t!(
+                        "reload-failed",
+                        name = doc.title(),
+                        error = e.to_string()
+                    ));
                 }
             }
             Action::IgnoreDiskChange => {
@@ -1097,13 +1111,16 @@ impl EttinApp {
                     if doc.path.is_none() {
                         doc.set_encoding(e);
                     } else if let Err(e) = doc.reload(Some(e)) {
-                        self.errors
-                            .push(format!("Could not reload {}: {e}", doc.title()));
+                        self.errors.push(t!(
+                            "reload-failed",
+                            name = doc.title(),
+                            error = e.to_string()
+                        ));
                     } else if doc.lossy {
-                        self.errors.push(format!(
-                            "Some bytes in {} aren't valid {}. They are shown as \u{FFFD}.",
-                            doc.title(),
-                            doc.encoding.name()
+                        self.errors.push(t!(
+                            "reopen-lossy",
+                            name = doc.title(),
+                            encoding = doc.encoding.name()
                         ));
                     }
                 }
@@ -1147,12 +1164,12 @@ impl EttinApp {
             Action::CommandPalette => {
                 self.tab_picker.open = false;
                 self.command_palette
-                    .show("Command palette", "Type part of a command's name");
+                    .show(&t!("command-palette-title"), &t!("command-palette-hint"));
             }
             Action::TabList => {
                 self.command_palette.open = false;
                 self.tab_picker
-                    .show("Open tabs", "Type part of a tab's name");
+                    .show(&t!("tab-list-title"), &t!("tab-list-hint"));
             }
             Action::Find | Action::Replace => {
                 let (seed, multi_line) = self.selection_seed();
@@ -1177,8 +1194,8 @@ impl EttinApp {
                 if let Some(q) = self.query() {
                     let n = self.docs[self.active].editor.select_all_matches(&q);
                     self.find_bar.message = Some(match n {
-                        0 => "No results".to_owned(),
-                        n => format!("{n} selected"),
+                        0 => t!("no-results"),
+                        n => t!("selected-count", count = n),
                     });
                 }
             }
@@ -1186,8 +1203,8 @@ impl EttinApp {
                 if let Some(q) = self.query() {
                     let n = self.docs[self.active].editor.mark_all(&q, bookmark);
                     self.find_bar.message = Some(match n {
-                        0 => "No results".to_owned(),
-                        n => format!("{n} marked"),
+                        0 => t!("no-results"),
+                        n => t!("marked-count", count = n),
                     });
                 }
             }
@@ -1362,7 +1379,7 @@ impl EttinApp {
                         .get(self.active)
                         .and_then(|d| d.path.as_ref()?.parent().map(Path::to_path_buf))
                 });
-                let mut dialog = rfd::FileDialog::new().set_title("Open Folder as Workspace");
+                let mut dialog = rfd::FileDialog::new().set_title(t!("dialog-open-workspace"));
                 if let Some(dir) = start {
                     dialog = dialog.set_directory(dir);
                 }
@@ -1382,7 +1399,7 @@ impl EttinApp {
                 ctx.send_viewport_cmd(ViewportCommand::Fullscreen(self.distraction_free));
                 if self.distraction_free {
                     self.notice = Some(Notice {
-                        text: "Distraction-free mode. Press F11 to leave it.".to_owned(),
+                        text: t!("distraction-free-notice"),
                         error: false,
                         since: None,
                         jump: None,
@@ -1612,9 +1629,9 @@ impl EttinApp {
         let outcome = doc.editor.find_next(&q, forward, wrap);
         self.find_bar.message = match outcome {
             FindOutcome::Found => None,
-            FindOutcome::Wrapped if forward => Some("Wrapped to the top".to_owned()),
-            FindOutcome::Wrapped => Some("Wrapped to the bottom".to_owned()),
-            FindOutcome::NotFound => Some("Not found".to_owned()),
+            FindOutcome::Wrapped if forward => Some(t!("wrapped-to-top")),
+            FindOutcome::Wrapped => Some(t!("wrapped-to-bottom")),
+            FindOutcome::NotFound => Some(t!("not-found")),
         };
         self.find_bar.origin = Some((doc.id, doc.editor.selections.primary().start()));
     }
@@ -1653,7 +1670,7 @@ impl EttinApp {
             .editor
             .replace_current(ctx, &q, &template, wrap);
         if outcome == FindOutcome::NotFound {
-            self.find_bar.message = Some("No more matches".to_owned());
+            self.find_bar.message = Some(t!("no-more-matches"));
         }
     }
 
@@ -1665,9 +1682,8 @@ impl EttinApp {
         let n = doc.editor.replace_all(ctx, &q, &template, in_selection);
         self.find_bar.message_at = Some((doc.id, doc.editor.buffer.version()));
         self.find_bar.message = Some(match n {
-            0 => "No results".to_owned(),
-            1 => "1 replaced".to_owned(),
-            n => format!("{n} replaced"),
+            0 => t!("no-results"),
+            n => t!("replaced-count", count = n),
         });
     }
 
@@ -1723,11 +1739,15 @@ impl EttinApp {
             .name("find-in-files".into())
             .spawn(move || search::search_files(search, query, worker_cancel, tx));
         if let Err(e) = spawned {
-            self.errors.push(format!("Could not start the search: {e}"));
+            self.errors
+                .push(t!("search-start-failed", error = e.to_string()));
             return;
         }
-        self.results
-            .start(format!("\"{}\" in {}", req.find, req.dir.display()));
+        self.results.start(t!(
+            "find-in-files-title",
+            text = req.find.clone(),
+            folder = req.dir.display().to_string()
+        ));
         self.results.job = Some(FileJob { rx, cancel });
     }
 
@@ -1775,7 +1795,7 @@ impl EttinApp {
                 match Query::new(&self.find_bar.find, &opts) {
                     Ok(q) => q,
                     Err(e) => {
-                        self.find_bar.message = Some(format!("Invalid regex: {e}"));
+                        self.find_bar.message = Some(t!("invalid-regex", error = e.to_string()));
                         None
                     }
                 }
@@ -1917,16 +1937,16 @@ impl EttinApp {
                         .fit_to_exact_size(size)
                         .sense(Sense::click()),
                 )
-                .on_hover_text("About Ettin Edit");
+                .on_hover_text(t!("about-ettin-edit"));
             if response.clicked() {
                 self.pending.push(Action::About);
             }
-            ui.menu_button("File", |ui| {
-                self.menu_item(ui, "New", Action::NewTab);
-                self.menu_item(ui, "Open…", Action::Open);
-                ui.menu_button("Open Recent", |ui| {
+            ui.menu_button(t!("menu-file"), |ui| {
+                self.menu_item(ui, &t!("new"), Action::NewTab);
+                self.menu_item(ui, &t!("open-dots"), Action::Open);
+                ui.menu_button(t!("open-recent"), |ui| {
                     if self.settings.recent_files.is_empty() {
-                        ui.label(RichText::new("No recent files").weak());
+                        ui.label(RichText::new(t!("no-recent-files")).weak());
                     }
                     for path in self.settings.recent_files.clone() {
                         if ui.button(path.display().to_string()).clicked() {
@@ -1934,274 +1954,290 @@ impl EttinApp {
                         }
                     }
                     ui.separator();
-                    self.menu_item(ui, "Clear Recent Files", Action::ClearRecent);
+                    self.menu_item(ui, &t!("clear-recent-files"), Action::ClearRecent);
                 });
                 ui.separator();
-                self.menu_item(ui, "Save", Action::Save);
-                self.menu_item(ui, "Save As…", Action::SaveAs);
-                self.menu_item(ui, "Save All", Action::SaveAll);
+                self.menu_item(ui, &t!("save"), Action::Save);
+                self.menu_item(ui, &t!("save-as"), Action::SaveAs);
+                self.menu_item(ui, &t!("save-all"), Action::SaveAll);
                 let has_file = self.docs.get(self.active).is_some_and(|d| d.path.is_some());
                 ui.add_enabled_ui(has_file, |ui| {
-                    self.menu_item(ui, "Reload from Disk", Action::ReloadFromDisk);
-                    self.menu_item(ui, "Rename…", Action::RenameFile);
-                    self.menu_item(ui, "Move to Trash…", Action::MoveToTrash);
+                    self.menu_item(ui, &t!("reload-from-disk"), Action::ReloadFromDisk);
+                    self.menu_item(ui, &t!("rename-dots"), Action::RenameFile);
+                    self.menu_item(ui, &t!("move-to-trash"), Action::MoveToTrash);
                     ui.separator();
-                    self.menu_item(ui, "Open Containing Folder", Action::OpenContainingFolder);
+                    self.menu_item(
+                        ui,
+                        &t!("open-containing-folder"),
+                        Action::OpenContainingFolder,
+                    );
                 });
-                self.menu_item(ui, "Open Terminal Here", Action::OpenTerminalHere);
+                self.menu_item(ui, &t!("open-terminal-here"), Action::OpenTerminalHere);
                 ui.separator();
-                self.menu_item(ui, "Print…", Action::Print);
-                self.menu_item(ui, "Export as HTML…", Action::ExportHtml);
+                self.menu_item(ui, &t!("print-dots"), Action::Print);
+                self.menu_item(ui, &t!("export-html"), Action::ExportHtml);
                 ui.separator();
                 self.menu_item(
                     ui,
-                    "Open Folder as Workspace…",
+                    &t!("open-folder-as-workspace"),
                     Action::OpenFolderAsWorkspace,
                 );
                 if self.settings.workspace.is_some() {
-                    self.menu_item(ui, "Close Workspace", Action::CloseWorkspace);
+                    self.menu_item(ui, &t!("close-workspace"), Action::CloseWorkspace);
                 }
                 ui.separator();
-                self.menu_item(ui, "Close", Action::CloseTab);
-                self.menu_item(ui, "Close All", Action::CloseAll);
-                self.menu_item(ui, "Close Others", Action::CloseOthers);
+                self.menu_item(ui, &t!("close"), Action::CloseTab);
+                self.menu_item(ui, &t!("close-all"), Action::CloseAll);
+                self.menu_item(ui, &t!("close-others"), Action::CloseOthers);
                 ui.separator();
-                self.menu_item(ui, "Exit", Action::Quit);
+                self.menu_item(ui, &t!("exit"), Action::Quit);
             });
-            ui.menu_button("Edit", |ui| self.shared_menu(ui, false));
-            ui.menu_button("Search", |ui| {
-                self.menu_item(ui, "Find…", Action::Find);
-                self.menu_item(ui, "Replace…", Action::Replace);
-                self.menu_item(ui, "Find Next", Action::FindNext);
-                self.menu_item(ui, "Find Previous", Action::FindPrev);
-                self.menu_item(ui, "Find Selected Next", Action::FindSelectedNext);
-                self.menu_item(ui, "Find Selected Previous", Action::FindSelectedPrev);
-                self.menu_item(ui, "Find in Files…", Action::FindInFiles);
+            ui.menu_button(t!("menu-edit"), |ui| self.shared_menu(ui, false));
+            ui.menu_button(t!("menu-search"), |ui| {
+                self.menu_item(ui, &t!("find-dots"), Action::Find);
+                self.menu_item(ui, &t!("replace-dots"), Action::Replace);
+                self.menu_item(ui, &t!("find-next"), Action::FindNext);
+                self.menu_item(ui, &t!("find-previous"), Action::FindPrev);
+                self.menu_item(ui, &t!("find-selected-next"), Action::FindSelectedNext);
+                self.menu_item(ui, &t!("find-selected-previous"), Action::FindSelectedPrev);
+                self.menu_item(ui, &t!("find-in-files"), Action::FindInFiles);
                 ui.separator();
-                self.menu_item(ui, "Find All in Current Document", Action::FindAllInDoc);
-                self.menu_item(ui, "Find All in Open Tabs", Action::FindAllInTabs);
-                self.menu_item(ui, "Select All Matches", Action::SelectAllMatches);
-                self.menu_item(ui, "Mark All", Action::MarkAll { bookmark: false });
-                self.menu_item(ui, "Clear All Marks", Action::ClearMarks);
+                self.menu_item(ui, &t!("find-all-in-document"), Action::FindAllInDoc);
+                self.menu_item(ui, &t!("find-all-in-tabs"), Action::FindAllInTabs);
+                self.menu_item(ui, &t!("select-all-matches"), Action::SelectAllMatches);
+                self.menu_item(ui, &t!("mark-all"), Action::MarkAll { bookmark: false });
+                self.menu_item(ui, &t!("clear-all-marks"), Action::ClearMarks);
                 ui.separator();
-                self.menu_item(ui, "Go to Line…", Action::GoToLine);
-                ui.menu_button("Bookmark", |ui| {
-                    self.menu_item(ui, "Toggle Bookmark", Action::ToggleBookmark);
-                    self.menu_item(ui, "Next Bookmark", Action::NextBookmark);
-                    self.menu_item(ui, "Previous Bookmark", Action::PrevBookmark);
-                    self.menu_item(ui, "Clear All Bookmarks", Action::ClearBookmarks);
+                self.menu_item(ui, &t!("go-to-line"), Action::GoToLine);
+                ui.menu_button(t!("menu-bookmark"), |ui| {
+                    self.menu_item(ui, &t!("toggle-bookmark"), Action::ToggleBookmark);
+                    self.menu_item(ui, &t!("next-bookmark"), Action::NextBookmark);
+                    self.menu_item(ui, &t!("previous-bookmark"), Action::PrevBookmark);
+                    self.menu_item(ui, &t!("clear-all-bookmarks"), Action::ClearBookmarks);
                     ui.separator();
-                    self.menu_item(ui, "Cut Bookmarked Lines", Action::CutBookmarkedLines);
-                    self.menu_item(ui, "Copy Bookmarked Lines", Action::CopyBookmarkedLines);
-                    self.menu_item(ui, "Remove Bookmarked Lines", Action::RemoveBookmarkedLines);
+                    self.menu_item(ui, &t!("cut-bookmarked-lines"), Action::CutBookmarkedLines);
                     self.menu_item(
                         ui,
-                        "Remove Unbookmarked Lines",
+                        &t!("copy-bookmarked-lines"),
+                        Action::CopyBookmarkedLines,
+                    );
+                    self.menu_item(
+                        ui,
+                        &t!("remove-bookmarked-lines"),
+                        Action::RemoveBookmarkedLines,
+                    );
+                    self.menu_item(
+                        ui,
+                        &t!("remove-unbookmarked-lines"),
                         Action::RemoveUnbookmarkedLines,
                     );
-                    self.menu_item(ui, "Inverse Bookmarks", Action::InverseBookmarks);
+                    self.menu_item(ui, &t!("inverse-bookmarks"), Action::InverseBookmarks);
                 });
             });
-            ui.menu_button("View", |ui| {
+            ui.menu_button(t!("menu-view"), |ui| {
                 let s = self.settings.clone();
-                self.toggle_item(ui, "Word Wrap", s.word_wrap, Action::ToggleWordWrap);
+                self.toggle_item(ui, &t!("word-wrap"), s.word_wrap, Action::ToggleWordWrap);
                 self.toggle_item(
                     ui,
-                    "Line Numbers",
+                    &t!("line-numbers"),
                     s.show_line_numbers,
                     Action::ToggleLineNumbers,
                 );
                 self.toggle_item(
                     ui,
-                    "Highlight Current Line",
+                    &t!("highlight-current-line"),
                     s.highlight_current_line,
                     Action::ToggleCurrentLine,
                 );
                 ui.separator();
-                ui.menu_button("Show Symbol", |ui| {
+                ui.menu_button(t!("menu-show-symbol"), |ui| {
                     self.toggle_item(
                         ui,
-                        "Show Whitespace",
+                        &t!("show-whitespace"),
                         s.show_whitespace,
                         Action::ToggleWhitespace,
                     );
-                    self.toggle_item(ui, "Show End of Line", s.show_eol, Action::ToggleEol);
+                    self.toggle_item(ui, &t!("show-end-of-line"), s.show_eol, Action::ToggleEol);
                     self.toggle_item(
                         ui,
-                        "Indent Guides",
+                        &t!("indent-guides"),
                         s.indent_guides,
                         Action::ToggleIndentGuides,
                     );
                 });
                 self.toggle_item(
                     ui,
-                    &format!("Long-Line Marker (column {})", s.edge_column),
+                    &t!("long-line-marker-column", column = s.edge_column),
                     s.show_edge,
                     Action::ToggleEdge,
                 );
                 ui.separator();
                 self.toggle_item(
                     ui,
-                    "Function List",
+                    &t!("function-list"),
                     s.function_list,
                     Action::ToggleFunctionList,
                 );
-                self.toggle_item(ui, "Document Map", s.doc_map, Action::ToggleDocMap);
+                self.toggle_item(ui, &t!("document-map"), s.doc_map, Action::ToggleDocMap);
                 self.toggle_item(
                     ui,
-                    "Folder as Workspace",
+                    &t!("folder-as-workspace"),
                     s.folder_panel,
                     Action::ToggleFolderPanel,
                 );
                 self.toggle_item(
                     ui,
-                    "Distraction-Free Mode",
+                    &t!("distraction-free-mode"),
                     self.distraction_free,
                     Action::ToggleDistractionFree,
                 );
-                self.menu_item(ui, "Tab List…", Action::TabList);
-                self.menu_item(ui, "Command Palette…", Action::CommandPalette);
+                self.menu_item(ui, &t!("tab-list"), Action::TabList);
+                self.menu_item(ui, &t!("command-palette"), Action::CommandPalette);
                 ui.separator();
-                self.menu_item(ui, "Move to Other View", Action::MoveActiveToOtherView);
-                self.menu_item(ui, "Clone to Other View", Action::CloneActiveToOtherView);
+                self.menu_item(ui, &t!("move-to-other-view"), Action::MoveActiveToOtherView);
+                self.menu_item(
+                    ui,
+                    &t!("clone-to-other-view"),
+                    Action::CloneActiveToOtherView,
+                );
                 if self.is_split() {
-                    self.menu_item(ui, "Focus Other View", Action::FocusOtherView);
+                    self.menu_item(ui, &t!("focus-other-view"), Action::FocusOtherView);
                 }
                 ui.separator();
-                ui.menu_button("Folding", |ui| {
-                    self.menu_item(ui, "Fold All", Action::FoldAll);
-                    self.menu_item(ui, "Unfold All", Action::UnfoldAll);
-                    self.menu_item(ui, "Fold Current Level", Action::FoldCurrent);
-                    self.menu_item(ui, "Unfold Current Level", Action::UnfoldCurrent);
+                ui.menu_button(t!("menu-folding"), |ui| {
+                    self.menu_item(ui, &t!("fold-all"), Action::FoldAll);
+                    self.menu_item(ui, &t!("unfold-all"), Action::UnfoldAll);
+                    self.menu_item(ui, &t!("fold-current-level"), Action::FoldCurrent);
+                    self.menu_item(ui, &t!("unfold-current-level"), Action::UnfoldCurrent);
                     ui.separator();
                     for level in 1..=5 {
                         self.menu_item(
                             ui,
-                            &format!("Fold Level {level}"),
+                            &t!("fold-level", level = level),
                             Action::FoldLevel(level),
                         );
                     }
                 });
                 ui.separator();
-                self.menu_item(ui, "Zoom In", Action::ZoomIn);
-                self.menu_item(ui, "Zoom Out", Action::ZoomOut);
-                self.menu_item(ui, "Reset Zoom", Action::ZoomReset);
+                self.menu_item(ui, &t!("zoom-in"), Action::ZoomIn);
+                self.menu_item(ui, &t!("zoom-out"), Action::ZoomOut);
+                self.menu_item(ui, &t!("reset-zoom"), Action::ZoomReset);
                 ui.separator();
-                self.menu_item(ui, "Summary…", Action::Summary);
+                self.menu_item(ui, &t!("summary-dots"), Action::Summary);
             });
-            ui.menu_button("Encoding", |ui| self.encoding_menu(ui));
-            ui.menu_button("Theme", |ui| {
+            ui.menu_button(t!("menu-encoding"), |ui| self.encoding_menu(ui));
+            ui.menu_button(t!("menu-theme"), |ui| {
                 let current = self.theme_idx;
                 let names: Vec<(String, bool, bool)> = self
                     .themes
                     .iter()
                     .map(|t| (t.name.clone(), t.palette.dark, t.custom))
                     .collect();
-                ui.label(RichText::new("Dark").small().weak());
+                ui.label(RichText::new(t!("themes-dark")).small().weak());
                 for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| t.1 && !t.2) {
                     self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
                 }
                 ui.separator();
-                ui.label(RichText::new("Light").small().weak());
+                ui.label(RichText::new(t!("themes-light")).small().weak());
                 for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| !t.1 && !t.2) {
                     self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
                 }
                 if names.iter().any(|t| t.2) {
                     ui.separator();
-                    ui.label(RichText::new("Custom").small().weak());
+                    ui.label(RichText::new(t!("themes-custom")).small().weak());
                     for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| t.2) {
                         self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
                     }
                 }
                 ui.separator();
-                self.menu_item(ui, "Edit Theme Colours…", Action::StyleConfigurator);
-                self.menu_item(ui, "Open Themes Folder", Action::OpenThemesFolder);
-                self.menu_item(ui, "Reload Themes", Action::ReloadThemes);
-                self.menu_item(ui, "Restore Built-in Themes", Action::RestoreThemes);
+                self.menu_item(ui, &t!("edit-theme-colours"), Action::StyleConfigurator);
+                self.menu_item(ui, &t!("open-themes-folder"), Action::OpenThemesFolder);
+                self.menu_item(ui, &t!("reload-themes"), Action::ReloadThemes);
+                self.menu_item(ui, &t!("restore-built-in-themes"), Action::RestoreThemes);
             });
-            ui.menu_button("Language", |ui| self.language_menu(ui));
-            ui.menu_button("Settings", |ui| {
-                self.menu_item(ui, "Preferences…", Action::Preferences);
-                self.menu_item(ui, "Shortcut Mapper…", Action::ShortcutMapper);
+            ui.menu_button(t!("menu-language"), |ui| self.language_menu(ui));
+            ui.menu_button(t!("menu-settings"), |ui| {
+                self.menu_item(ui, &t!("preferences-dots"), Action::Preferences);
+                self.menu_item(ui, &t!("shortcut-mapper-dots"), Action::ShortcutMapper);
                 ui.separator();
                 let s = self.settings.clone();
                 self.toggle_item(
                     ui,
-                    "Auto-Close Brackets and Quotes",
+                    &t!("auto-close-brackets"),
                     s.auto_close,
                     Action::ToggleAutoClose,
                 );
                 self.toggle_item(
                     ui,
-                    "Smart Indentation",
+                    &t!("smart-indentation"),
                     s.smart_indent,
                     Action::ToggleSmartIndent,
                 );
                 self.toggle_item(
                     ui,
-                    "Indent With Spaces",
+                    &t!("indent-with-spaces"),
                     s.use_spaces,
                     Action::ToggleUseSpaces,
                 );
                 self.toggle_item(
                     ui,
-                    "Word Completion",
+                    &t!("word-completion"),
                     s.word_completion,
                     Action::ToggleCompletion,
                 );
                 self.toggle_item(
                     ui,
-                    "Keyword and Function Completion",
+                    &t!("keyword-completion"),
                     s.language_completion,
                     Action::ToggleLanguageCompletion,
                 );
                 self.toggle_item(
                     ui,
-                    "Parameter Hints",
+                    &t!("parameter-hints"),
                     s.parameter_hints,
                     Action::ToggleParameterHints,
                 );
                 ui.separator();
                 self.toggle_item(
                     ui,
-                    "Single Window (Open Files in the Running Ettin Edit)",
+                    &t!("single-window-long"),
                     s.single_instance,
                     Action::ToggleSingleInstance,
                 );
                 self.toggle_item(
                     ui,
-                    "Remember Unsaved Changes on Exit",
+                    &t!("remember-unsaved"),
                     s.remember_unsaved,
                     Action::ToggleRememberUnsaved,
                 );
                 self.toggle_item(
                     ui,
-                    "Reload Files Changed on Disk Automatically",
+                    &t!("auto-reload"),
                     s.auto_reload,
                     Action::ToggleAutoReload,
                 );
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("Long-line column");
+                    ui.label(t!("long-line-column"));
                     ui.add(egui::DragValue::new(&mut self.settings.edge_column).range(10..=400));
                 });
             });
-            ui.menu_button("Tools", |ui| self.shared_menu(ui, true));
-            ui.menu_button("Plugins", |ui| self.plugins_menu(ui));
-            ui.menu_button("Macro", |ui| self.macro_menu(ui));
-            ui.menu_button("Help", |ui| {
-                self.menu_item(ui, "User Manual", Action::UserManual);
-                self.menu_item(ui, "User Manual on the Web", Action::WebManual);
+            ui.menu_button(t!("menu-tools"), |ui| self.shared_menu(ui, true));
+            ui.menu_button(t!("menu-plugins"), |ui| self.plugins_menu(ui));
+            ui.menu_button(t!("menu-macro"), |ui| self.macro_menu(ui));
+            ui.menu_button(t!("menu-help"), |ui| {
+                self.menu_item(ui, &t!("user-manual"), Action::UserManual);
+                self.menu_item(ui, &t!("user-manual-web"), Action::WebManual);
                 ui.separator();
-                self.menu_item(ui, "Check for Updates…", Action::CheckForUpdates);
+                self.menu_item(ui, &t!("check-for-updates"), Action::CheckForUpdates);
                 self.toggle_item(
                     ui,
-                    "Check for Updates Automatically",
+                    &t!("check-updates-automatically"),
                     self.settings.check_updates,
                     Action::ToggleUpdateCheck,
                 );
                 ui.separator();
-                self.menu_item(ui, "About Ettin Edit", Action::About);
+                self.menu_item(ui, &t!("about-ettin-edit"), Action::About);
             });
         });
     }
@@ -2214,15 +2250,15 @@ impl EttinApp {
         let current = doc.encoding;
         let has_file = doc.path.is_some();
         let mut picked = None;
-        ui.label(RichText::new("Save as").small().weak());
+        ui.label(RichText::new(t!("encoding-save-as")).small().weak());
         file_ui::encoding_menu(ui, current, Action::ConvertEncoding, &mut picked);
         ui.separator();
         ui.add_enabled_ui(has_file, |ui| {
-            ui.menu_button("Reopen With", |ui| {
+            ui.menu_button(t!("reopen-with"), |ui| {
                 file_ui::encoding_menu(ui, current, Action::ReopenWithEncoding, &mut picked);
             })
             .response
-            .on_disabled_hover_text("Only for files that are saved on disk");
+            .on_disabled_hover_text(t!("only-saved-files"));
         });
         self.pending.extend(picked);
     }
@@ -2231,15 +2267,15 @@ impl EttinApp {
         let recording = self.recorder.is_recording();
         let has_macro = !self.recorder.current.is_empty();
         let label = if recording {
-            "Stop Recording"
+            t!("stop-recording")
         } else {
-            "Start Recording"
+            t!("start-recording")
         };
-        self.menu_item(ui, label, Action::ToggleMacroRecording);
+        self.menu_item(ui, &label, Action::ToggleMacroRecording);
         ui.add_enabled_ui(!recording && has_macro, |ui| {
-            self.menu_item(ui, "Playback", Action::PlayMacro);
-            self.menu_item(ui, "Run a Macro Multiple Times…", Action::RunMacroMultiple);
-            self.menu_item(ui, "Save Current Macro…", Action::SaveMacro);
+            self.menu_item(ui, &t!("playback"), Action::PlayMacro);
+            self.menu_item(ui, &t!("run-macro-multiple"), Action::RunMacroMultiple);
+            self.menu_item(ui, &t!("save-current-macro"), Action::SaveMacro);
         });
         if !self.settings.macros.is_empty() {
             ui.separator();
@@ -2254,7 +2290,7 @@ impl EttinApp {
                     self.menu_item(ui, name, Action::PlaySavedMacro(i));
                 }
             });
-            ui.menu_button("Delete Saved Macro", |ui| {
+            ui.menu_button(t!("delete-saved-macro"), |ui| {
                 for (i, name) in names.iter().enumerate() {
                     self.menu_item(ui, name, Action::DeleteSavedMacro(i));
                 }
@@ -2299,11 +2335,19 @@ impl EttinApp {
             });
         }
         ui.separator();
-        self.menu_item(ui, "New Language…", Action::NewLanguage);
-        self.menu_item(ui, "Open Languages Folder", Action::OpenLanguagesFolder);
-        self.menu_item(ui, "Open Completion Lists Folder", Action::OpenApiFolder);
-        self.menu_item(ui, "Reload Languages", Action::ReloadLanguages);
-        self.menu_item(ui, "Language Guide", Action::LanguageGuide);
+        self.menu_item(ui, &t!("new-language"), Action::NewLanguage);
+        self.menu_item(
+            ui,
+            &t!("open-languages-folder"),
+            Action::OpenLanguagesFolder,
+        );
+        self.menu_item(
+            ui,
+            &t!("open-completion-lists-folder"),
+            Action::OpenApiFolder,
+        );
+        self.menu_item(ui, &t!("reload-languages"), Action::ReloadLanguages);
+        self.menu_item(ui, &t!("language-guide"), Action::LanguageGuide);
     }
 
     /// The tabs of one view.
@@ -2326,7 +2370,7 @@ impl EttinApp {
             list_rect,
             egui::Button::new(RichText::new("⏷").size(12.0).color(palette.text_dim)).frame(false),
         );
-        if list.on_hover_text("All open tabs").clicked() {
+        if list.on_hover_text(t!("all-open-tabs")).clicked() {
             self.pending.push(Action::TabList);
         }
         ui.allocate_rect(
@@ -2356,7 +2400,7 @@ impl EttinApp {
                         egui::Button::new(RichText::new("+").size(16.0).color(palette.text_dim))
                             .frame(false),
                     );
-                    if plus.on_hover_text("New tab").clicked() {
+                    if plus.on_hover_text(t!("new-tab")).clicked() {
                         if view != self.split.focused {
                             self.pending.push(Action::FocusOtherView);
                         }
@@ -2529,45 +2573,49 @@ impl EttinApp {
             None => response,
         };
         response.context_menu(|ui| {
-            if ui.button("Close").clicked() {
+            if ui.button(t!("close")).clicked() {
                 self.pending.push(Action::CloseTabInView(index, view));
             }
-            if ui.button("Close Others").clicked() {
+            if ui.button(t!("close-others")).clicked() {
                 self.pending.push(Action::SelectTabInView(index, view));
                 self.pending.push(Action::CloseOthers);
             }
             if ui
-                .button(if pinned { "Unpin Tab" } else { "Pin Tab" })
+                .button(if pinned {
+                    t!("unpin-tab")
+                } else {
+                    t!("pin-tab")
+                })
                 .clicked()
             {
                 self.pending.push(Action::TogglePin(index));
             }
             ui.separator();
-            if ui.button("Move to Other View").clicked() {
+            if ui.button(t!("move-to-other-view")).clicked() {
                 self.pending.push(Action::MoveToOtherView(index, view));
             }
-            if ui.button("Clone to Other View").clicked() {
+            if ui.button(t!("clone-to-other-view")).clicked() {
                 self.pending.push(Action::CloneToOtherView(index, view));
             }
             if let Some(p) = &path {
                 ui.separator();
                 for (label, action) in [
-                    ("Reload from Disk", Action::ReloadFromDisk),
-                    ("Rename…", Action::RenameFile),
-                    ("Move to Trash…", Action::MoveToTrash),
-                    ("Open Containing Folder", Action::OpenContainingFolder),
-                    ("Open Terminal Here", Action::OpenTerminalHere),
+                    (&t!("reload-from-disk"), Action::ReloadFromDisk),
+                    (&t!("rename-dots"), Action::RenameFile),
+                    (&t!("move-to-trash"), Action::MoveToTrash),
+                    (&t!("open-containing-folder"), Action::OpenContainingFolder),
+                    (&t!("open-terminal-here"), Action::OpenTerminalHere),
                 ] {
-                    if ui.button(label).clicked() {
+                    if ui.button(label.as_str()).clicked() {
                         self.pending.push(Action::SelectTabInView(index, view));
                         self.pending.push(action);
                     }
                 }
                 ui.separator();
-                if ui.button("Copy Full Path").clicked() {
+                if ui.button(t!("copy-full-path")).clicked() {
                     ui.ctx().copy_text(p.display().to_string());
                 }
-                if ui.button("Copy File Name").clicked() {
+                if ui.button(t!("copy-file-name")).clicked() {
                     ui.ctx().copy_text(
                         p.file_name()
                             .unwrap_or_default()
@@ -2692,7 +2740,11 @@ impl EttinApp {
                     }
                 });
             });
-            ui.label(dim(format!("length: {length}   lines: {lines}")));
+            ui.label(dim(t!(
+                "status-length-lines",
+                length = length,
+                lines = lines
+            )));
             if let Some(path) = xpath {
                 let shown = if path.chars().count() > 80 {
                     let tail: String = path.chars().rev().take(79).collect();
@@ -2702,7 +2754,7 @@ impl EttinApp {
                 };
                 if ui
                     .add(egui::Label::new(dim(shown)).sense(Sense::click()))
-                    .on_hover_text(format!("{path}\nClick to copy"))
+                    .on_hover_text(format!("{path}\n{}", t!("click-to-copy")))
                     .clicked()
                 {
                     self.pending.push(Action::CopyXPath);
@@ -2710,15 +2762,15 @@ impl EttinApp {
             }
             if recording {
                 ui.label(
-                    RichText::new("● Recording macro")
+                    RichText::new(format!("● {}", t!("recording-macro")))
                         .size(12.0)
                         .color(palette.modified),
                 );
             }
             if read_only
                 && ui
-                    .add(egui::Label::new(dim("Read-only".to_owned())).sense(Sense::click()))
-                    .on_hover_text("Click to allow editing")
+                    .add(egui::Label::new(dim(t!("read-only-status"))).sense(Sense::click()))
+                    .on_hover_text(t!("click-to-allow-editing"))
                     .clicked()
             {
                 self.pending.push(Action::ToggleReadOnly);
@@ -2731,22 +2783,24 @@ impl EttinApp {
                     for le in [LineEnding::CrLf, LineEnding::Lf, LineEnding::Cr] {
                         self.toggle_item(
                             ui,
-                            le.label(),
+                            &le.label(),
                             le == line_ending,
                             Action::SetLineEnding(le),
                         );
                     }
                 });
-                let mut position = format!("Ln {line}, Col {col}");
+                let mut position = t!("status-position", line = line, column = col);
                 if sel > 0 {
-                    position += &format!("   Sel {sel}");
+                    position += "   ";
+                    position += &t!("status-selection", count = sel);
                 }
                 if carets > 1 {
-                    position += &format!("   {carets} carets");
+                    position += "   ";
+                    position += &t!("status-carets", count = carets);
                 }
                 if ui
                     .add(egui::Label::new(dim(position)).sense(Sense::click()))
-                    .on_hover_text("Go to line (Ctrl+G)")
+                    .on_hover_text(t!("go-to-line-hover"))
                     .clicked()
                 {
                     self.pending.push(Action::GoToLine);
@@ -2777,24 +2831,22 @@ impl EttinApp {
                     let mut choice = None;
                     egui::Modal::new(Id::new("unsaved-changes")).show(ctx, |ui| {
                         ui.set_width(360.0);
-                        ui.heading("Save changes?");
+                        ui.heading(t!("save-changes-title"));
                         ui.add_space(6.0);
-                        ui.label(format!(
-                            "\"{name}\" has unsaved changes. Save them before closing?"
-                        ));
+                        ui.label(t!("save-changes-question", name = name.clone()));
                         ui.add_space(12.0);
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui.button("Cancel").clicked()
+                            if ui.button(t!("cancel")).clicked()
                                 || ui.input(|i| i.key_pressed(Key::Escape))
                             {
                                 choice = Some(0);
                             }
-                            if ui.button("Don't Save").clicked() {
+                            if ui.button(t!("dont-save")).clicked() {
                                 choice = Some(1);
                             }
                             if ui
                                 .add(
-                                    egui::Button::new("Save")
+                                    egui::Button::new(t!("save"))
                                         .fill(self.palette().accent.gamma_multiply(0.6)),
                                 )
                                 .clicked()
@@ -2865,6 +2917,15 @@ impl EttinApp {
                 }
                 crate::prefs_ui::PrefsEvent::Shortcuts => self.pending.push(Action::ShortcutMapper),
                 crate::prefs_ui::PrefsEvent::Styles => self.pending.push(Action::StyleConfigurator),
+                crate::prefs_ui::PrefsEvent::Language => {
+                    let errors = crate::i18n::set_language(&self.settings.ui_language);
+                    self.errors.extend(errors);
+                }
+                crate::prefs_ui::PrefsEvent::TranslationsFolder => {
+                    if let Err(e) = crate::i18n::open_translations_folder() {
+                        self.errors.push(e);
+                    }
+                }
             }
         }
         crate::editor::layout::set_tab_width(self.settings.tab_width);
@@ -2983,9 +3044,11 @@ impl EttinApp {
                     if let Some(path) = path {
                         match trash::delete(&path) {
                             Ok(()) => self.remove_doc(id),
-                            Err(e) => self
-                                .errors
-                                .push(format!("Couldn't move {name} to the trash: {e}")),
+                            Err(e) => self.errors.push(t!(
+                                "trash-failed",
+                                name = name.clone(),
+                                error = e.to_string()
+                            )),
                         }
                     }
                 }
@@ -3016,12 +3079,12 @@ impl EttinApp {
                             .strong()
                             .color(self.palette().accent),
                     );
-                    ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+                    ui.label(t!("about-version", version = env!("CARGO_PKG_VERSION")));
                     ui.add_space(8.0);
-                    ui.label("A fast, modern text editor for Linux and Windows.");
-                    ui.label(RichText::new("Written in Rust with egui and syntect.").weak());
+                    ui.label(t!("about-tagline"));
+                    ui.label(RichText::new(t!("about-built-with")).weak());
                     ui.add_space(12.0);
-                    if ui.button("Close").clicked() {
+                    if ui.button(t!("close")).clicked() {
                         self.show_about = false;
                     }
                 });
@@ -3034,12 +3097,12 @@ impl EttinApp {
         if let Some(message) = self.errors.first().cloned() {
             let response = egui::Modal::new(Id::new("error")).show(ctx, |ui| {
                 ui.set_width(400.0);
-                ui.heading("Something went wrong");
+                ui.heading(t!("error-title"));
                 ui.add_space(6.0);
                 ui.label(message);
                 ui.add_space(12.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.button("OK").clicked()
+                    ui.button(t!("ok")).clicked()
                 })
                 .inner
             });

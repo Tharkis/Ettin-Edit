@@ -231,8 +231,8 @@ fn completion_label(
             }
             Some(d)
         }
-        (None, ItemKind::Keyword) => Some("keyword".to_owned()),
-        (None, ItemKind::Function) => Some("function".to_owned()),
+        (None, ItemKind::Keyword) => Some(t!("completion-keyword")),
+        (None, ItemKind::Function) => Some(t!("completion-function")),
         (None, ItemKind::Word) => None,
     };
     if let Some(note) = note {
@@ -1395,33 +1395,37 @@ impl Editor {
             let has_sel = self.selections.has_selection();
             let ctx = ui.ctx().clone();
             if ui
-                .add_enabled(self.buffer.can_undo(), egui::Button::new("Undo"))
+                .add_enabled(self.buffer.can_undo(), egui::Button::new(t!("undo")))
                 .clicked()
             {
                 self.undo();
             }
             if ui
-                .add_enabled(self.buffer.can_redo(), egui::Button::new("Redo"))
+                .add_enabled(self.buffer.can_redo(), egui::Button::new(t!("redo")))
                 .clicked()
             {
                 self.redo();
             }
             ui.separator();
-            if ui.add_enabled(has_sel, egui::Button::new("Cut")).clicked()
+            if ui
+                .add_enabled(has_sel, egui::Button::new(t!("cut")))
+                .clicked()
                 && let Some(t) = self.cut(&ctx)
             {
                 ctx.copy_text(t);
             }
-            if ui.add_enabled(has_sel, egui::Button::new("Copy")).clicked()
+            if ui
+                .add_enabled(has_sel, egui::Button::new(t!("copy")))
+                .clicked()
                 && let Some(t) = self.selected_text()
             {
                 ctx.copy_text(t);
             }
-            if ui.button("Paste").clicked() {
+            if ui.button(t!("paste")).clicked() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
             }
             ui.separator();
-            if ui.button("Select All").clicked() {
+            if ui.button(t!("select-all")).clicked() {
                 self.select_all();
             }
         });

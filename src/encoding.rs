@@ -30,12 +30,13 @@ impl Default for TextEncoding {
     }
 }
 
-/// Named groups of legacy encodings for the Encoding menu: (group, [(label, encoding)]).
+/// Named groups of legacy encodings for the Encoding menu: (message id of the
+/// group's name, [(label, encoding)]).
 pub fn legacy_groups() -> Vec<(&'static str, Vec<(&'static str, &'static Encoding)>)> {
     use encoding_rs::*;
     vec![
         (
-            "Western European",
+            "enc-western-european",
             vec![
                 ("Windows-1252 / ISO-8859-1", WINDOWS_1252),
                 ("ISO-8859-15", ISO_8859_15),
@@ -45,11 +46,11 @@ pub fn legacy_groups() -> Vec<(&'static str, Vec<(&'static str, &'static Encodin
             ],
         ),
         (
-            "Central European",
+            "enc-central-european",
             vec![("Windows-1250", WINDOWS_1250), ("ISO-8859-2", ISO_8859_2)],
         ),
         (
-            "Cyrillic",
+            "enc-cyrillic",
             vec![
                 ("Windows-1251", WINDOWS_1251),
                 ("ISO-8859-5", ISO_8859_5),
@@ -59,43 +60,46 @@ pub fn legacy_groups() -> Vec<(&'static str, Vec<(&'static str, &'static Encodin
             ],
         ),
         (
-            "Greek",
+            "enc-greek",
             vec![("Windows-1253", WINDOWS_1253), ("ISO-8859-7", ISO_8859_7)],
         ),
-        ("Turkish", vec![("Windows-1254 / ISO-8859-9", WINDOWS_1254)]),
         (
-            "Baltic",
+            "enc-turkish",
+            vec![("Windows-1254 / ISO-8859-9", WINDOWS_1254)],
+        ),
+        (
+            "enc-baltic",
             vec![
                 ("Windows-1257", WINDOWS_1257),
                 ("ISO-8859-4", ISO_8859_4),
                 ("ISO-8859-13", ISO_8859_13),
             ],
         ),
-        ("Nordic", vec![("ISO-8859-10", ISO_8859_10)]),
+        ("enc-nordic", vec![("ISO-8859-10", ISO_8859_10)]),
         (
-            "Hebrew",
+            "enc-hebrew",
             vec![("Windows-1255", WINDOWS_1255), ("ISO-8859-8", ISO_8859_8)],
         ),
         (
-            "Arabic",
+            "enc-arabic",
             vec![("Windows-1256", WINDOWS_1256), ("ISO-8859-6", ISO_8859_6)],
         ),
-        ("Vietnamese", vec![("Windows-1258", WINDOWS_1258)]),
-        ("Thai", vec![("Windows-874", WINDOWS_874)]),
-        ("Romanian", vec![("ISO-8859-16", ISO_8859_16)]),
+        ("enc-vietnamese", vec![("Windows-1258", WINDOWS_1258)]),
+        ("enc-thai", vec![("Windows-874", WINDOWS_874)]),
+        ("enc-romanian", vec![("ISO-8859-16", ISO_8859_16)]),
         (
-            "Chinese",
+            "enc-chinese",
             vec![("GBK / GB2312", GBK), ("GB18030", GB18030), ("Big5", BIG5)],
         ),
         (
-            "Japanese",
+            "enc-japanese",
             vec![
                 ("Shift_JIS", SHIFT_JIS),
                 ("EUC-JP", EUC_JP),
                 ("ISO-2022-JP", ISO_2022_JP),
             ],
         ),
-        ("Korean", vec![("EUC-KR", EUC_KR)]),
+        ("enc-korean", vec![("EUC-KR", EUC_KR)]),
     ]
 }
 

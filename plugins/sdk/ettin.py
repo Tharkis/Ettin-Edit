@@ -43,7 +43,8 @@ _queue = deque()
 _commands = {}
 _handlers = {}
 _panel_handlers = {}
-#: What Ettin Edit sent at start: plugin id, Ettin Edit version, API version.
+#: What Ettin Edit sent at start: plugin id, Ettin Edit version, API version
+#: and interface language.
 info = {}
 
 
@@ -261,6 +262,12 @@ def run_action(action):
     """Runs one of Ettin Edit's own commands, like "Duplicate", "SelectAll" or
     {"SortLines": {"kind": "IgnoreCase", "desc": False}}."""
     call("editor.runAction", action=action)
+
+
+def ui_language():
+    """The language Ettin Edit's menus are in now, like "en" or "de". Use it to
+    pick the language of your own commands and messages."""
+    return call("app.language")
 
 
 def log(*args):

@@ -103,7 +103,7 @@ impl FindBar {
         match Query::new(&self.find, opts) {
             Ok(q) => q,
             Err(e) => {
-                self.message = Some(format!("Invalid regex: {e}"));
+                self.message = Some(t!("invalid-regex", error = e.to_string()));
                 None
             }
         }
@@ -142,19 +142,20 @@ impl FindBar {
                         .frame(false)
                         .min_size(Vec2::new(18.0, 22.0)),
                 )
-                .on_hover_text("Toggle replace")
+                .on_hover_text(t!("toggle-replace"))
                 .clicked()
             {
                 self.replace_mode = !self.replace_mode;
             }
 
+            let invalid = t!("invalid-regex", error = "");
             let error = self
                 .message
                 .as_deref()
-                .is_some_and(|m| m.starts_with("Invalid"));
+                .is_some_and(|m| m.starts_with(&invalid));
             let field = egui::TextEdit::singleline(&mut self.find)
                 .id(Id::new(FIND_FIELD))
-                .hint_text("Find")
+                .hint_text(t!("find-hint"))
                 .desired_width(280.0)
                 .margin(Margin::symmetric(6, 3))
                 .text_color_opt(error.then_some(palette.modified));
@@ -186,33 +187,37 @@ impl FindBar {
                 }
             }
 
-            changed |= option_toggle(ui, "Aa", &mut opts.match_case, "Match case");
-            changed |= option_toggle(ui, "W", &mut opts.whole_word, "Whole word");
-            changed |= option_toggle(ui, ".*", &mut opts.regex, "Regular expression");
+            changed |= option_toggle(ui, "Aa", &mut opts.match_case, &t!("match-case"));
+            changed |= option_toggle(ui, "W", &mut opts.whole_word, &t!("whole-word"));
+            changed |= option_toggle(ui, ".*", &mut opts.regex, &t!("regular-expression"));
 
             let count = match self.count {
                 _ if self.find.is_empty() => None,
-                Some((0, _)) => Some("No results".to_owned()),
+                Some((0, _)) => Some(t!("no-results")),
                 Some((n, more)) => {
                     let total = if more { format!("{n}+") } else { n.to_string() };
                     Some(match self.current {
-                        Some(i) => format!("{} of {total}", i + 1),
-                        None => format!("{total} found"),
+                        Some(i) => t!("match-of-total", current = i + 1, total = total),
+                        None => t!("matches-found", total = total),
                     })
                 }
                 None => None,
             };
             let message = self.message.clone();
-            let bad = |m: &str| {
-                m.starts_with("Invalid")
-                    || matches!(m, "Not found" | "No results" | "No more matches")
-            };
+            let bad_messages = [t!("not-found"), t!("no-results"), t!("no-more-matches")];
+            let bad = |m: &str| m.starts_with(&invalid) || bad_messages.iter().any(|b| b == m);
             let warn = message
                 .as_deref()
                 .map_or(matches!(self.count, Some((0, _))), bad);
             let status = match (count, message) {
                 (_, Some(m)) if bad(&m) => m,
-                (Some(c), Some(m)) if c != m => format!("{c}, {}", m.to_lowercase()),
+                (Some(c), Some(m)) if c != m => {
+                    // The note continues the sentence: "3 of 9, wrapped to the top".
+                    let mut chars = m.chars();
+                    let first = chars.next().map(|f| f.to_lowercase().to_string());
+                    let m = first.unwrap_or_default() + chars.as_str();
+                    t!("find-status", count = c, message = m)
+                }
                 (c, m) => m.or(c).unwrap_or_default(),
             };
             ui.add_sized(
@@ -225,41 +230,41 @@ impl FindBar {
                 .truncate(),
             );
 
-            if icon_button(ui, "↑", "Previous match (Shift+F3)") {
+            if icon_button(ui, "↑", &t!("previous-match")) {
                 actions.push(Action::FindPrev);
             }
-            if icon_button(ui, "↓", "Next match (F3)") {
+            if icon_button(ui, "↓", &t!("next-match")) {
                 actions.push(Action::FindNext);
             }
             ui.menu_button(RichText::new("…").size(14.0), |ui| {
-                ui.checkbox(&mut opts.wrap, "Wrap around");
+                ui.checkbox(&mut opts.wrap, t!("wrap-around"));
                 ui.separator();
                 for (label, action) in [
-                    ("Find All in Current Document", Action::FindAllInDoc),
-                    ("Find All in Open Tabs", Action::FindAllInTabs),
-                    ("Select All Matches", Action::SelectAllMatches),
+                    ("find-all-in-document", Action::FindAllInDoc),
+                    ("find-all-in-tabs", Action::FindAllInTabs),
+                    ("select-all-matches", Action::SelectAllMatches),
                 ] {
-                    if ui.button(label).clicked() {
+                    if ui.button(crate::i18n::tr(label)).clicked() {
                         actions.push(action);
                     }
                 }
                 ui.separator();
-                if ui.button("Mark All").clicked() {
+                if ui.button(t!("mark-all")).clicked() {
                     actions.push(Action::MarkAll { bookmark: false });
                 }
-                if ui.button("Mark All and Bookmark Lines").clicked() {
+                if ui.button(t!("mark-all-bookmark")).clicked() {
                     actions.push(Action::MarkAll { bookmark: true });
                 }
-                if ui.button("Clear All Marks").clicked() {
+                if ui.button(t!("clear-all-marks")).clicked() {
                     actions.push(Action::ClearMarks);
                 }
                 ui.separator();
-                if ui.button("Find in Files…").clicked() {
+                if ui.button(t!("find-in-files")).clicked() {
                     actions.push(Action::FindInFiles);
                 }
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if icon_button(ui, "×", "Close (Esc)") {
+                if icon_button(ui, "×", &t!("close-esc")) {
                     actions.push(Action::CloseFindBar);
                 }
             });
@@ -273,9 +278,9 @@ impl FindBar {
                     egui::TextEdit::singleline(&mut self.replace)
                         .id(Id::new(REPLACE_FIELD))
                         .hint_text(if opts.regex {
-                            r"Replace  ($1 or \1 for groups)"
+                            t!("replace-hint-regex")
                         } else {
-                            "Replace"
+                            t!("replace")
                         })
                         .desired_width(280.0)
                         .margin(Margin::symmetric(6, 3)),
@@ -287,16 +292,16 @@ impl FindBar {
                     actions.push(Action::CloseFindBar);
                 }
                 if ui
-                    .button("Replace")
-                    .on_hover_text("Replace this match and find the next")
+                    .button(t!("replace"))
+                    .on_hover_text(t!("replace-hover"))
                     .clicked()
                 {
                     actions.push(Action::ReplaceOne);
                 }
-                if ui.button("Replace All").clicked() {
+                if ui.button(t!("replace-all")).clicked() {
                     actions.push(Action::ReplaceAll);
                 }
-                ui.checkbox(&mut self.in_selection, "In selection");
+                ui.checkbox(&mut self.in_selection, t!("in-selection"));
             });
         }
         changed
@@ -376,7 +381,7 @@ impl Results {
     pub fn stop(&mut self) {
         if let Some(job) = self.job.take() {
             job.cancel.store(true, Ordering::Relaxed);
-            self.note = "stopped".to_owned();
+            self.note = t!("search-stopped");
         }
     }
 
@@ -401,7 +406,7 @@ impl Results {
         if let Some((files, truncated)) = finished {
             self.job = None;
             self.truncated = truncated;
-            self.note = format!("searched {files} file{}", if files == 1 { "" } else { "s" });
+            self.note = t!("searched-files", count = files);
             return false;
         }
         true
@@ -434,24 +439,20 @@ impl Results {
         ui.horizontal(|ui| {
             let hits = self.total_hits();
             let groups = self.groups.len();
-            let unit = self.unit.unwrap_or("hit");
-            let mut summary = format!(
-                "{hits}{} {unit}{} in {groups} {}",
-                if self.truncated { "+" } else { "" },
-                if hits == 1 { "" } else { "s" },
-                if self
-                    .groups
-                    .first()
-                    .is_some_and(|g| matches!(g.source, Source::File(_)))
-                    || self.job.is_some()
-                {
-                    if groups == 1 { "file" } else { "files" }
-                } else if groups == 1 {
-                    "document"
-                } else {
-                    "documents"
-                }
-            );
+            let mut args = crate::i18n::Args::new();
+            args.set("count", hits);
+            args.set("plus", if self.truncated { "+" } else { "" });
+            let found = crate::i18n::tr_args(self.unit.unwrap_or("results-hits"), &args);
+            let files = self
+                .groups
+                .first()
+                .is_some_and(|g| matches!(g.source, Source::File(_)))
+                || self.job.is_some();
+            let mut summary = if files {
+                t!("results-in-files", found = found, count = groups)
+            } else {
+                t!("results-in-documents", found = found, count = groups)
+            };
             if !self.note.is_empty() {
                 summary += &format!(" ({})", self.note);
             }
@@ -459,20 +460,20 @@ impl Results {
             ui.label(RichText::new(summary).size(12.0).color(palette.text_dim));
             if self.job.is_some() {
                 ui.spinner();
-                if ui.small_button("Stop").clicked() {
+                if ui.small_button(t!("stop")).clicked() {
                     self.stop();
                 }
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if icon_button(ui, "×", "Close results") {
+                if icon_button(ui, "×", &t!("close-results")) {
                     self.stop();
                     self.open = false;
                 }
-                if ui.small_button("Collapse All").clicked() {
+                if ui.small_button(t!("collapse-all")).clicked() {
                     self.groups.iter_mut().for_each(|g| g.collapsed = true);
                     self.rows_dirty = true;
                 }
-                if ui.small_button("Expand All").clicked() {
+                if ui.small_button(t!("expand-all")).clicked() {
                     self.groups.iter_mut().for_each(|g| g.collapsed = false);
                     self.rows_dirty = true;
                 }
@@ -620,10 +621,10 @@ impl GotoDialog {
         let mut close = false;
         let response = egui::Modal::new(Id::new("goto-line")).show(ctx, |ui| {
             ui.set_width(300.0);
-            ui.heading("Go to Line");
+            ui.heading(t!("go-to-line-title"));
             ui.add_space(6.0);
             ui.label(
-                RichText::new(format!("Line number (1–{lines}), or line:column"))
+                RichText::new(t!("go-to-line-prompt", lines = lines))
                     .size(12.0)
                     .color(palette.text_dim),
             );
@@ -641,7 +642,7 @@ impl GotoDialog {
             }
             if self.error {
                 ui.label(
-                    RichText::new("Enter a line number")
+                    RichText::new(t!("enter-line-number"))
                         .color(palette.modified)
                         .size(12.0),
                 );
@@ -652,10 +653,10 @@ impl GotoDialog {
                 Vec2::new(ui.available_width(), 26.0),
                 Layout::right_to_left(Align::Center),
                 |ui| {
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t!("cancel")).clicked() {
                         close = true;
                     }
-                    if ui.button("Go").clicked() || enter {
+                    if ui.button(t!("go")).clicked() || enter {
                         match parse_line_col(&self.text) {
                             Some((l, c)) => {
                                 result = Some((l.saturating_sub(1), c.saturating_sub(1)));
@@ -740,14 +741,14 @@ impl FifDialog {
         let mut close = false;
         let response = egui::Modal::new(Id::new("find-in-files")).show(ctx, |ui| {
             ui.set_width(520.0);
-            ui.heading("Find in Files");
+            ui.heading(t!("find-in-files-heading"));
             ui.add_space(8.0);
             let mut enter = false;
             egui::Grid::new("fif-grid")
                 .num_columns(2)
                 .spacing([10.0, 8.0])
                 .show(ui, |ui| {
-                    ui.label("Find what");
+                    ui.label(t!("find-what"));
                     let field = ui.add(
                         egui::TextEdit::singleline(&mut self.find)
                             .desired_width(f32::INFINITY)
@@ -760,7 +761,7 @@ impl FifDialog {
                     enter |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                     ui.end_row();
 
-                    ui.label("Folder");
+                    ui.label(t!("folder"));
                     ui.horizontal(|ui| {
                         let browse_w = 80.0;
                         let field = ui.add(
@@ -769,8 +770,9 @@ impl FifDialog {
                                 .margin(Margin::symmetric(6, 4)),
                         );
                         enter |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                        if ui.button("Browse…").clicked() {
-                            let mut dialog = rfd::FileDialog::new().set_title("Search in folder");
+                        if ui.button(t!("browse")).clicked() {
+                            let mut dialog =
+                                rfd::FileDialog::new().set_title(t!("search-in-folder"));
                             if !self.dir.is_empty() {
                                 dialog = dialog.set_directory(&self.dir);
                             }
@@ -781,29 +783,29 @@ impl FifDialog {
                     });
                     ui.end_row();
 
-                    ui.label("Files");
+                    ui.label(t!("prefs-files"));
                     let field = ui
                         .add(
                             egui::TextEdit::singleline(&mut self.filters)
-                                .hint_text("*.rs *.toml   (empty for all files, !name to skip)")
+                                .hint_text(t!("file-filter-hint"))
                                 .desired_width(f32::INFINITY)
                                 .margin(Margin::symmetric(6, 4)),
                         )
-                        .on_hover_text("File name patterns separated by spaces or semicolons. Start one with ! to leave those files out.");
+                        .on_hover_text(t!("file-filter-hover"));
                     enter |= field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                     ui.end_row();
 
                     ui.label("");
                     ui.horizontal_wrapped(|ui| {
-                        ui.checkbox(&mut opts.match_case, "Match case");
-                        ui.checkbox(&mut opts.whole_word, "Whole word");
-                        ui.checkbox(&mut opts.regex, "Regular expression");
+                        ui.checkbox(&mut opts.match_case, t!("match-case"));
+                        ui.checkbox(&mut opts.whole_word, t!("whole-word"));
+                        ui.checkbox(&mut opts.regex, t!("regular-expression"));
                     });
                     ui.end_row();
                     ui.label("");
                     ui.horizontal_wrapped(|ui| {
-                        ui.checkbox(&mut self.subfolders, "Include subfolders");
-                        ui.checkbox(&mut self.hidden, "Include hidden files and folders");
+                        ui.checkbox(&mut self.subfolders, t!("include-subfolders"));
+                        ui.checkbox(&mut self.hidden, t!("include-hidden"));
                     });
                     ui.end_row();
                 });
@@ -812,34 +814,38 @@ impl FifDialog {
                 ui.label(RichText::new(e).color(palette.modified).size(12.0));
             }
             ui.add_space(10.0);
-            ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), 26.0), Layout::right_to_left(Align::Center), |ui| {
-                if ui.button("Cancel").clicked() {
-                    close = true;
-                }
-                let go = ui.add(
-                    egui::Button::new("Find All").fill(palette.accent.gamma_multiply(0.6)),
-                );
-                if go.clicked() || enter {
-                    let dir = PathBuf::from(self.dir.trim());
-                    if self.find.is_empty() {
-                        self.error = Some("Enter something to search for.".into());
-                    } else if !dir.is_dir() {
-                        self.error = Some("That folder doesn't exist.".into());
-                    } else if let Err(e) = Query::new(&self.find, opts) {
-                        self.error = Some(format!("Invalid regex: {e}"));
-                    } else {
-                        request = Some(FifRequest {
-                            find: self.find.clone(),
-                            dir,
-                            filters: self.filters.clone(),
-                            subfolders: self.subfolders,
-                            hidden: self.hidden,
-                            opts: *opts,
-                        });
+            ui.allocate_ui_with_layout(
+                Vec2::new(ui.available_width(), 26.0),
+                Layout::right_to_left(Align::Center),
+                |ui| {
+                    if ui.button(t!("cancel")).clicked() {
                         close = true;
                     }
-                }
-            });
+                    let go = ui.add(
+                        egui::Button::new(t!("find-all")).fill(palette.accent.gamma_multiply(0.6)),
+                    );
+                    if go.clicked() || enter {
+                        let dir = PathBuf::from(self.dir.trim());
+                        if self.find.is_empty() {
+                            self.error = Some(t!("enter-search-text"));
+                        } else if !dir.is_dir() {
+                            self.error = Some(t!("folder-missing"));
+                        } else if let Err(e) = Query::new(&self.find, opts) {
+                            self.error = Some(t!("invalid-regex", error = e.to_string()));
+                        } else {
+                            request = Some(FifRequest {
+                                find: self.find.clone(),
+                                dir,
+                                filters: self.filters.clone(),
+                                subfolders: self.subfolders,
+                                hidden: self.hidden,
+                                opts: *opts,
+                            });
+                            close = true;
+                        }
+                    }
+                },
+            );
         });
         if close || response.should_close() {
             self.open = false;

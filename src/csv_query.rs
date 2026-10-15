@@ -315,7 +315,7 @@ impl CsvQueryPanel {
         if worker.jobs.send(job).is_err() {
             self.worker = None;
             self.running = None;
-            self.error = Some("The query engine stopped. Try again.".into());
+            self.error = Some(t!("query-engine-stopped"));
         }
     }
 
@@ -439,47 +439,59 @@ impl CsvQueryPanel {
             match active.as_mut() {
                 Some(a) => {
                     let shape = self.tables.get(a.table).map_or(String::new(), |t| {
-                        format!(" · {} rows × {} columns", thousands(t.rows), t.columns.len())
+                        format!(
+                            " · {}",
+                            t!(
+                                "csv-shape",
+                                rows = thousands(t.rows),
+                                columns = t.columns.len()
+                            )
+                        )
                     });
                     ui.label(
                         RichText::new(format!("this = {}{shape}", a.table))
                             .size(12.0)
                             .color(palette.text_dim),
                     )
-                    .on_hover_text("The current tab is the table `this`; other tabs are tables named after their files.");
+                    .on_hover_text(t!("csv-this-hover"));
                     format_controls(ui, a.detected, a.settings);
                 }
                 None => {
                     ui.label(
-                        RichText::new("Open a CSV or TSV file to query it.")
+                        RichText::new(t!("csv-open-file"))
                             .size(12.0)
                             .color(palette.text_dim),
                     );
                 }
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if icon_button(ui, "×", "Close CsvQuery") {
+                if icon_button(ui, "×", &t!("close-csvquery")) {
                     self.open = false;
                 }
-                ui.menu_button("Tables", |ui| {
-                    ui.label(RichText::new("Click to insert a name").size(11.5).color(palette.text_dim));
+                ui.menu_button(t!("tables"), |ui| {
+                    ui.label(
+                        RichText::new(t!("click-to-insert-name"))
+                            .size(11.5)
+                            .color(palette.text_dim),
+                    );
                     for (name, title) in all_tables {
-                        if ui
-                            .button(format!("{name}    ({title})"))
-                            .clicked()
-                        {
+                        if ui.button(format!("{name}    ({title})")).clicked() {
                             action = Some(PanelAction::InsertTable(name.clone()));
                             ui.close();
                         }
                     }
                 });
-                ui.menu_button("Recent", |ui| {
+                ui.menu_button(t!("recent"), |ui| {
                     if self.history.is_empty() {
-                        ui.label("No queries yet");
+                        ui.label(t!("no-queries-yet"));
                     }
                     for h in self.history.clone() {
                         let short: String = h.chars().take(80).collect();
-                        if ui.button(short.replace('\n', " ")).on_hover_text(&h).clicked() {
+                        if ui
+                            .button(short.replace('\n', " "))
+                            .on_hover_text(&h)
+                            .clicked()
+                        {
                             self.sql = h;
                             action = Some(PanelAction::Run);
                             ui.close();
@@ -510,8 +522,8 @@ impl CsvQueryPanel {
             }
             ui.vertical(|ui| {
                 let run = ui
-                    .add_sized(Vec2::new(run_w, 26.0), egui::Button::new("Run"))
-                    .on_hover_text("Run the query (Ctrl+Enter)");
+                    .add_sized(Vec2::new(run_w, 26.0), egui::Button::new(t!("run")))
+                    .on_hover_text(t!("run-query-hover"));
                 if run.clicked() {
                     action = Some(PanelAction::Run);
                 }
@@ -520,8 +532,8 @@ impl CsvQueryPanel {
 
         // Status line and result buttons.
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.view, View::Results, "Results");
-            ui.selectable_value(&mut self.view, View::Columns, "Columns");
+            ui.selectable_value(&mut self.view, View::Results, t!("results"));
+            ui.selectable_value(&mut self.view, View::Columns, t!("columns"));
             ui.separator();
             if self.running.is_some() {
                 ui.spinner();
@@ -530,7 +542,10 @@ impl CsvQueryPanel {
                 let mut e = e.clone();
                 if e.contains("no such table") {
                     let names: Vec<&str> = all_tables.iter().map(|t| t.0.as_str()).collect();
-                    e.push_str(&format!(". Tables: this, {}", names.join(", ")));
+                    e.push_str(&format!(
+                        ". {}",
+                        t!("csv-tables-list", names = names.join(", "))
+                    ));
                 }
                 ui.label(
                     RichText::new(e)
@@ -540,18 +555,19 @@ impl CsvQueryPanel {
             } else if let Some(r) = &self.result {
                 let n = r.rows.len();
                 let text = if let Some(c) = r.changed {
-                    format!(
-                        "{c} row{} changed in the query copy (the file is unchanged)",
-                        if c == 1 { "" } else { "s" }
-                    )
+                    t!("csv-rows-changed", count = c)
                 } else if r.truncated {
-                    format!("First {} rows · {} ms", thousands(n), r.elapsed.as_millis())
+                    t!(
+                        "csv-first-rows",
+                        rows = thousands(n),
+                        ms = r.elapsed.as_millis() as u64
+                    )
                 } else {
-                    format!(
-                        "{} row{} · {} ms",
-                        thousands(n),
-                        if n == 1 { "" } else { "s" },
-                        r.elapsed.as_millis()
+                    t!(
+                        "csv-rows",
+                        count = n,
+                        rows = thousands(n),
+                        ms = r.elapsed.as_millis() as u64
                     )
                 };
                 ui.label(RichText::new(text).size(12.0).color(palette.text_dim));
@@ -559,15 +575,15 @@ impl CsvQueryPanel {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let has = self.result.as_ref().is_some_and(|r| !r.columns.is_empty());
                 if ui
-                    .add_enabled(has, egui::Button::new("Open in New Tab").small())
-                    .on_hover_text("Write all result rows to a new tab as CSV")
+                    .add_enabled(has, egui::Button::new(t!("open-in-new-tab")).small())
+                    .on_hover_text(t!("open-in-new-tab-hover"))
                     .clicked()
                 {
                     action = Some(PanelAction::ToNewTab);
                 }
                 if ui
-                    .add_enabled(has, egui::Button::new("Copy").small())
-                    .on_hover_text("Copy the results, tab-separated for pasting into a spreadsheet")
+                    .add_enabled(has, egui::Button::new(t!("copy")).small())
+                    .on_hover_text(t!("copy-results-hover"))
                     .clicked()
                 {
                     self.copy_results(ui.ctx());
@@ -656,7 +672,7 @@ impl CsvQueryPanel {
                                     .sense(Sense::click())
                                     .truncate(),
                                 );
-                                if resp.on_hover_text("Click to sort").clicked() {
+                                if resp.on_hover_text(t!("click-to-sort")).clicked() {
                                     clicked_header = Some(c);
                                 }
                             });
@@ -690,11 +706,11 @@ impl CsvQueryPanel {
                                     }
                                 });
                                 resp.context_menu(|ui| {
-                                    if ui.button("Copy Value").clicked() {
+                                    if ui.button(t!("copy-value")).clicked() {
                                         copy = Some(v.display());
                                         ui.close();
                                     }
-                                    if ui.button("Copy Row").clicked() {
+                                    if ui.button(t!("copy-row")).clicked() {
                                         copy = Some(csv::write_tsv(
                                             &[],
                                             &[r.rows[i].iter().map(Value::display).collect()],
@@ -737,7 +753,7 @@ impl CsvQueryPanel {
     ) {
         let (Some(info), Some(settings)) = (info, settings) else {
             ui.label(
-                RichText::new("Run a query to see the columns of this tab.")
+                RichText::new(t!("csv-run-for-columns"))
                     .size(12.0)
                     .color(palette.text_dim),
             );
@@ -751,7 +767,14 @@ impl CsvQueryPanel {
         let font = FontId::proportional(12.5);
         let row_h = ui.fonts_mut(|f| f.row_height(&font)) + 8.0;
         let headers = [
-            "Column", "Type", "Filled", "Empty", "Distinct", "Min", "Max", "Average",
+            t!("csv-column"),
+            t!("csv-type"),
+            t!("csv-filled"),
+            t!("csv-empty"),
+            t!("csv-distinct"),
+            t!("csv-min"),
+            t!("csv-max"),
+            t!("csv-average"),
         ];
         egui::ScrollArea::horizontal()
             .id_salt("csvquery-cols-h")
@@ -776,12 +799,12 @@ impl CsvQueryPanel {
                 }
                 table
                     .header(row_h, |mut header| {
-                        for h in headers {
+                        for (i, h) in headers.iter().enumerate() {
                             header.col(|ui| {
                                 let text = RichText::new(h).strong().size(12.5);
                                 let r = ui.label(text);
-                                if h == "Type" {
-                                    r.on_hover_text("How the column is stored and compared. Auto picks the narrowest type that fits every value.");
+                                if i == 1 {
+                                    r.on_hover_text(t!("csv-type-hover"));
                                 }
                             });
                         }
@@ -790,20 +813,33 @@ impl CsvQueryPanel {
                         body.rows(row_h, info.columns.len(), |mut row| {
                             let c = row.index();
                             row.col(|ui| {
-                                ui.add(egui::Label::new(RichText::new(&info.columns[c]).size(12.5)).truncate());
+                                ui.add(
+                                    egui::Label::new(RichText::new(&info.columns[c]).size(12.5))
+                                        .truncate(),
+                                );
                             });
                             row.col(|ui| {
-                                let inferred = info.inferred.get(c).copied().unwrap_or(ColType::Text);
+                                let inferred =
+                                    info.inferred.get(c).copied().unwrap_or(ColType::Text);
                                 let label = |t: Option<ColType>| match t {
-                                    None => format!("Auto ({})", inferred.label()),
-                                    Some(t) => t.label().to_owned(),
+                                    None => t!("auto-with", detected = inferred.label()),
+                                    Some(t) => t.label(),
                                 };
                                 egui::ComboBox::from_id_salt(("csvquery-type", c))
                                     .selected_text(label(settings.types[c]))
                                     .width(130.0)
                                     .show_ui(ui, |ui| {
-                                        for t in [None, Some(ColType::Text), Some(ColType::Integer), Some(ColType::Real)] {
-                                            ui.selectable_value(&mut settings.types[c], t, label(t));
+                                        for t in [
+                                            None,
+                                            Some(ColType::Text),
+                                            Some(ColType::Integer),
+                                            Some(ColType::Real),
+                                        ] {
+                                            ui.selectable_value(
+                                                &mut settings.types[c],
+                                                t,
+                                                label(t),
+                                            );
                                         }
                                     });
                             });
@@ -820,11 +856,15 @@ impl CsvQueryPanel {
                             ];
                             for (i, text) in cells.into_iter().enumerate() {
                                 row.col(|ui| {
-                                    let label = egui::Label::new(RichText::new(text).size(12.5)).truncate();
+                                    let label =
+                                        egui::Label::new(RichText::new(text).size(12.5)).truncate();
                                     if i <= 2 || i == 5 {
-                                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                            ui.add(label);
-                                        });
+                                        ui.with_layout(
+                                            Layout::right_to_left(Align::Center),
+                                            |ui| {
+                                                ui.add(label);
+                                            },
+                                        );
                                     } else {
                                         ui.add(label);
                                     }
@@ -853,7 +893,10 @@ fn thousands(n: usize) -> String {
 fn format_controls(ui: &mut Ui, detected: CsvFormat, settings: &mut DocSettings) {
     let current = settings.format(detected);
     let delim_text = |d: Option<u8>| match d {
-        None => format!("Auto ({})", csv::delimiter_name(detected.delimiter)),
+        None => t!(
+            "auto-with",
+            detected = csv::delimiter_name(detected.delimiter)
+        ),
         Some(d) => csv::delimiter_name(d),
     };
     egui::ComboBox::from_id_salt("csvquery-delimiter")
@@ -872,13 +915,11 @@ fn format_controls(ui: &mut Ui, detected: CsvFormat, settings: &mut DocSettings)
             }
         })
         .response
-        .on_hover_text("Delimiter");
+        .on_hover_text(t!("delimiter"));
     let quote_text = |q: Option<Option<u8>>| match q {
-        None => "Auto quotes".to_owned(),
-        Some(Some(b'"')) => "Quotes \"".to_owned(),
-        Some(Some(b'\'')) => "Quotes '".to_owned(),
-        Some(Some(c)) => format!("Quotes {}", c as char),
-        Some(None) => "No quotes".to_owned(),
+        None => t!("auto-quotes"),
+        Some(Some(c)) => t!("quotes-char", char = (c as char).to_string()),
+        Some(None) => t!("no-quotes"),
     };
     egui::ComboBox::from_id_salt("csvquery-quote")
         .selected_text(quote_text(settings.quote))
@@ -889,19 +930,19 @@ fn format_controls(ui: &mut Ui, detected: CsvFormat, settings: &mut DocSettings)
             }
         })
         .response
-        .on_hover_text("Quote character");
+        .on_hover_text(t!("quote-character"));
     let mut header = current.header;
     if ui
-        .checkbox(&mut header, "Header row")
-        .on_hover_text("The first row names the columns")
+        .checkbox(&mut header, t!("header-row"))
+        .on_hover_text(t!("header-row-hover"))
         .changed()
     {
         settings.header = (header != detected.header).then_some(header);
     }
     if settings.is_custom()
         && ui
-            .small_button("Reset")
-            .on_hover_text("Go back to the detected format")
+            .small_button(t!("reset"))
+            .on_hover_text(t!("reset-format-hover"))
             .clicked()
     {
         let detected = settings.detected;

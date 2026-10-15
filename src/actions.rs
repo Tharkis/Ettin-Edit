@@ -376,7 +376,7 @@ pub fn set_overrides(saved: &BTreeMap<String, Vec<String>>) -> Vec<String> {
         for text in texts {
             match crate::plugins::shortcut::parse(text) {
                 Ok(s) => shortcuts.push(s),
-                Err(e) => errors.push(format!("Shortcut settings: {e}")),
+                Err(e) => errors.push(t!("shortcut-settings-error", error = e)),
             }
         }
         list.push((action, shortcuts));

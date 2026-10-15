@@ -184,7 +184,7 @@ pub fn load_user_definitions(dir: &Path) -> (Vec<SyntaxDefinition>, Vec<String>)
                 defs.retain(|d| d.name != def.name);
                 defs.push(def);
             }
-            Err(e) => errors.push(format!("Skipped the language file {file}: {e}")),
+            Err(e) => errors.push(t!("language-file-skipped", file = file.clone(), error = e)),
         }
     }
     (defs, errors)

@@ -61,6 +61,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | 🧭 **Panels** | Function list, document map, a folder workspace, and a command palette on F1. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
 | ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
+| 🗣️ **Speaks your language** | English, plus Deutsch, Français and Español (machine-translated for now, corrections welcome), following your system's language. Add your own with one text file. |
 
 Everything that works today, and the few things that don't yet, is ticked off in
 [FEATURES.md](FEATURES.md).

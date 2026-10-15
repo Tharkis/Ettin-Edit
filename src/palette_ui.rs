@@ -129,7 +129,7 @@ impl Picker {
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
                             if shown.is_empty() {
-                                ui.label(RichText::new("Nothing matches").weak());
+                                ui.label(RichText::new(t!("nothing-matches")).weak());
                             }
                             for (i, item) in shown.iter().enumerate() {
                                 let selected = i == self.selected;

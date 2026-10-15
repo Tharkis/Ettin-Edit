@@ -56,40 +56,35 @@ pub fn manager(ctx: &egui::Context, open: &mut bool, view: ManagerView) -> Vec<M
         palette,
     } = view;
     let mut actions = Vec::new();
-    egui::Window::new("Plugins")
+    egui::Window::new(t!("menu-plugins"))
         .id(Id::new("plugin-manager"))
         .open(open)
         .default_size([640.0, 500.0])
         .resizable(true)
         .collapsible(false)
         .show(ctx, |ui| {
-            ui.label(
-                RichText::new(
-                    "Plugins run as separate programs with your access to files and the network. Only run plugins you trust.",
-                )
-                .color(palette.text_dim),
-            );
+            ui.label(RichText::new(t!("plugins-warning")).color(palette.text_dim));
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                let installed = format!("Installed ({})", host.plugins.len());
+                let installed = t!("plugins-installed-tab", count = host.plugins.len());
                 ui.selectable_value(&mut store.tab, Tab::Installed, installed);
                 let available = match &store.index {
-                    IndexState::Loaded(list) => format!("Available ({})", list.len()),
-                    _ => "Available".to_owned(),
+                    IndexState::Loaded(list) => t!("plugins-available-count", count = list.len()),
+                    _ => t!("plugins-available"),
                 };
                 ui.selectable_value(&mut store.tab, Tab::Available, available);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let idle = store.busy.is_none();
                     if ui
-                        .add_enabled(idle, egui::Button::new("Install from Folder…"))
-                        .on_hover_text("Copy a plugin's folder (one with a plugin.json) into the plugins folder")
+                        .add_enabled(idle, egui::Button::new(t!("install-from-folder")))
+                        .on_hover_text(t!("install-from-folder-hover"))
                         .clicked()
                     {
                         actions.push(ManagerAction::InstallFromFolder);
                     }
                     if ui
-                        .add_enabled(idle, egui::Button::new("Install from File…"))
-                        .on_hover_text("Install a plugin from a .zip file")
+                        .add_enabled(idle, egui::Button::new(t!("install-from-file")))
+                        .on_hover_text(t!("install-from-file-hover"))
                         .clicked()
                     {
                         actions.push(ManagerAction::InstallFromFile);
@@ -106,7 +101,7 @@ pub fn manager(ctx: &egui::Context, open: &mut bool, view: ManagerView) -> Vec<M
             let mut dismiss = false;
             if let Some(error) = &store.error {
                 ui.horizontal(|ui| {
-                    if ui.small_button("✕").on_hover_text("Dismiss").clicked() {
+                    if ui.small_button("✕").on_hover_text(t!("dismiss")).clicked() {
                         dismiss = true;
                     }
                     ui.add(
@@ -120,7 +115,9 @@ pub fn manager(ctx: &egui::Context, open: &mut bool, view: ManagerView) -> Vec<M
                 store.error = None;
             }
             match store.tab {
-                Tab::Installed => installed_tab(ui, host, prefs, python, node, store, palette, &mut actions),
+                Tab::Installed => {
+                    installed_tab(ui, host, prefs, python, node, store, palette, &mut actions)
+                }
                 Tab::Available => available_tab(ui, host, index_url, store, palette, &mut actions),
             }
         });
@@ -134,18 +131,18 @@ pub fn manager(ctx: &egui::Context, open: &mut bool, view: ManagerView) -> Vec<M
         let mut answer = None;
         let response = egui::Modal::new(Id::new("plugin-remove")).show(ctx, |ui| {
             ui.set_width(380.0);
-            ui.heading(format!("Remove \u{201c}{name}\u{201d}?"));
+            ui.heading(t!("remove-plugin-title", name = name.clone()));
             ui.add_space(6.0);
-            ui.label("Its folder moves to the trash, so you can get it back from there.");
+            ui.label(t!("remove-plugin-hint"));
             ui.add_space(10.0);
             ui.allocate_ui_with_layout(
                 egui::vec2(ui.available_width(), 24.0),
                 Layout::right_to_left(Align::Center),
                 |ui| {
-                    if ui.button("Remove").clicked() {
+                    if ui.button(t!("remove")).clicked() {
                         answer = Some(true);
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t!("cancel")).clicked() {
                         answer = Some(false);
                     }
                 },
@@ -183,20 +180,19 @@ fn installed_tab(
         .show(ui, |ui| {
             if host.plugins.is_empty() {
                 ui.add_space(12.0);
-                ui.label("No plugins yet.");
-                ui.label(
-                    RichText::new(
-                        "Install the samples to see how plugins work, find plugins under Available, or put a plugin's folder in the plugins folder.",
-                    )
-                    .color(palette.text_dim),
-                );
+                ui.label(t!("no-plugins-yet"));
+                ui.label(RichText::new(t!("no-plugins-hint")).color(palette.text_dim));
                 ui.add_space(6.0);
-                if ui.button("Install Sample Plugins").clicked() {
+                if ui.button(t!("install-sample-plugins")).clicked() {
                     actions.push(ManagerAction::InstallSamples);
                 }
             }
             for p in &host.plugins {
-                let version = p.manifest.as_ref().map(|m| m.version.as_str()).unwrap_or("");
+                let version = p
+                    .manifest
+                    .as_ref()
+                    .map(|m| m.version.as_str())
+                    .unwrap_or("");
                 let update = store.update_for(&p.id, version);
                 let card = Card {
                     pref: prefs.get(&p.id),
@@ -216,38 +212,37 @@ fn installed_tab(
             ui.label("Python");
             ui.add(
                 egui::TextEdit::singleline(python)
-                    .hint_text(if cfg!(windows) {
-                        "python (found on PATH)"
-                    } else {
-                        "python3 (found on PATH)"
-                    })
+                    .hint_text(t!(
+                        "found-on-path",
+                        program = if cfg!(windows) { "python" } else { "python3" }
+                    ))
                     .desired_width(280.0),
             );
             ui.end_row();
             ui.label("Node");
             ui.add(
                 egui::TextEdit::singleline(node)
-                    .hint_text("node (found on PATH)")
+                    .hint_text(t!("found-on-path", program = "node"))
                     .desired_width(280.0),
             );
             ui.end_row();
         });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        if ui.button("Open Plugins Folder").clicked() {
+        if ui.button(t!("open-plugins-folder")).clicked() {
             actions.push(ManagerAction::OpenPluginsFolder);
         }
         if ui
-            .button("Reload Plugins")
-            .on_hover_text("Stop every plugin, look for plugins again and start them")
+            .button(t!("reload-plugins"))
+            .on_hover_text(t!("reload-plugins-hover"))
             .clicked()
         {
             actions.push(ManagerAction::Reload);
         }
-        if ui.button("Plugin Log").clicked() {
+        if ui.button(t!("plugin-log")).clicked() {
             actions.push(ManagerAction::ShowLog);
         }
-        if ui.button("Plugin Guide").clicked() {
+        if ui.button(t!("plugin-guide")).clicked() {
             actions.push(ManagerAction::ShowGuide);
         }
     });
@@ -262,16 +257,16 @@ fn available_tab(
     actions: &mut Vec<ManagerAction>,
 ) {
     ui.horizontal(|ui| {
-        ui.label("Filter");
+        ui.label(t!("filter-hint"));
         ui.add(
             egui::TextEdit::singleline(&mut store.filter)
-                .hint_text("Name, author or description")
+                .hint_text(t!("plugin-filter-hint"))
                 .desired_width(260.0),
         );
         let loading = matches!(store.index, IndexState::Loading);
         if ui
-            .add_enabled(!loading, egui::Button::new("Refresh"))
-            .on_hover_text("Read the plugin index again")
+            .add_enabled(!loading, egui::Button::new(t!("refresh")))
+            .on_hover_text(t!("refresh-index-hover"))
             .clicked()
         {
             actions.push(ManagerAction::RefreshIndex);
@@ -288,7 +283,7 @@ fn available_tab(
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("Reading the plugin index…");
+                    ui.label(t!("reading-plugin-index"));
                 });
             }
             IndexState::Failed(why) => {
@@ -299,7 +294,7 @@ fn available_tab(
                         .selectable(true),
                 );
                 ui.add_space(6.0);
-                if ui.button("Try Again").clicked() {
+                if ui.button(t!("try-again")).clicked() {
                     actions.push(ManagerAction::RefreshIndex);
                 }
             }
@@ -307,11 +302,9 @@ fn available_tab(
                 let shown: Vec<&IndexEntry> =
                     list.iter().filter(|e| e.matches(&store.filter)).collect();
                 if list.is_empty() {
-                    ui.label(
-                        RichText::new("The plugin index lists no plugins.").color(palette.text_dim),
-                    );
+                    ui.label(RichText::new(t!("index-empty")).color(palette.text_dim));
                 } else if shown.is_empty() {
-                    ui.label(RichText::new("No plugins match the filter.").color(palette.text_dim));
+                    ui.label(RichText::new(t!("no-plugins-match")).color(palette.text_dim));
                 }
                 for e in shown {
                     let installed = host.plugins.iter().find(|p| p.id == e.id).map(|p| {
@@ -333,23 +326,23 @@ fn available_tab(
         });
     ui.separator();
     ui.horizontal(|ui| {
-        ui.label("Index");
+        ui.label(t!("plugin-index"));
         let edit = ui
             .add(
                 egui::TextEdit::singleline(index_url)
                     .hint_text(DEFAULT_INDEX_URL)
                     .desired_width(ui.available_width() - 70.0),
             )
-            .on_hover_text("The address of the JSON list of plugins. Press Enter to read it.");
+            .on_hover_text(t!("plugin-index-hover"));
         if edit.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
             actions.push(ManagerAction::RefreshIndex);
         }
         if ui
             .add_enabled(
                 index_url.trim() != DEFAULT_INDEX_URL,
-                egui::Button::new("Default"),
+                egui::Button::new(t!("default")),
             )
-            .on_hover_text("Use Ettin Edit's own plugin index")
+            .on_hover_text(t!("default-index-hover"))
             .clicked()
         {
             *index_url = DEFAULT_INDEX_URL.to_owned();
@@ -381,7 +374,7 @@ fn available_card(
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if let Some(min) = e.needs_newer_app() {
                         ui.label(
-                            RichText::new(format!("Needs Ettin Edit {min}"))
+                            RichText::new(t!("needs-version", version = min.to_string()))
                                 .color(palette.modified),
                         );
                         return;
@@ -391,23 +384,27 @@ fn available_card(
                             if ui
                                 .add_enabled(
                                     !busy,
-                                    egui::Button::new(format!("Update to {}", e.version)),
+                                    egui::Button::new(t!("update-to", version = e.version.clone())),
                                 )
-                                .on_hover_text(format!(
-                                    "Installed: {}",
-                                    if v.is_empty() { "no version" } else { v }
-                                ))
+                                .on_hover_text(if v.is_empty() {
+                                    t!("installed-no-version")
+                                } else {
+                                    t!("installed-version", version = v)
+                                })
                                 .clicked()
                             {
                                 actions.push(ManagerAction::Install(e.id.clone()));
                             }
                         }
                         Some(_) => {
-                            ui.label(RichText::new("✔ Installed").color(palette.accent));
+                            ui.label(
+                                RichText::new(format!("✔ {}", t!("installed")))
+                                    .color(palette.accent),
+                            );
                         }
                         None => {
                             if ui
-                                .add_enabled(!busy, egui::Button::new("Install"))
+                                .add_enabled(!busy, egui::Button::new(t!("install")))
                                 .clicked()
                             {
                                 actions.push(ManagerAction::Install(e.id.clone()));
@@ -424,13 +421,13 @@ fn available_card(
             ui.horizontal(|ui| {
                 if !e.author.is_empty() {
                     ui.label(
-                        RichText::new(format!("By {}", e.author))
+                        RichText::new(t!("by-author", author = e.author.clone()))
                             .small()
                             .color(palette.text_dim),
                     );
                 }
                 if e.homepage.starts_with("https://") || e.homepage.starts_with("http://") {
-                    ui.hyperlink_to(RichText::new("Home page").small(), &e.homepage);
+                    ui.hyperlink_to(RichText::new(t!("home-page")).small(), &e.homepage);
                 }
             });
         });
@@ -467,7 +464,7 @@ fn plugin_card(
                 let mut enabled = !pref.disabled;
                 if ui
                     .checkbox(&mut enabled, "")
-                    .on_hover_text("Turn the plugin on or off")
+                    .on_hover_text(t!("plugin-toggle-hover"))
                     .changed()
                 {
                     actions.push(ManagerAction::SetEnabled(p.id.clone(), enabled));
@@ -477,15 +474,21 @@ fn plugin_card(
                     if !m.version.is_empty() {
                         ui.label(RichText::new(&m.version).color(palette.text_dim));
                     }
-                    ui.label(RichText::new(m.runtime.label()).small().color(palette.text_dim));
+                    ui.label(
+                        RichText::new(m.runtime.label())
+                            .small()
+                            .color(palette.text_dim),
+                    );
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let (text, color) = match &p.status {
-                        Status::Running => ("Running", palette.accent),
-                        Status::Stopped => ("Stopped", palette.text_dim),
-                        Status::Disabled => ("Off", palette.text_dim),
-                        Status::NeedsPermission => ("Waiting for permission", palette.modified),
-                        Status::Failed(_) => ("Not running", palette.modified),
+                        Status::Running => (t!("plugin-running"), palette.accent),
+                        Status::Stopped => (t!("plugin-stopped"), palette.text_dim),
+                        Status::Disabled => (t!("plugin-off"), palette.text_dim),
+                        Status::NeedsPermission => {
+                            (t!("plugin-needs-permission"), palette.modified)
+                        }
+                        Status::Failed(_) => (t!("plugin-not-running"), palette.modified),
                     };
                     ui.label(RichText::new(text).color(color));
                 });
@@ -496,7 +499,7 @@ fn plugin_card(
                 }
                 if !m.author.is_empty() {
                     ui.label(
-                        RichText::new(format!("By {}", m.author))
+                        RichText::new(t!("by-author", author = m.author.clone()))
                             .small()
                             .color(palette.text_dim),
                     );
@@ -509,46 +512,55 @@ fn plugin_card(
                 let usable = p.manifest.is_ok() && !pref.disabled;
                 if let Some(e) = card.update
                     && ui
-                        .add_enabled(!card.busy, egui::Button::new(RichText::new(format!("Update to {}", e.version)).color(palette.accent)))
-                        .on_hover_text("Download the new version from the plugin index; the old one moves to the trash")
+                        .add_enabled(
+                            !card.busy,
+                            egui::Button::new(
+                                RichText::new(t!("update-to", version = e.version.clone()))
+                                    .color(palette.accent),
+                            ),
+                        )
+                        .on_hover_text(t!("update-plugin-hover"))
                         .clicked()
                 {
                     actions.push(ManagerAction::Install(p.id.clone()));
                 }
                 match &p.status {
                     Status::Running => {
-                        if ui.button("Stop").clicked() {
+                        if ui.button(t!("stop")).clicked() {
                             actions.push(ManagerAction::Stop(p.id.clone()));
                         }
-                        if ui.button("Restart").clicked() {
+                        if ui.button(t!("restart")).clicked() {
                             actions.push(ManagerAction::Start(p.id.clone()));
                         }
                     }
                     Status::NeedsPermission => {
-                        if ui.button("Allow…").clicked() {
+                        if ui.button(t!("allow-dots")).clicked() {
                             actions.push(ManagerAction::Allow(p.id.clone()));
                         }
                     }
                     _ => {
-                        if ui.add_enabled(usable, egui::Button::new("Start")).clicked() {
+                        if ui
+                            .add_enabled(usable, egui::Button::new(t!("start")))
+                            .clicked()
+                        {
                             actions.push(ManagerAction::Start(p.id.clone()));
                         }
                     }
                 }
-                if ui.button("Open Folder").clicked() {
+                if ui.button(t!("open-folder")).clicked() {
                     actions.push(ManagerAction::OpenFolder(p.id.clone()));
                 }
                 if ui
-                    .add_enabled(!card.busy, egui::Button::new("Remove…"))
-                    .on_hover_text("Move the plugin's folder to the trash")
+                    .add_enabled(!card.busy, egui::Button::new(t!("remove-dots")))
+                    .on_hover_text(t!("remove-plugin-hover"))
                     .clicked()
                 {
                     remove = true;
                 }
                 let mut trust = pref.trust_changes;
                 if ui
-                    .checkbox(&mut trust, "Don't ask when it changes")
-                    .on_hover_text("For a plugin you're writing: run it after each change without asking again")
+                    .checkbox(&mut trust, t!("trust-changes"))
+                    .on_hover_text(t!("trust-changes-hover"))
                     .changed()
                 {
                     actions.push(ManagerAction::SetTrust(p.id.clone(), trust));
@@ -563,7 +575,7 @@ fn plugin_card(
 pub fn log_window(ctx: &egui::Context, open: &mut bool, host: &mut PluginHost, palette: &Palette) {
     let mut clear = false;
     let mut copy = false;
-    egui::Window::new("Plugin Log")
+    egui::Window::new(t!("plugin-log"))
         .id(Id::new("plugin-log"))
         .open(open)
         .default_size([680.0, 320.0])
@@ -571,12 +583,9 @@ pub fn log_window(ctx: &egui::Context, open: &mut bool, host: &mut PluginHost, p
         .collapsible(false)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                clear = ui.button("Clear").clicked();
-                copy = ui.button("Copy All").clicked();
-                ui.label(
-                    RichText::new("Messages, print() and console.log() output from plugins")
-                        .color(palette.text_dim),
-                );
+                clear = ui.button(t!("clear")).clicked();
+                copy = ui.button(t!("copy-all")).clicked();
+                ui.label(RichText::new(t!("plugin-log-hint")).color(palette.text_dim));
             });
             ui.separator();
             ScrollArea::both()
@@ -584,7 +593,7 @@ pub fn log_window(ctx: &egui::Context, open: &mut bool, host: &mut PluginHost, p
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     if host.log.is_empty() {
-                        ui.label(RichText::new("Nothing yet.").color(palette.text_dim));
+                        ui.label(RichText::new(t!("nothing-yet")).color(palette.text_dim));
                     }
                     for line in &host.log {
                         ui.horizontal(|ui| {
@@ -641,15 +650,13 @@ pub fn permission(
     let mut answer = None;
     let response = egui::Modal::new(Id::new("plugin-permission")).show(ctx, |ui| {
         ui.set_width(440.0);
-        ui.heading(format!("Allow \u{201c}{}\u{201d} to run?", p.name()));
+        ui.heading(t!("allow-plugin-title", name = p.name()));
         ui.add_space(6.0);
         if changed {
-            ui.label(RichText::new("This plugin changed since you allowed it.").color(palette.modified));
+            ui.label(RichText::new(t!("plugin-changed")).color(palette.modified));
             ui.add_space(4.0);
         }
-        ui.label(
-            "Plugins run as separate programs with your user account. This one could read and change your open documents and your files, and use the network. Only allow plugins you trust.",
-        );
+        ui.label(t!("allow-plugin-warning"));
         ui.add_space(8.0);
         egui::Grid::new("plugin-permission-details")
             .num_columns(2)
@@ -657,35 +664,42 @@ pub fn permission(
             .show(ui, |ui| {
                 if let Ok(m) = &p.manifest {
                     if !m.author.is_empty() {
-                        ui.label(RichText::new("Author").color(palette.text_dim));
+                        ui.label(RichText::new(t!("author")).color(palette.text_dim));
                         ui.label(&m.author);
                         ui.end_row();
                     }
-                    ui.label(RichText::new("Runs").color(palette.text_dim));
+                    ui.label(RichText::new(t!("runs")).color(palette.text_dim));
                     ui.label(format!(
                         "{} ({})",
-                        m.main.file_name().map(|n| n.to_string_lossy()).unwrap_or_default(),
+                        m.main
+                            .file_name()
+                            .map(|n| n.to_string_lossy())
+                            .unwrap_or_default(),
                         m.runtime.label()
                     ));
                     ui.end_row();
                 }
-                ui.label(RichText::new("Folder").color(palette.text_dim));
+                ui.label(RichText::new(t!("folder")).color(palette.text_dim));
                 ui.add(egui::Label::new(p.dir.display().to_string()).wrap());
                 ui.end_row();
             });
         ui.add_space(12.0);
-        ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), 24.0), Layout::right_to_left(Align::Center), |ui| {
-            if ui.button("Allow").clicked() {
-                answer = Some(Permission::Allow);
-            }
-            if ui
-                .button("Don't Allow")
-                .on_hover_text("Turn the plugin off. You can turn it on in Manage Plugins.")
-                .clicked()
-            {
-                answer = Some(Permission::Deny);
-            }
-        });
+        ui.allocate_ui_with_layout(
+            egui::vec2(ui.available_width(), 24.0),
+            Layout::right_to_left(Align::Center),
+            |ui| {
+                if ui.button(t!("allow")).clicked() {
+                    answer = Some(Permission::Allow);
+                }
+                if ui
+                    .button(t!("dont-allow"))
+                    .on_hover_text(t!("dont-allow-hover"))
+                    .clicked()
+                {
+                    answer = Some(Permission::Deny);
+                }
+            },
+        );
     });
     if answer.is_none() && response.should_close() {
         answer = Some(Permission::Later);
@@ -738,10 +752,10 @@ pub fn text_prompt(ctx: &egui::Context, prompt: &mut TextPrompt) -> Option<Optio
             egui::vec2(ui.available_width(), 24.0),
             Layout::right_to_left(Align::Center),
             |ui| {
-                if ui.button("OK").clicked() {
+                if ui.button(t!("ok")).clicked() {
                     result = Some(Some(prompt.value.clone()));
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(t!("cancel")).clicked() {
                     result = Some(None);
                 }
             },

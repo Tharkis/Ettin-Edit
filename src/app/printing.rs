@@ -65,7 +65,7 @@ impl EttinApp {
         );
         let path = if export {
             let mut dialog = rfd::FileDialog::new()
-                .set_title("Export as HTML")
+                .set_title(t!("dialog-export-html"))
                 .set_file_name(format!("{}.html", file_stem(&title)))
                 .add_filter("HTML", &["html", "htm"]);
             if let Some(dir) = doc.path.as_deref().and_then(|p| p.parent()) {
@@ -78,15 +78,21 @@ impl EttinApp {
         } else {
             let dir = std::env::temp_dir().join("ettin-edit-print");
             if let Err(e) = std::fs::create_dir_all(&dir) {
-                self.errors
-                    .push(format!("Couldn't make {}: {e}", dir.display()));
+                self.errors.push(t!(
+                    "make-folder-failed",
+                    path = dir.display().to_string(),
+                    error = e.to_string()
+                ));
                 return;
             }
             dir.join(format!("{}.html", file_stem(&title)))
         };
         if let Err(e) = std::fs::write(&path, html) {
-            self.errors
-                .push(format!("Couldn't write {}: {e}", path.display()));
+            self.errors.push(t!(
+                "write-failed",
+                path = path.display().to_string(),
+                error = e.to_string()
+            ));
             return;
         }
         if !export && let Err(e) = system::open_url(&file_url(&path)) {

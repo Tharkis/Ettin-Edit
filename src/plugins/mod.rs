@@ -244,7 +244,11 @@ impl PluginHost {
         if let Err(e) = fs::create_dir_all(&sdk) {
             self.log(
                 "Ettin Edit",
-                format!("Couldn't create {}: {e}", sdk.display()),
+                t!(
+                    "make-folder-failed",
+                    path = sdk.display().to_string(),
+                    error = e.to_string()
+                ),
                 true,
             );
             return None;
@@ -261,7 +265,11 @@ impl PluginHost {
             {
                 self.log(
                     "Ettin Edit",
-                    format!("Couldn't write {}: {e}", path.display()),
+                    t!(
+                        "write-failed",
+                        path = path.display().to_string(),
+                        error = e.to_string()
+                    ),
                     true,
                 );
             }
@@ -374,6 +382,7 @@ impl PluginHost {
                         "plugin": id,
                         "ettin": env!("CARGO_PKG_VERSION"),
                         "api": API_VERSION,
+                        "language": crate::i18n::current(),
                     }),
                 ));
                 p.program = Some(proc.program.clone());
@@ -382,12 +391,13 @@ impl PluginHost {
                 p.status = Status::Running;
                 p.commands.clear();
                 p.events.clear();
-                let msg = format!(
-                    "Started with {} {}",
-                    p.program.as_deref().unwrap_or("?"),
-                    m.main
+                let msg = t!(
+                    "plugin-started",
+                    program = p.program.clone().unwrap_or_else(|| "?".to_owned()),
+                    script = m
+                        .main
                         .file_name()
-                        .map(|n| n.to_string_lossy())
+                        .map(|n| n.to_string_lossy().into_owned())
                         .unwrap_or_default()
                 );
                 self.log(&id, msg, false);
@@ -395,12 +405,17 @@ impl PluginHost {
             Err(e) => {
                 let program = programs.first().map(|p| p.0.as_str()).unwrap_or("?");
                 let why = if e.kind() == std::io::ErrorKind::NotFound {
-                    format!(
-                        "{} isn't installed (couldn't find \"{program}\"). Install it or set its path in Plugins > Manage Plugins.",
-                        m.runtime.label()
+                    t!(
+                        "runtime-missing",
+                        runtime = m.runtime.label(),
+                        program = program
                     )
                 } else {
-                    format!("Couldn't start {program}: {e}")
+                    t!(
+                        "plugin-start-failed",
+                        program = program,
+                        error = e.to_string()
+                    )
                 };
                 p.status = Status::Failed(why.clone());
                 self.log(&id, why, true);
@@ -610,9 +625,9 @@ impl PluginHost {
             std::thread::sleep(Duration::from_millis(5));
         }
         let why = match code {
-            Some(Some(0)) => "It stopped running.".to_owned(),
-            Some(Some(c)) => format!("It stopped with exit code {c}. See the plugin log."),
-            _ => "It stopped. See the plugin log.".to_owned(),
+            Some(Some(0)) => t!("plugin-exited"),
+            Some(Some(c)) => t!("plugin-exit-code", code = c),
+            _ => t!("plugin-died"),
         };
         p.status = Status::Failed(why.clone());
         p.commands.clear();
@@ -622,9 +637,7 @@ impl PluginHost {
         self.panels.retain(|panel| panel.plugin != id);
         self.log(&id, why.clone(), true);
         if code != Some(Some(0)) {
-            self.notices.push(format!(
-                "The plugin {name} stopped. See Plugins > Plugin Log."
-            ));
+            self.notices.push(t!("plugin-stopped-notice", name = name));
         }
         if code.is_none() {
             self.ending.push((proc, f64::NEG_INFINITY));

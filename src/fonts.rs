@@ -62,16 +62,12 @@ pub fn install(ctx: &egui::Context, editor: &EditorFont) -> Result<(), String> {
                     .or_default()
                     .insert(0, "editor-font".to_owned());
             }
-            Ok(_) => {
-                result = Err(format!(
-                    "{} isn't a font Ettin Edit can use.",
-                    path.display()
-                ))
-            }
+            Ok(_) => result = Err(t!("font-unusable", path = path.display().to_string())),
             Err(e) => {
-                result = Err(format!(
-                    "Couldn't read the editor font {}: {e}",
-                    path.display()
+                result = Err(t!(
+                    "font-read-failed",
+                    path = path.display().to_string(),
+                    error = e.to_string()
                 ))
             }
         }

@@ -147,6 +147,8 @@ function prompt(text, { value = '', title } = {}) {
   return call('ui.prompt', { prompt: String(text), value, title });
 }
 function setClipboard(text) { return call('clipboard.set', { text: String(text) }); }
+/** The language Ettin Edit's menus are in now, like 'en' or 'de'. */
+function uiLanguage() { return call('app.language'); }
 /** Runs one of Ettin Edit's own commands, like 'Duplicate', 'SelectAll' or
  *  {SortLines: {kind: 'IgnoreCase', desc: false}}. */
 function runAction(action) { return call('editor.runAction', { action }); }
@@ -291,6 +293,6 @@ module.exports = {
   EttinError, Document, ui, info,
   command, on, onPanel, run,
   activeDocument, documents, openFile, newDocument,
-  message, prompt, setClipboard, runAction, log,
+  message, prompt, setClipboard, runAction, uiLanguage, log,
   showPanel, closePanel, call, notify,
 };
