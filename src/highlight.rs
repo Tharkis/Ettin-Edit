@@ -95,6 +95,9 @@ const TS_JSX_STUB: &str = "  jsx: []\n";
 fn tsx_source() -> String {
     let ts = include_str!("../assets/syntaxes/typescript.sublime-syntax");
     let jsx = include_str!("../assets/syntaxes/tsx-jsx.sublime-syntax.part");
+    // A Windows checkout may have turned the grammars' line endings into CRLF.
+    let ts = ts.replace("\r\n", "\n");
+    let jsx = jsx.replace("\r\n", "\n");
     ts.replacen("\nname: TypeScript\n", "\nname: TSX\n", 1)
         .replacen(
             "\nfile_extensions: [ts, mts, cts]\n",
@@ -102,7 +105,7 @@ fn tsx_source() -> String {
             1,
         )
         .replacen("\nscope: source.ts\n", "\nscope: source.tsx\n", 1)
-        .replacen(TS_JSX_STUB, jsx, 1)
+        .replacen(TS_JSX_STUB, &jsx, 1)
 }
 
 /// Where the user's own grammars live.
@@ -449,7 +452,7 @@ pub(crate) mod tests {
 
     #[test]
     fn tsx_is_derived_from_typescript() {
-        let ts = include_str!("../assets/syntaxes/typescript.sublime-syntax");
+        let ts = include_str!("../assets/syntaxes/typescript.sublime-syntax").replace("\r\n", "\n");
         assert!(ts.contains(TS_JSX_STUB));
         assert!(ts.contains("\nname: TypeScript\n"));
         assert!(ts.contains("\nfile_extensions: [ts, mts, cts]\n"));

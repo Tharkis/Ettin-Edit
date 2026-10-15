@@ -1,0 +1,5 @@
+# Bundled grammars, themes, docs and plugin files are compiled in with
+# include_str!, so keep them byte-identical on every platform.
+assets/** text=auto eol=lf
+docs/** text=auto eol=lf
+plugins/** text=auto eol=lf
