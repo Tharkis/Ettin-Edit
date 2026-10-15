@@ -91,10 +91,24 @@ jobs:
           cp packaging/linux/ettin-edit.desktop "$dir/"
           cp assets/icons/ettin-edit.svg assets/icons/ettin-edit-256.png "$dir/icons/"
           tar czf "$dir.tar.gz" "$dir"
+      - name: Debian package
+        run: |
+          root="ettin-edit_${VERSION}_amd64"
+          install -Dm755 target/release/ettin-edit "$root/usr/bin/ettin-edit"
+          install -Dm644 packaging/linux/ettin-edit.desktop "$root/usr/share/applications/ettin-edit.desktop"
+          install -Dm644 assets/icons/ettin-edit.svg "$root/usr/share/icons/hicolor/scalable/apps/ettin-edit.svg"
+          install -Dm644 assets/icons/ettin-edit-256.png "$root/usr/share/icons/hicolor/256x256/apps/ettin-edit.png"
+          install -Dm644 README.md "$root/usr/share/doc/ettin-edit/README.md"
+          mkdir -p "$root/DEBIAN"
+          size=$(du -sk "$root/usr" | cut -f1)
+          sed -e "s/@VERSION@/$VERSION/" -e "s/@SIZE@/$size/" packaging/debian/control > "$root/DEBIAN/control"
+          dpkg-deb --root-owner-group --build "$root"
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: ettin-edit-*.tar.gz
+          path: |
+            ettin-edit-*.tar.gz
+            ettin-edit_*.deb
 
   arch:
     name: Arch package
@@ -145,10 +159,22 @@ jobs:
           New-Item -ItemType Directory $dir | Out-Null
           Copy-Item target/release/ettin-edit.exe, README.md $dir
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
+      - name: Installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          & $iscc "/DAppVersion=$env:VERSION" "/DSourceExe=$PWD\target\release\ettin-edit.exe" packaging\windows\ettin-edit.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Move-Item packaging\windows\ettin-edit-*-setup.exe .
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: ettin-edit-*.zip
+          path: |
+            ettin-edit-*.zip
+            ettin-edit-*-setup.exe
 
   publish:
     name: Publish release
@@ -173,11 +199,17 @@ jobs:
             `sudo pacman -U ./ettin-edit-${{ needs.version.outputs.version }}-1-x86_64.pkg.tar.zst`.
             It adds Ettin Edit to your app menu.
 
+            **Debian / Ubuntu:** download the `.deb` file, then run
+            `sudo apt install ./ettin-edit_${{ needs.version.outputs.version }}_amd64.deb`.
+
             **Other Linux:** download the `linux-x86_64.tar.gz`, extract it and run `./ettin-edit`.
             It needs OpenGL and `libxkbcommon-x11`.
 
-            **Windows:** download the `windows-x86_64.zip`, extract it and run `ettin-edit.exe`.
-            The build isn't signed yet, so Windows SmartScreen may warn the first time; choose "More info", then "Run anyway".
+            **Windows:** download `windows-x86_64-setup.exe` and run it. It installs for your
+            account without admin rights (or for everyone, if you choose), adds a Start menu
+            entry, "Edit with Ettin Edit" in the right-click menu and "Open with" for text and
+            code files. Prefer no installer? The `windows-x86_64.zip` has just `ettin-edit.exe`.
+            The builds aren't signed yet, so Windows SmartScreen may warn the first time; choose "More info", then "Run anyway".
 
-            See [FEATURES.md](https://github.com/Tharkis/NixPad/blob/${{ needs.version.outputs.tag }}/FEATURES.md) for what this version can do.
+            See [FEATURES.md](https://github.com/Tharkis/Ettin-Edit/blob/${{ needs.version.outputs.tag }}/FEATURES.md) for what this version can do.
           files: dist/*
