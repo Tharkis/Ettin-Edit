@@ -1029,9 +1029,10 @@ mod process_tests {
     }
 
     /// Polls until `done` or a timeout, answering `text.get` with "hello".
+    /// The timeout is generous: interpreters can start slowly on busy CI runners.
     fn pump(host: &mut PluginHost, mut done: impl FnMut(&PluginHost) -> bool) -> bool {
         let start = Instant::now();
-        while start.elapsed() < Duration::from_secs(20) {
+        while start.elapsed() < Duration::from_secs(60) {
             host.wait(Duration::from_millis(50));
             for call in host.poll(0.0) {
                 let result = match call.method.as_str() {
