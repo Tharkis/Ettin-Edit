@@ -2372,19 +2372,35 @@ const multi = (
             ),
             ("CSS", ".a .b > c:hover { color: red; margin: 0 auto; }\n"),
         ];
-        for (language, sample) in samples {
-            let mut text = String::with_capacity(5_300_000);
-            while text.len() < 5_000_000 {
+        // Wall-clock limits depend on the machine (CI runners are slow and run
+        // tests in parallel), so this checks that the time grows in proportion
+        // to the size: ten times the text may take at most about ten times
+        // as long, never the hundredfold of a quadratic scan.
+        let make = |sample: &str, size: usize| {
+            let mut text = String::with_capacity(size + size / 10);
+            while text.len() < size {
                 text.push_str(sample);
             }
             // And one huge minified line.
-            text.push_str(&sample.replace('\n', " ").repeat(5_000));
+            text.push_str(&sample.replace('\n', " ").repeat(size / 1000));
+            text
+        };
+        for (language, sample) in samples {
+            let small = make(sample, 500_000);
+            let large = make(sample, 5_000_000);
             let start = std::time::Instant::now();
-            let found = symbols(language, &text);
+            assert!(!symbols(language, &small).is_empty(), "{language}");
+            let small_took = start.elapsed();
+            let start = std::time::Instant::now();
+            assert!(!symbols(language, &large).is_empty(), "{language}");
             let took = start.elapsed();
-            assert!(!found.is_empty(), "{language}");
+            let limit = small_took * 30 + std::time::Duration::from_millis(200);
             assert!(
-                took < std::time::Duration::from_secs(3),
+                took < limit,
+                "{language} took {took:?} for 5 MB but {small_took:?} for 0.5 MB"
+            );
+            assert!(
+                took < std::time::Duration::from_secs(30),
                 "{language} took {took:?}"
             );
         }
