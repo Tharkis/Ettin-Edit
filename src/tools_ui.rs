@@ -131,17 +131,15 @@ impl ColumnDialog {
         let mut close = false;
         let response = egui::Modal::new(Id::new("column-editor")).show(ctx, |ui| {
             ui.set_width(340.0);
-            ui.heading("Column Editor");
+            ui.heading(t!("column-editor-title"));
             ui.add_space(4.0);
             ui.label(
-                RichText::new(
-                    "Inserts at every caret, or at the caret's column on each line below it.",
-                )
-                .size(12.0)
-                .color(palette.text_dim),
+                RichText::new(t!("column-editor-hint"))
+                    .size(12.0)
+                    .color(palette.text_dim),
             );
             ui.add_space(6.0);
-            ui.radio_value(&mut self.numbers, false, "Text to insert");
+            ui.radio_value(&mut self.numbers, false, t!("text-to-insert"));
             let mut enter = false;
             ui.add_enabled_ui(!self.numbers, |ui| {
                 let r = ui.add(
@@ -156,21 +154,21 @@ impl ColumnDialog {
                 enter |= r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
             });
             ui.add_space(6.0);
-            ui.radio_value(&mut self.numbers, true, "Numbers to insert");
+            ui.radio_value(&mut self.numbers, true, t!("numbers-to-insert"));
             ui.add_enabled_ui(self.numbers, |ui| {
                 ui.indent("numbers", |ui| {
-                    field(ui, "Initial number", &mut self.initial);
-                    field(ui, "Increase by", &mut self.step);
-                    field(ui, "Repeat", &mut self.repeat);
-                    ui.checkbox(&mut self.leading_zeros, "Leading zeros");
+                    field(ui, &t!("initial-number"), &mut self.initial);
+                    field(ui, &t!("increase-by"), &mut self.step);
+                    field(ui, &t!("repeat"), &mut self.repeat);
+                    ui.checkbox(&mut self.leading_zeros, t!("leading-zeros"));
                     ui.horizontal(|ui| {
                         for (f, label) in [
-                            (NumberFormat::Dec, "Dec"),
-                            (NumberFormat::Hex, "Hex"),
-                            (NumberFormat::Oct, "Oct"),
-                            (NumberFormat::Bin, "Bin"),
+                            (NumberFormat::Dec, "format-dec"),
+                            (NumberFormat::Hex, "format-hex"),
+                            (NumberFormat::Oct, "format-oct"),
+                            (NumberFormat::Bin, "format-bin"),
                         ] {
-                            ui.radio_value(&mut self.format, f, label);
+                            ui.radio_value(&mut self.format, f, crate::i18n::tr(label));
                         }
                     });
                 });
@@ -183,10 +181,10 @@ impl ColumnDialog {
                 Vec2::new(ui.available_width(), 26.0),
                 Layout::right_to_left(Align::Center),
                 |ui| {
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t!("cancel")).clicked() {
                         close = true;
                     }
-                    if ui.button("Insert").clicked() || enter {
+                    if ui.button(t!("insert")).clicked() || enter {
                         match self.request() {
                             Ok(r) => {
                                 result = Some(r);
@@ -211,12 +209,12 @@ impl ColumnDialog {
         let num = |s: &str, what: &str| {
             s.trim()
                 .parse::<i64>()
-                .map_err(|_| format!("{what} must be a whole number"))
+                .map_err(|_| t!("must-be-whole-number", field = what))
         };
         Ok(ColumnInsert::Numbers {
-            initial: num(&self.initial, "Initial number")?,
-            step: num(&self.step, "Increase by")?,
-            repeat: num(&self.repeat, "Repeat")?.max(1) as usize,
+            initial: num(&self.initial, &t!("initial-number"))?,
+            step: num(&self.step, &t!("increase-by"))?,
+            repeat: num(&self.repeat, &t!("repeat"))?.max(1) as usize,
             leading_zeros: self.leading_zeros,
             format: self.format,
         })
@@ -263,11 +261,11 @@ impl RunMacroDialog {
         let mut close = false;
         let response = egui::Modal::new(Id::new("run-macro")).show(ctx, |ui| {
             ui.set_width(300.0);
-            ui.heading("Run a Macro Multiple Times");
+            ui.heading(t!("run-macro-title"));
             ui.add_space(6.0);
             let mut enter = false;
             ui.horizontal(|ui| {
-                ui.radio_value(&mut self.to_end, false, "Run");
+                ui.radio_value(&mut self.to_end, false, t!("run"));
                 let r = ui.add_enabled(
                     !self.to_end,
                     egui::TextEdit::singleline(&mut self.count)
@@ -279,21 +277,21 @@ impl RunMacroDialog {
                     self.focus = false;
                 }
                 enter = r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-                ui.label("times");
+                ui.label(t!("times"));
             });
-            ui.radio_value(&mut self.to_end, true, "Run until the end of the file");
+            ui.radio_value(&mut self.to_end, true, t!("run-to-end"));
             if !has_macro {
-                ui.label(RichText::new("Record a macro first.").weak());
+                ui.label(RichText::new(t!("record-macro-first")).weak());
             }
             ui.add_space(8.0);
             ui.allocate_ui_with_layout(
                 Vec2::new(ui.available_width(), 26.0),
                 Layout::right_to_left(Align::Center),
                 |ui| {
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t!("cancel")).clicked() {
                         close = true;
                     }
-                    let run = ui.add_enabled(has_macro, egui::Button::new("Run"));
+                    let run = ui.add_enabled(has_macro, egui::Button::new(t!("run")));
                     if run.clicked() || (enter && has_macro) {
                         result = Some(if self.to_end {
                             RunTimes::ToEnd
@@ -335,9 +333,9 @@ impl SaveMacroDialog {
         let mut close = false;
         let response = egui::Modal::new(Id::new("save-macro")).show(ctx, |ui| {
             ui.set_width(300.0);
-            ui.heading("Save Current Macro");
+            ui.heading(t!("save-macro-title"));
             ui.add_space(6.0);
-            ui.label("Name");
+            ui.label(t!("rule-name"));
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.name)
                     .desired_width(f32::INFINITY)
@@ -353,11 +351,12 @@ impl SaveMacroDialog {
                 Vec2::new(ui.available_width(), 26.0),
                 Layout::right_to_left(Align::Center),
                 |ui| {
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t!("cancel")).clicked() {
                         close = true;
                     }
                     let ok = !self.name.trim().is_empty();
-                    if ui.add_enabled(ok, egui::Button::new("Save")).clicked() || (enter && ok) {
+                    if ui.add_enabled(ok, egui::Button::new(t!("save"))).clicked() || (enter && ok)
+                    {
                         result = Some(self.name.trim().to_owned());
                         close = true;
                     }

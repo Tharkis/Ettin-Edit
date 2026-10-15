@@ -37,137 +37,186 @@ fn flatten(prefix: &str, entries: &[MenuEntry], m: &MenuModel, out: &mut Vec<Com
 }
 
 /// Commands from the menus drawn directly in the menu bar.
-fn fixed_commands() -> Vec<(&'static str, Action)> {
+fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
     use Action::*;
     vec![
-        ("File › New", NewTab),
-        ("File › Open…", Open),
-        ("File › Save", Save),
-        ("File › Save As…", SaveAs),
-        ("File › Save All", SaveAll),
-        ("File › Reload from Disk", ReloadFromDisk),
-        ("File › Rename…", RenameFile),
-        ("File › Move to Trash…", MoveToTrash),
-        ("File › Open Containing Folder", OpenContainingFolder),
-        ("File › Open Terminal Here", OpenTerminalHere),
-        ("File › Print…", Print),
-        ("File › Export as HTML…", ExportHtml),
-        ("File › Open Folder as Workspace…", OpenFolderAsWorkspace),
-        ("File › Close Workspace", CloseWorkspace),
-        ("File › Close", CloseTab),
-        ("File › Close All", CloseAll),
-        ("File › Close Others", CloseOthers),
-        ("File › Clear Recent Files", ClearRecent),
-        ("File › Exit", Quit),
-        ("Search › Find…", Find),
-        ("Search › Replace…", Replace),
-        ("Search › Find Next", FindNext),
-        ("Search › Find Previous", FindPrev),
-        ("Search › Find Selected Next", FindSelectedNext),
-        ("Search › Find Selected Previous", FindSelectedPrev),
-        ("Search › Find in Files…", FindInFiles),
-        ("Search › Find All in Current Document", FindAllInDoc),
-        ("Search › Find All in Open Tabs", FindAllInTabs),
-        ("Search › Select All Matches", SelectAllMatches),
-        ("Search › Mark All", MarkAll { bookmark: false }),
-        ("Search › Clear All Marks", ClearMarks),
-        ("Search › Go to Line…", GoToLine),
-        ("Search › Bookmark › Toggle Bookmark", ToggleBookmark),
-        ("Search › Bookmark › Next Bookmark", NextBookmark),
-        ("Search › Bookmark › Previous Bookmark", PrevBookmark),
-        ("Search › Bookmark › Clear All Bookmarks", ClearBookmarks),
+        (&["menu-file", "new"], NewTab),
+        (&["menu-file", "open-dots"], Open),
+        (&["menu-file", "save"], Save),
+        (&["menu-file", "save-as"], SaveAs),
+        (&["menu-file", "save-all"], SaveAll),
+        (&["menu-file", "reload-from-disk"], ReloadFromDisk),
+        (&["menu-file", "rename-dots"], RenameFile),
+        (&["menu-file", "move-to-trash"], MoveToTrash),
         (
-            "Search › Bookmark › Cut Bookmarked Lines",
+            &["menu-file", "open-containing-folder"],
+            OpenContainingFolder,
+        ),
+        (&["menu-file", "open-terminal-here"], OpenTerminalHere),
+        (&["menu-file", "print-dots"], Print),
+        (&["menu-file", "export-html"], ExportHtml),
+        (
+            &["menu-file", "open-folder-as-workspace"],
+            OpenFolderAsWorkspace,
+        ),
+        (&["menu-file", "close-workspace"], CloseWorkspace),
+        (&["menu-file", "close"], CloseTab),
+        (&["menu-file", "close-all"], CloseAll),
+        (&["menu-file", "close-others"], CloseOthers),
+        (&["menu-file", "clear-recent-files"], ClearRecent),
+        (&["menu-file", "exit"], Quit),
+        (&["menu-search", "find-dots"], Find),
+        (&["menu-search", "replace-dots"], Replace),
+        (&["menu-search", "find-next"], FindNext),
+        (&["menu-search", "find-previous"], FindPrev),
+        (&["menu-search", "find-selected-next"], FindSelectedNext),
+        (&["menu-search", "find-selected-previous"], FindSelectedPrev),
+        (&["menu-search", "find-in-files"], FindInFiles),
+        (&["menu-search", "find-all-in-document"], FindAllInDoc),
+        (&["menu-search", "find-all-in-tabs"], FindAllInTabs),
+        (&["menu-search", "select-all-matches"], SelectAllMatches),
+        (&["menu-search", "mark-all"], MarkAll { bookmark: false }),
+        (&["menu-search", "clear-all-marks"], ClearMarks),
+        (&["menu-search", "go-to-line"], GoToLine),
+        (
+            &["menu-search", "menu-bookmark", "toggle-bookmark"],
+            ToggleBookmark,
+        ),
+        (
+            &["menu-search", "menu-bookmark", "next-bookmark"],
+            NextBookmark,
+        ),
+        (
+            &["menu-search", "menu-bookmark", "previous-bookmark"],
+            PrevBookmark,
+        ),
+        (
+            &["menu-search", "menu-bookmark", "clear-all-bookmarks"],
+            ClearBookmarks,
+        ),
+        (
+            &["menu-search", "menu-bookmark", "cut-bookmarked-lines"],
             CutBookmarkedLines,
         ),
         (
-            "Search › Bookmark › Copy Bookmarked Lines",
+            &["menu-search", "menu-bookmark", "copy-bookmarked-lines"],
             CopyBookmarkedLines,
         ),
         (
-            "Search › Bookmark › Remove Bookmarked Lines",
+            &["menu-search", "menu-bookmark", "remove-bookmarked-lines"],
             RemoveBookmarkedLines,
         ),
         (
-            "Search › Bookmark › Remove Unbookmarked Lines",
+            &["menu-search", "menu-bookmark", "remove-unbookmarked-lines"],
             RemoveUnbookmarkedLines,
         ),
-        ("Search › Bookmark › Inverse Bookmarks", InverseBookmarks),
-        ("View › Word Wrap", ToggleWordWrap),
-        ("View › Line Numbers", ToggleLineNumbers),
-        ("View › Highlight Current Line", ToggleCurrentLine),
-        ("View › Show Symbol › Show Whitespace", ToggleWhitespace),
-        ("View › Show Symbol › Show End of Line", ToggleEol),
-        ("View › Show Symbol › Indent Guides", ToggleIndentGuides),
-        ("View › Long-Line Marker", ToggleEdge),
-        ("View › Function List", ToggleFunctionList),
-        ("View › Document Map", ToggleDocMap),
-        ("View › Folder as Workspace", ToggleFolderPanel),
-        ("View › Distraction-Free Mode", ToggleDistractionFree),
-        ("View › Tab List…", TabList),
-        ("View › Move to Other View", MoveActiveToOtherView),
-        ("View › Clone to Other View", CloneActiveToOtherView),
-        ("View › Focus Other View", FocusOtherView),
-        ("View › Next Tab", NextTab),
-        ("View › Previous Tab", PrevTab),
-        ("View › Folding › Fold All", FoldAll),
-        ("View › Folding › Unfold All", UnfoldAll),
-        ("View › Folding › Fold Current Level", FoldCurrent),
-        ("View › Folding › Unfold Current Level", UnfoldCurrent),
-        ("View › Folding › Fold Level 1", FoldLevel(1)),
-        ("View › Folding › Fold Level 2", FoldLevel(2)),
-        ("View › Folding › Fold Level 3", FoldLevel(3)),
-        ("View › Folding › Fold Level 4", FoldLevel(4)),
-        ("View › Folding › Fold Level 5", FoldLevel(5)),
-        ("View › Zoom In", ZoomIn),
-        ("View › Zoom Out", ZoomOut),
-        ("View › Reset Zoom", ZoomReset),
-        ("View › Summary…", Summary),
-        ("View › Command Palette…", CommandPalette),
-        ("Theme › Edit Theme Colours…", StyleConfigurator),
-        ("Theme › Open Themes Folder", OpenThemesFolder),
-        ("Theme › Reload Themes", ReloadThemes),
-        ("Theme › Restore Built-in Themes", RestoreThemes),
-        ("Language › New Language…", NewLanguage),
-        ("Language › Open Languages Folder", OpenLanguagesFolder),
-        ("Language › Open Completion Lists Folder", OpenApiFolder),
-        ("Language › Reload Languages", ReloadLanguages),
-        ("Language › Language Guide", LanguageGuide),
-        ("Settings › Preferences…", Preferences),
-        ("Settings › Shortcut Mapper…", ShortcutMapper),
-        ("Settings › Auto-Close Brackets and Quotes", ToggleAutoClose),
-        ("Settings › Smart Indentation", ToggleSmartIndent),
-        ("Settings › Indent With Spaces", ToggleUseSpaces),
-        ("Settings › Word Completion", ToggleCompletion),
         (
-            "Settings › Keyword and Function Completion",
+            &["menu-search", "menu-bookmark", "inverse-bookmarks"],
+            InverseBookmarks,
+        ),
+        (&["menu-view", "word-wrap"], ToggleWordWrap),
+        (&["menu-view", "line-numbers"], ToggleLineNumbers),
+        (&["menu-view", "highlight-current-line"], ToggleCurrentLine),
+        (
+            &["menu-view", "menu-show-symbol", "show-whitespace"],
+            ToggleWhitespace,
+        ),
+        (
+            &["menu-view", "menu-show-symbol", "show-end-of-line"],
+            ToggleEol,
+        ),
+        (
+            &["menu-view", "menu-show-symbol", "indent-guides"],
+            ToggleIndentGuides,
+        ),
+        (&["menu-view", "long-line-marker"], ToggleEdge),
+        (&["menu-view", "function-list"], ToggleFunctionList),
+        (&["menu-view", "document-map"], ToggleDocMap),
+        (&["menu-view", "folder-as-workspace"], ToggleFolderPanel),
+        (
+            &["menu-view", "distraction-free-mode"],
+            ToggleDistractionFree,
+        ),
+        (&["menu-view", "tab-list"], TabList),
+        (&["menu-view", "move-to-other-view"], MoveActiveToOtherView),
+        (
+            &["menu-view", "clone-to-other-view"],
+            CloneActiveToOtherView,
+        ),
+        (&["menu-view", "focus-other-view"], FocusOtherView),
+        (&["menu-view", "next-tab"], NextTab),
+        (&["menu-view", "previous-tab"], PrevTab),
+        (&["menu-view", "menu-folding", "fold-all"], FoldAll),
+        (&["menu-view", "menu-folding", "unfold-all"], UnfoldAll),
+        (
+            &["menu-view", "menu-folding", "fold-current-level"],
+            FoldCurrent,
+        ),
+        (
+            &["menu-view", "menu-folding", "unfold-current-level"],
+            UnfoldCurrent,
+        ),
+        (&["menu-view", "zoom-in"], ZoomIn),
+        (&["menu-view", "zoom-out"], ZoomOut),
+        (&["menu-view", "reset-zoom"], ZoomReset),
+        (&["menu-view", "summary-dots"], Summary),
+        (&["menu-view", "command-palette"], CommandPalette),
+        (&["menu-theme", "edit-theme-colours"], StyleConfigurator),
+        (&["menu-theme", "open-themes-folder"], OpenThemesFolder),
+        (&["menu-theme", "reload-themes"], ReloadThemes),
+        (&["menu-theme", "restore-built-in-themes"], RestoreThemes),
+        (&["menu-language", "new-language"], NewLanguage),
+        (
+            &["menu-language", "open-languages-folder"],
+            OpenLanguagesFolder,
+        ),
+        (
+            &["menu-language", "open-completion-lists-folder"],
+            OpenApiFolder,
+        ),
+        (&["menu-language", "reload-languages"], ReloadLanguages),
+        (&["menu-language", "language-guide"], LanguageGuide),
+        (&["menu-settings", "preferences-dots"], Preferences),
+        (&["menu-settings", "shortcut-mapper-dots"], ShortcutMapper),
+        (&["menu-settings", "auto-close-brackets"], ToggleAutoClose),
+        (&["menu-settings", "smart-indentation"], ToggleSmartIndent),
+        (&["menu-settings", "indent-with-spaces"], ToggleUseSpaces),
+        (&["menu-settings", "word-completion"], ToggleCompletion),
+        (
+            &["menu-settings", "keyword-completion"],
             ToggleLanguageCompletion,
         ),
-        ("Settings › Parameter Hints", ToggleParameterHints),
-        ("Settings › Single Window", ToggleSingleInstance),
+        (&["menu-settings", "parameter-hints"], ToggleParameterHints),
+        (&["menu-settings", "single-window"], ToggleSingleInstance),
         (
-            "Settings › Remember Unsaved Changes on Exit",
+            &["menu-settings", "remember-unsaved"],
             ToggleRememberUnsaved,
         ),
+        (&["menu-settings", "auto-reload"], ToggleAutoReload),
         (
-            "Settings › Reload Files Changed on Disk Automatically",
-            ToggleAutoReload,
+            &["menu-macro", "start-or-stop-recording"],
+            ToggleMacroRecording,
         ),
-        ("Macro › Start or Stop Recording", ToggleMacroRecording),
-        ("Macro › Playback", PlayMacro),
-        ("Macro › Run a Macro Multiple Times…", RunMacroMultiple),
-        ("Macro › Save Current Macro…", SaveMacro),
-        ("Plugins › Manage Plugins…", ManagePlugins),
-        ("Plugins › Plugin Log", ShowPluginLog),
-        ("Plugins › Open Plugins Folder", OpenPluginsFolder),
-        ("Plugins › Reload Plugins", ReloadPlugins),
-        ("Plugins › Install Sample Plugins", InstallSamplePlugins),
-        ("Plugins › Plugin Guide", PluginGuide),
-        ("Help › User Manual", UserManual),
-        ("Help › User Manual on the Web", WebManual),
-        ("Help › Check for Updates…", CheckForUpdates),
-        ("Help › Check for Updates Automatically", ToggleUpdateCheck),
-        ("Help › About Ettin Edit", About),
+        (&["menu-macro", "playback"], PlayMacro),
+        (&["menu-macro", "run-macro-multiple"], RunMacroMultiple),
+        (&["menu-macro", "save-current-macro"], SaveMacro),
+        (&["menu-plugins", "manage-plugins"], ManagePlugins),
+        (&["menu-plugins", "plugin-log"], ShowPluginLog),
+        (&["menu-plugins", "open-plugins-folder"], OpenPluginsFolder),
+        (&["menu-plugins", "reload-plugins"], ReloadPlugins),
+        (
+            &["menu-plugins", "install-sample-plugins"],
+            InstallSamplePlugins,
+        ),
+        (&["menu-plugins", "plugin-guide"], PluginGuide),
+        (&["menu-help", "user-manual"], UserManual),
+        (&["menu-help", "user-manual-web"], WebManual),
+        (&["menu-help", "check-for-updates"], CheckForUpdates),
+        (
+            &["menu-help", "check-updates-automatically"],
+            ToggleUpdateCheck,
+        ),
+        (&["menu-help", "about-ettin-edit"], About),
     ]
 }
 
@@ -176,21 +225,37 @@ impl EttinApp {
     pub(super) fn command_catalog(&self, ctx: &egui::Context) -> Vec<Command> {
         let mut out: Vec<Command> = fixed_commands()
             .into_iter()
-            .map(|(path, action)| Command {
-                path: path.to_owned(),
+            .map(|(ids, action)| Command {
+                path: ids
+                    .iter()
+                    .map(|id| crate::i18n::tr(id))
+                    .collect::<Vec<_>>()
+                    .join(" › "),
                 action,
                 plugin_shortcut: None,
             })
             .collect();
+        for level in 1..=5 {
+            out.push(Command {
+                path: format!(
+                    "{} › {} › {}",
+                    t!("menu-view"),
+                    t!("menu-folding"),
+                    t!("fold-level", level = level)
+                ),
+                action: Action::FoldLevel(level),
+                plugin_shortcut: None,
+            });
+        }
         let mut m = MenuModel::new(ctx);
         let edit = self.edit_menu(&mut m, self.active);
-        flatten("Edit", &edit, &m, &mut out);
+        flatten(&t!("menu-edit"), &edit, &m, &mut out);
         let tools = self.tools_menu(&mut m);
-        flatten("Tools", &tools, &m, &mut out);
+        flatten(&t!("menu-tools"), &tools, &m, &mut out);
         for p in self.plugins.plugins.iter().filter(|p| p.is_running()) {
             for c in &p.commands {
                 out.push(Command {
-                    path: format!("Plugins › {} › {}", p.name(), c.title),
+                    path: format!("{} › {} › {}", t!("menu-plugins"), p.name(), c.title),
                     action: Action::PluginCommand {
                         plugin: p.id.clone(),
                         command: c.id.clone(),
@@ -201,7 +266,7 @@ impl EttinApp {
         }
         for (i, mac) in self.settings.macros.iter().enumerate() {
             out.push(Command {
-                path: format!("Macro › {}", mac.name),
+                path: format!("{} › {}", t!("menu-macro"), mac.name),
                 action: Action::PlaySavedMacro(i),
                 plugin_shortcut: None,
             });

@@ -81,12 +81,12 @@ impl IndexEntry {
 /// download address are left out; the rest are sorted by name. Download
 /// addresses may be relative to `base_url`, the index's own address.
 pub fn parse_index(text: &str, base_url: &str) -> Result<Vec<IndexEntry>, String> {
-    let root: Value = serde_json::from_str(text)
-        .map_err(|e| format!("The plugin index isn't valid JSON: {e}"))?;
+    let root: Value =
+        serde_json::from_str(text).map_err(|e| t!("index-bad-json", error = e.to_string()))?;
     let list = root
         .get("plugins")
         .and_then(Value::as_array)
-        .ok_or("The plugin index has no \"plugins\" list")?;
+        .ok_or_else(|| t!("index-no-list"))?;
     let mut seen = BTreeSet::new();
     let mut entries: Vec<IndexEntry> = list
         .iter()
@@ -194,8 +194,7 @@ pub fn id_from_name(name: &str) -> Option<String> {
 /// for a name that could write outside the folder it's unpacked into
 /// (an absolute path, a drive, or `..`).
 pub fn entry_path(name: &str) -> Result<String, String> {
-    let unsafe_name =
-        || format!("The zip has an unsafe file name, so nothing was installed: {name}");
+    let unsafe_name = || t!("zip-unsafe-name", name = name);
     let unified = name.replace('\\', "/");
     if unified.starts_with('/') || unified.contains('\0') {
         return Err(unsafe_name());
@@ -229,9 +228,7 @@ pub fn plugin_root(names: &[String]) -> Result<String, String> {
     {
         return Ok(format!("{top}/"));
     }
-    Err(format!(
-        "The zip has no {MANIFEST_FILE}, either at the top or inside a single folder."
-    ))
+    Err(t!("zip-no-manifest", file = MANIFEST_FILE))
 }
 
 /// Unpacks a plugin zip into `dest`, leaving out the folder around the
@@ -239,11 +236,11 @@ pub fn plugin_root(names: &[String]) -> Result<String, String> {
 /// if any entry has an unsafe name.
 pub fn extract_plugin_zip(bytes: &[u8], dest: &Path) -> Result<Option<String>, String> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes))
-        .map_err(|e| format!("That isn't a zip file Ettin Edit can read: {e}"))?;
+        .map_err(|e| t!("zip-unreadable", error = e.to_string()))?;
     if zip.len() > MAX_ENTRIES {
-        return Err(format!("The zip has more than {MAX_ENTRIES} files."));
+        return Err(t!("zip-too-many-files", count = MAX_ENTRIES));
     }
-    let bad = |e: zip::result::ZipError| format!("The zip is damaged: {e}");
+    let bad = |e: zip::result::ZipError| t!("zip-damaged", error = e.to_string());
     // Check every name before writing anything.
     let mut entries = Vec::with_capacity(zip.len());
     for i in 0..zip.len() {
@@ -251,12 +248,10 @@ pub fn extract_plugin_zip(bytes: &[u8], dest: &Path) -> Result<Option<String>, S
         let raw = file.name().map_err(bad)?.into_owned();
         let path = entry_path(&raw)?;
         if file.is_symlink() {
-            return Err(format!(
-                "The zip has a link, which plugins can't contain: {raw}"
-            ));
+            return Err(t!("zip-has-link", name = raw));
         }
         if file.encrypted() {
-            return Err("The zip is password-protected.".to_owned());
+            return Err(t!("zip-encrypted"));
         }
         // macOS adds a folder of file details to zips it makes.
         if path.is_empty() || path == "__MACOSX" || path.starts_with("__MACOSX/") {
@@ -277,7 +272,13 @@ pub fn extract_plugin_zip(bytes: &[u8], dest: &Path) -> Result<Option<String>, S
         let target = rel
             .split('/')
             .fold(dest.to_path_buf(), |p, part| p.join(part));
-        let fail = |e: std::io::Error| format!("Couldn't write {}: {e}", target.display());
+        let fail = |e: std::io::Error| {
+            t!(
+                "write-failed",
+                path = target.display().to_string(),
+                error = e.to_string()
+            )
+        };
         if is_dir {
             fs::create_dir_all(&target).map_err(fail)?;
             continue;
@@ -291,10 +292,10 @@ pub fn extract_plugin_zip(bytes: &[u8], dest: &Path) -> Result<Option<String>, S
         (&mut file)
             .take(left + 1)
             .read_to_end(&mut data)
-            .map_err(|e| format!("The zip is damaged: {e}"))?;
+            .map_err(|e| t!("zip-damaged", error = e.to_string()))?;
         total += data.len() as u64;
         if total > MAX_EXTRACTED_BYTES {
-            return Err("The zip unpacks to more than 256 MB.".to_owned());
+            return Err(t!("zip-too-big"));
         }
         fs::write(&target, data).map_err(fail)?;
     }
@@ -353,14 +354,25 @@ pub fn to_trash(path: &Path) -> Result<(), String> {
 /// A new, hidden folder in the plugins folder to unpack into, so the final
 /// move is a rename on the same drive. Hidden folders aren't loaded.
 fn staging_dir(root: &Path) -> Result<PathBuf, String> {
-    fs::create_dir_all(root)
-        .map_err(|e| format!("Couldn't create the plugins folder {}: {e}", root.display()))?;
+    fs::create_dir_all(root).map_err(|e| {
+        t!(
+            "make-folder-failed",
+            path = root.display().to_string(),
+            error = e.to_string()
+        )
+    })?;
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let dir = root.join(format!(".installing-{}-{nanos}", std::process::id()));
-    fs::create_dir_all(&dir).map_err(|e| format!("Couldn't create {}: {e}", dir.display()))?;
+    fs::create_dir_all(&dir).map_err(|e| {
+        t!(
+            "make-folder-failed",
+            path = dir.display().to_string(),
+            error = e.to_string()
+        )
+    })?;
     Ok(dir)
 }
 
@@ -380,9 +392,7 @@ pub fn install_zip(
     if let Some(expected) = sha256.map(str::trim).filter(|s| !s.is_empty()) {
         let got = sha256_hex(bytes);
         if !got.eq_ignore_ascii_case(expected) {
-            return Err(format!(
-                "The download doesn't match its SHA-256 checksum (expected {expected}, got {got}). It may be damaged or changed; nothing was installed."
-            ));
+            return Err(t!("checksum-mismatch", expected = expected, got = got));
         }
     }
     let staged = staging_dir(root)?;
@@ -413,11 +423,17 @@ pub fn install_folder(src: &Path, root: &Path, remove_old: RemoveOld) -> Result<
     if let (Ok(a), Ok(b)) = (src.canonicalize(), root.canonicalize())
         && (a.starts_with(&b) || b.starts_with(&a))
     {
-        return Err("That folder is already in the plugins folder.".to_owned());
+        return Err(t!("already-in-plugins-folder"));
     }
     let staged = staging_dir(root)?;
     let result = copy_folder(src, &staged)
-        .map_err(|e| format!("Couldn't copy {}: {e}", src.display()))
+        .map_err(|e| {
+            t!(
+                "copy-failed",
+                path = src.display().to_string(),
+                error = e.to_string()
+            )
+        })
         .and_then(|()| finish(&staged, root, &id, remove_old));
     if result.is_err() {
         let _ = fs::remove_dir_all(&staged);
@@ -446,14 +462,14 @@ fn finish(
     id: &str,
     remove_old: RemoveOld,
 ) -> Result<Installed, String> {
-    manifest::load(staged).map_err(|e| format!("This isn't a plugin Ettin Edit can run: {e}"))?;
+    manifest::load(staged).map_err(|e| t!("not-a-plugin", error = e))?;
     let dest = root.join(id);
     let updated = dest.exists();
     if updated {
         remove_old(&dest)
-            .map_err(|e| format!("Couldn't move the installed copy of {id} to the trash: {e}"))?;
+            .map_err(|e| t!("plugin-trash-old-failed", id = id, error = e.to_string()))?;
     }
-    fs::rename(staged, &dest).map_err(|e| format!("Couldn't move the plugin into place: {e}"))?;
+    fs::rename(staged, &dest).map_err(|e| t!("plugin-move-failed", error = e.to_string()))?;
     let m = manifest::load(&dest)?;
     Ok(Installed {
         id: id.to_owned(),
@@ -513,11 +529,8 @@ pub fn fetch(url: &str, limit: u64) -> Result<Vec<u8>, String> {
 
 /// Downloads and reads an index.
 pub fn fetch_index(url: &str) -> Result<Vec<IndexEntry>, String> {
-    let bytes = fetch(url, MAX_INDEX_BYTES).map_err(|e| {
-        format!(
-            "The plugin index couldn't be reached ({e}). Check the address and that it's public:\n{url}"
-        )
-    })?;
+    let bytes =
+        fetch(url, MAX_INDEX_BYTES).map_err(|e| t!("index-unreachable", error = e, url = url))?;
     parse_index(&String::from_utf8_lossy(&bytes), url)
 }
 
@@ -632,7 +645,10 @@ impl Store {
     /// Downloads and installs a plugin from the index.
     pub fn install_entry(&mut self, entry: &IndexEntry, root: PathBuf, ctx: &egui::Context) {
         let entry = entry.clone();
-        let what = format!("Installing {} {}…", entry.display_name(), entry.version);
+        let what = t!(
+            "installing",
+            name = format!("{} {}", entry.display_name(), entry.version)
+        );
         self.run(what, ctx, move || {
             let bytes = fetch(&entry.download, MAX_DOWNLOAD_BYTES).map_err(|e| {
                 format!(
@@ -654,13 +670,17 @@ impl Store {
 
     /// Installs a plugin from a `.zip` file.
     pub fn install_file(&mut self, path: PathBuf, root: PathBuf, ctx: &egui::Context) {
-        let what = format!(
-            "Installing {}…",
-            path.file_name().unwrap_or_default().to_string_lossy()
+        let what = t!(
+            "installing",
+            name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
         );
         self.run(what, ctx, move || {
             let bytes = fetch(&path.to_string_lossy(), MAX_DOWNLOAD_BYTES)
-                .map_err(|e| format!("Couldn't read {}: {e}", path.display()))?;
+                .map_err(|e| t!("read-failed", path = path.display().to_string(), error = e))?;
             let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned());
             install_zip(&bytes, None, None, stem.as_deref(), &root, &to_trash)
         });
@@ -668,9 +688,13 @@ impl Store {
 
     /// Installs a copy of a plugin folder.
     pub fn install_folder(&mut self, path: PathBuf, root: PathBuf, ctx: &egui::Context) {
-        let what = format!(
-            "Installing {}…",
-            path.file_name().unwrap_or_default().to_string_lossy()
+        let what = t!(
+            "installing",
+            name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
         );
         self.run(what, ctx, move || install_folder(&path, &root, &to_trash));
     }

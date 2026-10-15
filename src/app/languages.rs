@@ -40,7 +40,13 @@ impl EttinApp {
                     std::fs::write(&example, crate::lang_api::API_TEMPLATE)
                 }
             })
-            .map_err(|e| format!("Couldn't make {}: {e}", dir.display()))
+            .map_err(|e| {
+                t!(
+                    "make-folder-failed",
+                    path = dir.display().to_string(),
+                    error = e.to_string()
+                )
+            })
             .and_then(|_| system::open_folder(&dir));
         if let Err(e) = result {
             self.errors.push(e);
@@ -52,7 +58,13 @@ impl EttinApp {
             return;
         };
         let result = std::fs::create_dir_all(&dir)
-            .map_err(|e| format!("Couldn't make {}: {e}", dir.display()))
+            .map_err(|e| {
+                t!(
+                    "make-folder-failed",
+                    path = dir.display().to_string(),
+                    error = e.to_string()
+                )
+            })
             .and_then(|_| system::open_folder(&dir));
         if let Err(e) = result {
             self.errors.push(e);
@@ -65,8 +77,11 @@ impl EttinApp {
             return;
         };
         if let Err(e) = std::fs::create_dir_all(&dir) {
-            self.errors
-                .push(format!("Couldn't make {}: {e}", dir.display()));
+            self.errors.push(t!(
+                "make-folder-failed",
+                path = dir.display().to_string(),
+                error = e.to_string()
+            ));
             return;
         }
         let path = (1..)
@@ -81,8 +96,11 @@ impl EttinApp {
             .find(|p| !p.exists())
             .expect("an unused name");
         if let Err(e) = std::fs::write(&path, crate::user_lang::UDL_TEMPLATE) {
-            self.errors
-                .push(format!("Couldn't write {}: {e}", path.display()));
+            self.errors.push(t!(
+                "write-failed",
+                path = path.display().to_string(),
+                error = e.to_string()
+            ));
             return;
         }
         self.open_path(&path, true);

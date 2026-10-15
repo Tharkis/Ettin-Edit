@@ -17,11 +17,12 @@ Ettin Edit keeps everything it remembers in one folder:
 | `themes/` | Every theme as a `.tmTheme` file ([Themes](themes.md)). `.builtin-themes.json` tracks which built-in themes you haven't edited. |
 | `languages/` | Your own languages ([Languages](languages.md)) |
 | `api/` | Your own completion lists ([Languages](languages.md#your-own-lists)) |
+| `translations/` | Your own translations, one `.ftl` file per language, and an English copy to start from ([Translations](translations.md)) |
 | `plugins/` | Your plugins, one folder each ([Using plugins](plugins.md)). `.sdk/` holds the plugin SDKs, kept up to date by Ettin Edit. |
 | `instance.json` | How a second Ettin Edit finds the running one |
 
-The **Open … Folder** commands in the Theme, Language and Plugins menus open
-these folders for you, creating them if needed.
+The **Open … Folder** commands in the Theme, Language and Plugins menus, and
+**Open Translations Folder** in Preferences, open these folders for you, creating them if needed.
 
 ### Backing up or moving your settings
 

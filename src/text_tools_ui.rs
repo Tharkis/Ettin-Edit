@@ -64,13 +64,13 @@ impl Notice {
                             ui.label(RichText::new(mark).color(color));
                             ui.add(egui::Label::new(&self.text).wrap());
                             if let Some((doc, pos)) = self.jump
-                                && ui.small_button("Go to").clicked()
+                                && ui.small_button(t!("go-to")).clicked()
                             {
                                 response = Some(NoticeResponse::Jump(doc, pos));
                             }
                             if ui
                                 .add(egui::Button::new("×").frame(false))
-                                .on_hover_text("Dismiss")
+                                .on_hover_text(t!("dismiss"))
                                 .clicked()
                             {
                                 response = Some(NoticeResponse::Close);
@@ -157,9 +157,7 @@ impl JsonTree {
         self.source = Some((doc_id, version));
         self.filtered = None;
         self.doc = if self.text.len() > TREE_MAX_BYTES {
-            Err(ToolError::new(
-                "This document is too large to show as a tree.",
-            ))
+            Err(ToolError::new(t!("json-too-large")))
         } else {
             json::parse(&self.text)
         };
@@ -197,15 +195,23 @@ impl JsonTree {
         ui.horizontal(|ui| {
             ui.label(RichText::new("JSON").strong().size(12.5));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if icon_button(ui, "×", "Close the JSON tree") {
+                if icon_button(ui, "×", &t!("close-json-tree")) {
                     self.open = false;
                 }
                 if let Ok(doc) = &self.doc {
-                    if ui.small_button("⊟").on_hover_text("Collapse all").clicked() {
+                    if ui
+                        .small_button("⊟")
+                        .on_hover_text(t!("collapse-all"))
+                        .clicked()
+                    {
                         self.expanded.clear();
                         self.expanded.insert(0);
                     }
-                    if ui.small_button("⊞").on_hover_text("Expand all").clicked() {
+                    if ui
+                        .small_button("⊞")
+                        .on_hover_text(t!("expand-all"))
+                        .clicked()
+                    {
                         self.expanded = (0..doc.nodes.len())
                             .filter(|&i| !doc.nodes[i].children.is_empty())
                             .collect();
@@ -214,7 +220,7 @@ impl JsonTree {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.filter)
                         .id(egui::Id::new("json-tree-filter"))
-                        .hint_text("Filter keys and values")
+                        .hint_text(t!("json-filter-hint"))
                         .desired_width(f32::INFINITY),
                 );
             });
@@ -226,14 +232,19 @@ impl JsonTree {
             Err(e) => {
                 if self.source.is_some() {
                     ui.add_space(4.0);
-                    ui.label(RichText::new("Not valid JSON").color(palette.modified));
+                    ui.label(RichText::new(t!("json-not-valid")).color(palette.modified));
                     if let Some(offset) = e.offset {
                         let (line, col) = crate::tools::line_col(&self.text, offset);
                         ui.add(
-                            egui::Label::new(format!("Line {line}, column {col}: {}", e.message))
-                                .wrap(),
+                            egui::Label::new(t!(
+                                "line-column-message",
+                                line = line,
+                                column = col,
+                                message = e.message.clone()
+                            ))
+                            .wrap(),
                         );
-                        if ui.button("Go to Error").clicked() {
+                        if ui.button(t!("go-to-error")).clicked() {
                             action = Some(TreeAction::Select(offset..offset));
                         }
                     } else {
@@ -285,10 +296,10 @@ impl JsonTree {
             }
             let (_, hits, more) = self.filtered.as_ref().expect("filtered just set");
             if hits.is_empty() {
-                ui.label(RichText::new("No matches").color(palette.text_dim));
+                ui.label(RichText::new(t!("no-matches")).color(palette.text_dim));
             } else if *more {
                 ui.label(
-                    RichText::new(format!("First {MAX_FILTER_ROWS} matches"))
+                    RichText::new(t!("first-matches", count = MAX_FILTER_ROWS))
                         .size(11.5)
                         .color(palette.text_dim),
                 );
@@ -369,23 +380,23 @@ impl JsonTree {
                         toggle = Some(id);
                     }
                     response.context_menu(|ui| {
-                        if ui.button("Copy Path").clicked() {
+                        if ui.button(t!("copy-path")).clicked() {
                             action = Some(TreeAction::Copy(doc.path(id)));
                             ui.close();
                         }
                         if let Some(k) = &node.key
-                            && ui.button("Copy Key").clicked()
+                            && ui.button(t!("copy-key")).clicked()
                         {
                             action = Some(TreeAction::Copy(k.clone()));
                             ui.close();
                         }
-                        if ui.button("Copy Value").clicked() {
+                        if ui.button(t!("copy-value")).clicked() {
                             action = Some(TreeAction::Copy(doc.copy_value(id, &self.text)));
                             ui.close();
                         }
                         if container && !filtering {
                             ui.separator();
-                            if ui.button("Expand All Inside").clicked() {
+                            if ui.button(t!("expand-all-inside")).clicked() {
                                 let mut stack = vec![id];
                                 while let Some(n) = stack.pop() {
                                     if !doc.nodes[n].children.is_empty() {
@@ -468,18 +479,18 @@ impl XPathPanel {
         ui.horizontal(|ui| {
             ui.label(RichText::new("XPath").strong().size(12.5));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if icon_button(ui, "×", "Close the XPath panel") {
+                if icon_button(ui, "×", &t!("close-xpath-panel")) {
                     self.open = false;
                 }
-                if !self.rows.is_empty() && ui.small_button("Copy Results").clicked() {
+                if !self.rows.is_empty() && ui.small_button(t!("copy-results")).clicked() {
                     let text: Vec<String> = self.rows.iter().map(|r| r.full.clone()).collect();
                     action = Some(XPathAction::Copy(text.join("\n")));
                 }
-                if ui.button("Evaluate").clicked() {
+                if ui.button(t!("evaluate")).clicked() {
                     action = Some(XPathAction::Evaluate);
                 }
                 if !self.history.is_empty() {
-                    ui.menu_button("Recent", |ui| {
+                    ui.menu_button(t!("recent"), |ui| {
                         for e in self.history.clone() {
                             if ui.button(&e).clicked() {
                                 self.expr = e;
@@ -489,7 +500,7 @@ impl XPathPanel {
                         }
                     })
                     .response
-                    .on_hover_text("Recent expressions");
+                    .on_hover_text(t!("recent-expressions"));
                 }
                 // A fixed id keeps focus when the buttons beside it come and go.
                 let edit = ui.add(
@@ -515,9 +526,9 @@ impl XPathPanel {
         }
         if let Some(v) = &self.value {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Result:").color(palette.text_dim));
+                ui.label(RichText::new(t!("result-label")).color(palette.text_dim));
                 ui.label(RichText::new(v).monospace());
-                if ui.small_button("Copy").clicked() {
+                if ui.small_button(t!("copy")).clicked() {
                     action = Some(XPathAction::Copy(v.clone()));
                 }
             });
@@ -527,16 +538,11 @@ impl XPathPanel {
             return action;
         }
         ui.label(
-            RichText::new(format!(
-                "{} node{}{}",
-                self.rows.len(),
-                if self.rows.len() == 1 { "" } else { "s" },
-                if stale {
-                    " (the document changed since; evaluate again to refresh)"
-                } else {
-                    ""
-                }
-            ))
+            RichText::new(if stale {
+                t!("xpath-nodes-stale", count = self.rows.len())
+            } else {
+                t!("xpath-nodes", count = self.rows.len())
+            })
             .size(12.0)
             .color(palette.text_dim),
         );
@@ -581,7 +587,7 @@ impl XPathPanel {
                         action = Some(XPathAction::Select(row.range.clone()));
                     }
                     response.context_menu(|ui| {
-                        if ui.button("Copy Value").clicked() {
+                        if ui.button(t!("copy-value")).clicked() {
                             action = Some(XPathAction::Copy(row.full.clone()));
                             ui.close();
                         }

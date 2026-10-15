@@ -18,8 +18,18 @@ work that remains. It is updated with every release.
 
 ## Release history
 
-### Unreleased: User manual
+### 1.2: Translations and the user manual
 
+#### Translations
+- [x] Every menu, dialog, message, tooltip and Preferences page can be shown in another language, built on [Fluent](https://projectfluent.org/)
+- [x] Built-in English, German, French and Spanish; the German, French and Spanish texts are machine-made starting points that still need a native speaker's review
+- [x] Settings > Preferences > Files and Startup > Interface language: follows the system language by default (`de_AT` finds German), or pick one; the window switches at once, with no restart
+- [x] Your own translations: `.ftl` files in the `translations` folder (Open Translations Folder in Preferences) add a language or change single messages of a built-in one; `english-source.ftl.txt` there is the English to copy from, and anything a file leaves out stays English ([Translations](docs/manual/src/translations.md))
+- [x] Plugins can ask which language the menus are in (`ui_language()` / `uiLanguage()`) and translate their own text
+- [x] Tests check that every message the app uses exists in English, every English message is used, and the built-in translations have every message with the same `{ $values }`
+- [~] Stays in English: the user manual, language and theme names, parser messages from the text tools (JSON, XML, XPath, XSD, XSLT, SQL), plugin messages and generated templates; right-to-left languages can't be laid out yet
+
+#### User manual
 - [x] A user manual covering every part of the editor and how to customise it: 23 pages from installing to troubleshooting
 - [x] Built into the app and readable offline: Help > User Manual (<kbd>Shift</kbd>+<kbd>F1</kbd>), with contents, search, back and forward, links between pages and a Copy button on examples
 - [x] The same manual on the web at https://tharkis.github.io/Ettin-Edit/, published by GitHub Pages whenever it changes on `main`
@@ -318,7 +328,7 @@ Plugins are written in Python or JavaScript. See [Writing plugins](docs/manual/s
 full API.
 
 - [x] Runtime model: out-of-process plugins over JSON-RPC (one JSON message per line on standard input and output), so a crashing plugin can't take the editor down and any installed Python 3 or Node.js works
-- [x] Plugin API: read/replace text and selection, open/save documents, show messages, add menu items and shortcuts, register commands
+- [x] Plugin API: read/replace text and selection, open/save documents, show messages, add menu items and shortcuts, register commands, read the interface language
 - [x] Plugin events: document opened/saved/closed, text changed, tab switched
 - [x] Plugin panels (dock a custom view, e.g. a tree or a grid)
 - [x] Plugin folder in the config directory, enable/disable per plugin
@@ -397,5 +407,5 @@ Features that are planned or only partly done.
 - [ ] XPath variables and the namespace axis
 
 ### Platform and distribution
-- [ ] Localisation / translations
+- [x] Translations (1.2): English, German, French and Spanish, plus your own `.ftl` files
 - [~] Packages: Arch package (0.2), Windows installer and `.deb` (1.0); AppImage and Flatpak are not yet available

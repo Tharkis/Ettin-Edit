@@ -106,10 +106,10 @@ impl EttinApp {
     pub(super) fn context_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
         let mut entries = self.edit_menu(m, index);
         entries.push(MenuEntry::Separator);
-        entries.push(submenu("Tools", self.tools_menu(m)));
+        entries.push(submenu(&t!("menu-tools"), self.tools_menu(m)));
         let plugins = self.plugin_commands_menu(m);
         if !plugins.is_empty() {
-            entries.push(submenu("Plugins", plugins));
+            entries.push(submenu(&t!("menu-plugins"), plugins));
         }
         entries
     }
@@ -146,123 +146,123 @@ impl EttinApp {
         let can_redo = editor.is_some_and(|e| e.buffer.can_redo());
         let has_sel = editor.is_some_and(|e| e.selections.has_selection());
         let mut line_ops = vec![
-            m.item("Duplicate", Action::Duplicate),
-            m.item("Delete Lines", Action::DeleteLines),
-            m.item("Move Up", Action::MoveLinesUp),
-            m.item("Move Down", Action::MoveLinesDown),
-            m.item("Join Lines", Action::JoinLines),
-            m.item("Split Lines at Long-Line Column", Action::SplitLines),
-            m.item("Insert Blank Line Above", Action::InsertBlankAbove),
-            m.item("Insert Blank Line Below", Action::InsertBlankBelow),
+            m.item(&t!("duplicate"), Action::Duplicate),
+            m.item(&t!("delete-lines"), Action::DeleteLines),
+            m.item(&t!("move-lines-up"), Action::MoveLinesUp),
+            m.item(&t!("move-lines-down"), Action::MoveLinesDown),
+            m.item(&t!("join-lines"), Action::JoinLines),
+            m.item(&t!("split-lines"), Action::SplitLines),
+            m.item(&t!("insert-blank-above"), Action::InsertBlankAbove),
+            m.item(&t!("insert-blank-below"), Action::InsertBlankBelow),
             MenuEntry::Separator,
         ];
-        for (label, kind) in [
-            ("Lexicographically", SortKind::Lexical),
-            ("Ignoring Case", SortKind::IgnoreCase),
-            ("As Integers", SortKind::Integer),
-            ("As Decimals", SortKind::Decimal),
-            ("By Length", SortKind::Length),
+        for (labels, kind) in [
+            (["sort-lexical-asc", "sort-lexical-desc"], SortKind::Lexical),
+            (
+                ["sort-ignore-case-asc", "sort-ignore-case-desc"],
+                SortKind::IgnoreCase,
+            ),
+            (["sort-integer-asc", "sort-integer-desc"], SortKind::Integer),
+            (["sort-decimal-asc", "sort-decimal-desc"], SortKind::Decimal),
+            (["sort-length-asc", "sort-length-desc"], SortKind::Length),
         ] {
-            for (dir, desc) in [("Ascending", false), ("Descending", true)] {
-                line_ops.push(m.item(
-                    &format!("Sort {label} {dir}"),
-                    Action::SortLines { kind, desc },
-                ));
+            for (label, desc) in labels.into_iter().zip([false, true]) {
+                line_ops.push(m.item(&crate::i18n::tr(label), Action::SortLines { kind, desc }));
             }
         }
         line_ops.extend([
-            m.item("Reverse Line Order", Action::ReverseLines),
+            m.item(&t!("reverse-lines"), Action::ReverseLines),
             MenuEntry::Separator,
-            m.item("Remove Duplicate Lines", Action::RemoveDuplicateLines),
+            m.item(&t!("remove-duplicate-lines"), Action::RemoveDuplicateLines),
             m.item(
-                "Remove Consecutive Duplicate Lines",
+                &t!("remove-consecutive-duplicates"),
                 Action::RemoveConsecutiveDuplicates,
             ),
             m.item(
-                "Remove Empty Lines",
+                &t!("remove-empty-lines"),
                 Action::RemoveEmptyLines { blank: false },
             ),
             m.item(
-                "Remove Empty Lines (Including Blank Ones)",
+                &t!("remove-blank-lines"),
                 Action::RemoveEmptyLines { blank: true },
             ),
         ]);
         vec![
-            m.item_if("Undo", can_undo, Action::Undo),
-            m.item_if("Redo", can_redo, Action::Redo),
+            m.item_if(&t!("undo"), can_undo, Action::Undo),
+            m.item_if(&t!("redo"), can_redo, Action::Redo),
             MenuEntry::Separator,
-            m.item_if("Cut", has_sel, Action::Cut),
-            m.item_if("Copy", has_sel, Action::Copy),
-            m.item("Paste", Action::Paste),
-            m.item("Select All", Action::SelectAll),
+            m.item_if(&t!("cut"), has_sel, Action::Cut),
+            m.item_if(&t!("copy"), has_sel, Action::Copy),
+            m.item(&t!("paste"), Action::Paste),
+            m.item(&t!("select-all"), Action::SelectAll),
             MenuEntry::Separator,
-            submenu("Line Operations", line_ops),
+            submenu(&t!("menu-line-operations"), line_ops),
             submenu(
-                "Convert Case To",
+                &t!("menu-convert-case"),
                 vec![
-                    m.item("UPPERCASE", Action::ConvertCase(CaseKind::Upper)),
-                    m.item("lowercase", Action::ConvertCase(CaseKind::Lower)),
-                    m.item("Title Case", Action::ConvertCase(CaseKind::Title)),
-                    m.item("Sentence case", Action::ConvertCase(CaseKind::Sentence)),
-                    m.item("iNVERT cASE", Action::ConvertCase(CaseKind::Invert)),
-                ],
-            ),
-            submenu(
-                "Comment",
-                vec![
-                    m.item("Toggle Line Comment", Action::ToggleLineComment),
-                    m.item("Toggle Block Comment", Action::ToggleBlockComment),
-                ],
-            ),
-            submenu(
-                "Blank Operations",
-                vec![
-                    m.item("Trim Trailing Space", Action::Trim(TrimKind::Trailing)),
-                    m.item("Trim Leading Space", Action::Trim(TrimKind::Leading)),
+                    m.item(&t!("case-upper"), Action::ConvertCase(CaseKind::Upper)),
+                    m.item(&t!("case-lower"), Action::ConvertCase(CaseKind::Lower)),
+                    m.item(&t!("case-title"), Action::ConvertCase(CaseKind::Title)),
                     m.item(
-                        "Trim Leading and Trailing Space",
-                        Action::Trim(TrimKind::Both),
+                        &t!("case-sentence"),
+                        Action::ConvertCase(CaseKind::Sentence),
                     ),
-                    m.item("EOL to Space", Action::EolToSpace),
+                    m.item(&t!("case-invert"), Action::ConvertCase(CaseKind::Invert)),
+                ],
+            ),
+            submenu(
+                &t!("menu-comment"),
+                vec![
+                    m.item(&t!("toggle-line-comment"), Action::ToggleLineComment),
+                    m.item(&t!("toggle-block-comment"), Action::ToggleBlockComment),
+                ],
+            ),
+            submenu(
+                &t!("menu-blank-operations"),
+                vec![
+                    m.item(&t!("trim-trailing"), Action::Trim(TrimKind::Trailing)),
+                    m.item(&t!("trim-leading"), Action::Trim(TrimKind::Leading)),
+                    m.item(&t!("trim-both"), Action::Trim(TrimKind::Both)),
+                    m.item(&t!("eol-to-space"), Action::EolToSpace),
                     MenuEntry::Separator,
-                    m.item("Tabs to Spaces", Action::TabsToSpaces),
+                    m.item(&t!("tabs-to-spaces"), Action::TabsToSpaces),
                     m.item(
-                        "Leading Spaces to Tabs",
+                        &t!("leading-spaces-to-tabs"),
                         Action::SpacesToTabs { all: false },
                     ),
-                    m.item("All Spaces to Tabs", Action::SpacesToTabs { all: true }),
+                    m.item(
+                        &t!("all-spaces-to-tabs"),
+                        Action::SpacesToTabs { all: true },
+                    ),
                 ],
             ),
             submenu(
-                "Insert",
+                &t!("menu-insert"),
                 vec![
                     m.item(
-                        "Date and Time (Short)",
+                        &t!("date-time-short"),
                         Action::InsertDateTime { long: false },
                     ),
-                    m.item(
-                        "Date and Time (Long)",
-                        Action::InsertDateTime { long: true },
-                    ),
+                    m.item(&t!("date-time-long"), Action::InsertDateTime { long: true }),
                 ],
             ),
             submenu(
-                "Multi-Select",
+                &t!("menu-multi-select"),
                 vec![
-                    m.item("Select Next Occurrence", Action::SelectNextOccurrence),
-                    m.item("Select All Occurrences", Action::SelectAllOccurrences),
+                    m.item(&t!("select-next-occurrence"), Action::SelectNextOccurrence),
+                    m.item(&t!("select-all-occurrences"), Action::SelectAllOccurrences),
                 ],
             ),
             submenu(
-                "Auto-Completion",
+                &t!("menu-auto-completion"),
                 vec![
-                    m.item("Complete Word", Action::CompleteWord),
-                    m.item("Show Parameter Hint", Action::ShowParameterHint),
+                    m.item(&t!("complete-word"), Action::CompleteWord),
+                    m.item(&t!("show-parameter-hint"), Action::ShowParameterHint),
                 ],
             ),
-            m.item("Column Editor…", Action::ColumnEditor),
+            m.item(&t!("column-editor"), Action::ColumnEditor),
             MenuEntry::Separator,
-            m.toggle("Read-Only", read_only, Action::ToggleReadOnly),
+            m.toggle(&t!("read-only"), read_only, Action::ToggleReadOnly),
         ]
     }
 
@@ -272,26 +272,23 @@ impl EttinApp {
         let mut mime = Vec::new();
         for (i, group) in [
             &[
-                ("Base64 Encode", Base64Encode),
-                ("Base64 Encode with Line Breaks", Base64EncodeWrapped),
-                ("Base64 Encode, URL-Safe", Base64UrlEncode),
-                ("Base64 Decode", Base64Decode),
+                ("mime-base64-encode", Base64Encode),
+                ("mime-base64-encode-wrapped", Base64EncodeWrapped),
+                ("mime-base64-url-encode", Base64UrlEncode),
+                ("mime-base64-decode", Base64Decode),
             ][..],
             &[
-                ("URL Encode (Part of a URL)", UrlEncodeComponent),
-                ("URL Encode (Whole URL)", UrlEncode),
-                ("URL Decode", UrlDecode),
+                ("mime-url-encode-component", UrlEncodeComponent),
+                ("mime-url-encode", UrlEncode),
+                ("mime-url-decode", UrlDecode),
             ],
+            &[("mime-qp-encode", QpEncode), ("mime-qp-decode", QpDecode)],
             &[
-                ("Quoted-Printable Encode", QpEncode),
-                ("Quoted-Printable Decode", QpDecode),
+                ("mime-html-encode", HtmlEncode),
+                ("mime-html-encode-all", HtmlEncodeAll),
+                ("mime-html-decode", HtmlDecode),
             ],
-            &[
-                ("HTML Encode", HtmlEncode),
-                ("HTML Encode, Including Accents and Symbols", HtmlEncodeAll),
-                ("HTML Decode", HtmlDecode),
-            ],
-            &[("SAML Decode", SamlDecode)],
+            &[("mime-saml-decode", SamlDecode)],
         ]
         .into_iter()
         .enumerate()
@@ -300,69 +297,80 @@ impl EttinApp {
                 mime.push(MenuEntry::Separator);
             }
             for &(label, op) in group {
-                mime.push(m.item(label, Action::Mime(op)));
+                mime.push(m.item(&crate::i18n::tr(label), Action::Mime(op)));
             }
         }
         let json = vec![
-            m.item("Format", Action::Json(JsonOp::Format)),
-            m.item("Minify", Action::Json(JsonOp::Minify)),
+            m.item(&t!("json-format"), Action::Json(JsonOp::Format)),
+            m.item(&t!("json-minify"), Action::Json(JsonOp::Minify)),
             MenuEntry::Separator,
-            m.item("Validate JSON", Action::Json(JsonOp::Validate)),
-            m.item("Sort JSON Keys", Action::Json(JsonOp::SortKeys)),
+            m.item(&t!("json-validate"), Action::Json(JsonOp::Validate)),
+            m.item(&t!("json-sort-keys"), Action::Json(JsonOp::SortKeys)),
             MenuEntry::Separator,
-            m.toggle("JSON Tree", self.json_tree.open, Action::ToggleJsonTree),
+            m.toggle(
+                &t!("json-tree"),
+                self.json_tree.open,
+                Action::ToggleJsonTree,
+            ),
         ];
         let xml = vec![
-            m.item("Pretty Print", Action::Xml(XmlOp::PrettyPrint)),
+            m.item(&t!("xml-pretty-print"), Action::Xml(XmlOp::PrettyPrint)),
             m.item(
-                "Pretty Print, Attributes on New Lines",
+                &t!("xml-pretty-print-attributes"),
                 Action::Xml(XmlOp::PrettyPrintAttributes),
             ),
-            m.item("Linearize", Action::Xml(XmlOp::Linearize)),
+            m.item(&t!("xml-linearize"), Action::Xml(XmlOp::Linearize)),
             MenuEntry::Separator,
-            m.item("Check Syntax", Action::Xml(XmlOp::CheckSyntax)),
+            m.item(&t!("xml-check-syntax"), Action::Xml(XmlOp::CheckSyntax)),
             m.toggle(
-                "Check Syntax When Saving",
+                &t!("xml-check-on-save"),
                 self.settings.xml_check_on_save,
                 Action::ToggleXmlCheckOnSave,
             ),
-            m.item("Validate", Action::Xml(XmlOp::ValidateSchema)),
-            m.item("Validate Against…", Action::Xml(XmlOp::ChooseSchema)),
-            m.item("XSL Transform…", Action::Xml(XmlOp::XslTransform)),
+            m.item(&t!("xml-validate"), Action::Xml(XmlOp::ValidateSchema)),
+            m.item(
+                &t!("xml-validate-against"),
+                Action::Xml(XmlOp::ChooseSchema),
+            ),
+            m.item(&t!("xml-xsl-transform"), Action::Xml(XmlOp::XslTransform)),
             MenuEntry::Separator,
-            m.toggle("XPath Panel", self.xpath.open, Action::ToggleXPathPanel),
-            m.item("Copy Current XPath", Action::CopyXPath),
-            MenuEntry::Separator,
-            m.item("Escape Special Characters", Action::Xml(XmlOp::Escape)),
-            m.item("Unescape Special Characters", Action::Xml(XmlOp::Unescape)),
             m.toggle(
-                "Close Tags Automatically",
+                &t!("xpath-panel"),
+                self.xpath.open,
+                Action::ToggleXPathPanel,
+            ),
+            m.item(&t!("copy-current-xpath"), Action::CopyXPath),
+            MenuEntry::Separator,
+            m.item(&t!("xml-escape"), Action::Xml(XmlOp::Escape)),
+            m.item(&t!("xml-unescape"), Action::Xml(XmlOp::Unescape)),
+            m.toggle(
+                &t!("close-tags-automatically"),
                 self.settings.close_tags,
                 Action::ToggleCloseTags,
             ),
         ];
         let csv = vec![
-            m.toggle("CsvQuery Panel", self.csv.open, Action::ToggleCsvQuery),
-            m.item("Run Query", Action::RunCsvQuery),
+            m.toggle(&t!("csvquery-panel"), self.csv.open, Action::ToggleCsvQuery),
+            m.item(&t!("run-query"), Action::RunCsvQuery),
             MenuEntry::Separator,
             m.item_if(
-                "Copy Results",
+                &t!("copy-results"),
                 self.csv.result.is_some(),
                 Action::CopyCsvResults,
             ),
             m.item_if(
-                "Results to New Tab",
+                &t!("results-to-new-tab"),
                 self.csv.result.is_some(),
                 Action::CsvResultsToNewTab,
             ),
         ];
         vec![
-            submenu("Compare", self.compare_menu(m)),
-            submenu("CsvQuery", csv),
+            submenu(&t!("menu-compare"), self.compare_menu(m)),
+            submenu(&t!("menu-csvquery"), csv),
             MenuEntry::Separator,
-            submenu("MIME Tools", mime),
-            submenu("JSON and JavaScript", json),
-            submenu("XML Tools", xml),
+            submenu(&t!("menu-mime-tools"), mime),
+            submenu(&t!("menu-json"), json),
+            submenu(&t!("menu-xml-tools"), xml),
         ]
     }
 
@@ -372,45 +380,45 @@ impl EttinApp {
         let saved = self.docs.get(self.active).is_some_and(|d| d.path.is_some());
         let open = self.compare.is_some();
         let label = if self.is_split() {
-            "Compare the Two Views"
+            t!("compare-two-views")
         } else {
-            "Compare with Previous Tab"
+            t!("compare-previous-tab")
         };
         let others: Vec<MenuEntry> = (0..self.docs.len())
             .filter(|&i| i != self.active)
             .map(|i| m.item(&self.docs[i].title(), Action::CompareWith(i)))
             .collect();
         let opts = self.settings.compare;
-        let mut entries = vec![m.item(label, Action::CompareTabs)];
+        let mut entries = vec![m.item(&label, Action::CompareTabs)];
         if others.is_empty() {
-            entries.push(m.item_if("Compare With", false, Action::CompareTabs));
+            entries.push(m.item_if(&t!("compare-with"), false, Action::CompareTabs));
         } else {
-            entries.push(submenu("Compare With", others));
+            entries.push(submenu(&t!("compare-with"), others));
         }
         entries.extend([
-            m.item_if("Compare to Last Save", saved, Action::CompareToSaved),
-            m.item("Compare to Clipboard", Action::CompareToClipboard),
-            m.item_if(
-                "Compare to Last Commit (Git)",
-                saved,
-                Action::CompareToGitHead,
-            ),
-            m.item("Compare Selections", Action::CompareSelections),
+            m.item_if(&t!("compare-to-saved"), saved, Action::CompareToSaved),
+            m.item(&t!("compare-to-clipboard"), Action::CompareToClipboard),
+            m.item_if(&t!("compare-to-git"), saved, Action::CompareToGitHead),
+            m.item(&t!("compare-selections"), Action::CompareSelections),
             MenuEntry::Separator,
-            m.item_if("Next Difference", open, Action::NextDifference),
-            m.item_if("Previous Difference", open, Action::PrevDifference),
-            m.item_if("Show Comparison", open, Action::ShowComparison),
-            m.item_if("Export as Patch", open, Action::ExportComparePatch),
-            m.item_if("Close Comparison", open, Action::CloseComparison),
+            m.item_if(&t!("next-difference"), open, Action::NextDifference),
+            m.item_if(&t!("previous-difference"), open, Action::PrevDifference),
+            m.item_if(&t!("show-comparison"), open, Action::ShowComparison),
+            m.item_if(&t!("export-as-patch"), open, Action::ExportComparePatch),
+            m.item_if(&t!("close-comparison"), open, Action::CloseComparison),
             MenuEntry::Separator,
         ]);
         for (label, opt) in [
-            ("Ignore Spaces and Tabs", CompareOpt::IgnoreWhitespace),
-            ("Ignore Case", CompareOpt::IgnoreCase),
-            ("Ignore Empty Lines", CompareOpt::IgnoreEmptyLines),
-            ("Detect Moved Lines", CompareOpt::DetectMoves),
+            ("compare-ignore-whitespace", CompareOpt::IgnoreWhitespace),
+            ("compare-ignore-case", CompareOpt::IgnoreCase),
+            ("compare-ignore-empty-lines", CompareOpt::IgnoreEmptyLines),
+            ("compare-detect-moves", CompareOpt::DetectMoves),
         ] {
-            entries.push(m.toggle(label, opts.get(opt), Action::ToggleCompareOption(opt)));
+            entries.push(m.toggle(
+                &crate::i18n::tr(label),
+                opts.get(opt),
+                Action::ToggleCompareOption(opt),
+            ));
         }
         entries
     }

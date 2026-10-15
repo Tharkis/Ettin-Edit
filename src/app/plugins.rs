@@ -517,6 +517,7 @@ impl EttinApp {
                 ctx.copy_text(param_str(params, "text")?.to_owned());
                 Ok(Value::Null)
             }
+            "app.language" => Ok(json!(crate::i18n::current())),
             _ => Err((
                 METHOD_NOT_FOUND,
                 format!("Ettin Edit has no method \"{method}\""),
@@ -771,8 +772,8 @@ impl EttinApp {
                     return;
                 };
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Install Plugin from File")
-                    .add_filter("Plugin (.zip)", &["zip"])
+                    .set_title(t!("install-plugin-from-file"))
+                    .add_filter(t!("plugin-zip-filter"), &["zip"])
                     .pick_file()
                 {
                     self.plugin_ui.store.install_file(path, root, ctx);
@@ -783,7 +784,7 @@ impl EttinApp {
                     return;
                 };
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Install Plugin from Folder")
+                    .set_title(t!("install-plugin-from-folder"))
                     .pick_folder()
                 {
                     if let Some(i) = path
@@ -804,8 +805,7 @@ impl EttinApp {
     fn plugins_root(&mut self) -> Option<std::path::PathBuf> {
         let root = self.plugins.dir.clone();
         if root.is_none() {
-            self.errors
-                .push("There's no config folder to put plugins in.".to_owned());
+            self.errors.push(t!("no-plugins-folder"));
         }
         root
     }
@@ -819,7 +819,11 @@ impl EttinApp {
         let dir = self.plugins.plugins[i].dir.clone();
         self.plugins.stop(i, now);
         if let Err(e) = crate::plugins::store::to_trash(&dir) {
-            self.plugin_ui.store.error = Some(format!("Couldn't move {name} to the trash: {e}"));
+            self.plugin_ui.store.error = Some(t!(
+                "trash-failed",
+                name = name.clone(),
+                error = e.to_string()
+            ));
             self.reload_plugins(now);
             return;
         }
@@ -827,7 +831,7 @@ impl EttinApp {
         self.settings.save();
         self.reload_plugins(now);
         self.notice = Some(Notice {
-            text: format!("Removed {name}; its folder is in the trash."),
+            text: t!("plugin-removed", name = name),
             error: false,
             since: None,
             jump: None,
@@ -864,15 +868,20 @@ impl EttinApp {
                     pref.approved = None;
                     pref.trust_changes = false;
                     pref.disabled = false;
-                    let version = if installed.version.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" {}", installed.version)
-                    };
-                    text.push(if installed.updated {
-                        format!("Updated {} to{version}.", installed.name)
-                    } else {
-                        format!("Installed {}{version}.", installed.name)
+                    let name = installed.name.clone();
+                    text.push(match (installed.updated, installed.version.is_empty()) {
+                        (true, true) => t!("plugin-updated", name = name),
+                        (true, false) => t!(
+                            "plugin-updated-version",
+                            name = name,
+                            version = installed.version.clone()
+                        ),
+                        (false, true) => t!("plugin-installed", name = name),
+                        (false, false) => t!(
+                            "plugin-installed-version",
+                            name = name,
+                            version = installed.version.clone()
+                        ),
                     });
                 }
                 Err(e) => {
@@ -916,16 +925,15 @@ impl EttinApp {
                     now,
                 );
                 self.notice = Some(Notice {
-                    text: match self
-                        .plugins
-                        .plugins
-                        .iter()
-                        .filter(|p| p.is_running())
-                        .count()
-                    {
-                        1 => "1 plugin running".to_owned(),
-                        n => format!("{n} plugins running"),
-                    },
+                    text: t!(
+                        "plugins-running",
+                        count = self
+                            .plugins
+                            .plugins
+                            .iter()
+                            .filter(|p| p.is_running())
+                            .count()
+                    ),
                     error: false,
                     since: None,
                     jump: None,
@@ -943,8 +951,7 @@ impl EttinApp {
     /// Copies the sample plugins into the plugins folder and starts them.
     fn install_samples(&mut self, now: f64) {
         let Some(root) = self.plugins.dir.clone() else {
-            self.errors
-                .push("There's no config folder to put plugins in.".to_owned());
+            self.errors.push(t!("no-plugins-folder"));
             return;
         };
         let mut installed = Vec::new();
@@ -959,9 +966,11 @@ impl EttinApp {
                     .try_for_each(|(name, text)| std::fs::write(dir.join(name), text))
             });
             if let Err(e) = written {
-                self.errors.push(format!(
-                    "Couldn't install the sample plugin {folder} in {}: {e}",
-                    root.display()
+                self.errors.push(t!(
+                    "sample-install-failed",
+                    name = *folder,
+                    folder = root.display().to_string(),
+                    error = e.to_string()
                 ));
                 continue;
             }
@@ -990,12 +999,9 @@ impl EttinApp {
             })
             .collect();
         let text = if names.is_empty() {
-            "The sample plugins are already in the plugins folder.".to_owned()
+            t!("samples-already-installed")
         } else {
-            format!(
-                "Installed {}. Find them in the Plugins menu.",
-                names.join(" and ")
-            )
+            t!("samples-installed", names = names.join(", "))
         };
         self.notice = Some(Notice {
             text,
@@ -1031,16 +1037,20 @@ impl EttinApp {
             });
         }
         if !any {
-            ui.label(egui::RichText::new("No plugin commands").weak());
+            ui.label(egui::RichText::new(t!("no-plugin-commands")).weak());
         }
         self.pending.extend(clicked);
         ui.separator();
-        self.menu_item(ui, "Manage Plugins…", Action::ManagePlugins);
-        self.menu_item(ui, "Plugin Log", Action::ShowPluginLog);
-        self.menu_item(ui, "Open Plugins Folder", Action::OpenPluginsFolder);
-        self.menu_item(ui, "Reload Plugins", Action::ReloadPlugins);
+        self.menu_item(ui, &t!("manage-plugins"), Action::ManagePlugins);
+        self.menu_item(ui, &t!("plugin-log"), Action::ShowPluginLog);
+        self.menu_item(ui, &t!("open-plugins-folder"), Action::OpenPluginsFolder);
+        self.menu_item(ui, &t!("reload-plugins"), Action::ReloadPlugins);
         ui.separator();
-        self.menu_item(ui, "Install Sample Plugins", Action::InstallSamplePlugins);
-        self.menu_item(ui, "Plugin Guide", Action::PluginGuide);
+        self.menu_item(
+            ui,
+            &t!("install-sample-plugins"),
+            Action::InstallSamplePlugins,
+        );
+        self.menu_item(ui, &t!("plugin-guide"), Action::PluginGuide);
     }
 }

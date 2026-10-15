@@ -79,9 +79,15 @@ impl EttinApp {
                 if move_caret {
                     doc.editor.select_range(p..p);
                 }
-                format!("{what}: line {}, column {}: {message}", line + 1, col + 1)
+                t!(
+                    "tool-error-at",
+                    tool = what,
+                    line = line + 1,
+                    column = col + 1,
+                    message = message
+                )
             }
-            None => format!("{what}: {message}"),
+            None => t!("tool-error", tool = what, message = message),
         };
         let jump = pos.map(|p| (doc.id, p));
         self.notice = Some(crate::text_tools_ui::Notice {
@@ -103,7 +109,7 @@ impl EttinApp {
     ) -> bool {
         let editor = &self.docs[self.active].editor;
         if editor.buffer.read_only {
-            self.tool_error(ctx, what, "the document is read-only.", None, false);
+            self.tool_error(ctx, what, &t!("tool-read-only"), None, false);
             return false;
         }
         let whole = !editor.selections.has_selection();
@@ -160,7 +166,7 @@ impl EttinApp {
             }
         }
         let text = if selection {
-            format!("{ok} (selection)")
+            t!("tool-ok-selection", result = ok)
         } else {
             ok.to_owned()
         };
@@ -171,7 +177,7 @@ impl EttinApp {
         let unit = self.docs[self.active].editor.indent_unit();
         match action {
             Action::Mime(op) => {
-                self.transform(ctx, "MIME Tools", |t| {
+                self.transform(ctx, &t!("menu-mime-tools"), |t| {
                     let out = op.run(t)?;
                     // Encoders treat a final line break as data; SAML output is a document.
                     Ok(if op == MimeOp::SamlDecode {
@@ -185,7 +191,12 @@ impl EttinApp {
                 let format = op == JsonOp::Format;
                 let fell_back = RefCell::new(false);
                 // JSON when the text is JSON, JavaScript otherwise.
-                self.transform(ctx, if format { "Format" } else { "Minify" }, |t| {
+                let what = if format {
+                    t!("json-format")
+                } else {
+                    t!("json-minify")
+                };
+                self.transform(ctx, &what, |t| {
                     let out = match json::parse(t) {
                         Ok(doc) => doc.write(t, format.then_some(unit.as_str()), false),
                         Err(_) => {
@@ -203,44 +214,38 @@ impl EttinApp {
                     && self.docs[self.active].syntax == "JSON"
                     && self.notice.as_ref().is_none_or(|n| !n.error)
                 {
-                    self.notify(
-                        ctx,
-                        "This isn't strict JSON, so it was handled as JavaScript. Validate JSON shows where it differs.".into(),
-                        None,
-                    );
+                    self.notify(ctx, t!("json-handled-as-js"), None);
                 }
             }
-            Action::Json(JsonOp::Validate) => {
-                self.validate(ctx, "JSON", "Valid JSON", |t| json::parse(t).map(|_| ()))
-            }
+            Action::Json(JsonOp::Validate) => self.validate(ctx, "JSON", &t!("json-valid"), |t| {
+                json::parse(t).map(|_| ())
+            }),
             Action::Json(JsonOp::SortKeys) => {
-                self.transform(ctx, "Sort JSON keys", |t| {
+                self.transform(ctx, &t!("json-sort-keys"), |t| {
                     Ok(keep_final_newline(t, json::sort_keys(t, &unit)?))
                 });
             }
             Action::Xml(op) => match op {
                 XmlOp::PrettyPrint | XmlOp::PrettyPrintAttributes => {
                     let attrs = op == XmlOp::PrettyPrintAttributes;
-                    self.transform(ctx, "Pretty print", |t| {
+                    self.transform(ctx, &t!("xml-pretty-print"), |t| {
                         Ok(keep_final_newline(t, xml::pretty_print(t, &unit, attrs)?))
                     });
                 }
                 XmlOp::Linearize => {
-                    self.transform(ctx, "Linearize", |t| {
+                    self.transform(ctx, &t!("xml-linearize"), |t| {
                         Ok(keep_final_newline(t, xml::linearize(t)?))
                     });
                 }
-                XmlOp::CheckSyntax => {
-                    self.validate(ctx, "XML", "The XML is well-formed", xml::check)
-                }
+                XmlOp::CheckSyntax => self.validate(ctx, "XML", &t!("xml-well-formed"), xml::check),
                 XmlOp::ValidateSchema => self.validate_schema(ctx, false),
                 XmlOp::ChooseSchema => self.validate_schema(ctx, true),
                 XmlOp::XslTransform => self.xsl_transform(ctx),
                 XmlOp::Escape => {
-                    self.transform(ctx, "Escape", |t| Ok(xml::escape(t)));
+                    self.transform(ctx, &t!("xml-escape"), |t| Ok(xml::escape(t)));
                 }
                 XmlOp::Unescape => {
-                    self.transform(ctx, "Unescape", |t| Ok(xml::unescape(t)));
+                    self.transform(ctx, &t!("xml-unescape"), |t| Ok(xml::unescape(t)));
                 }
             },
             Action::ToggleJsonTree => {
@@ -257,16 +262,16 @@ impl EttinApp {
             Action::CopyXPath => match self.current_xpath(ctx) {
                 Some(path) => {
                     ctx.copy_text(path.clone());
-                    self.notify(ctx, format!("Copied {path}"), None);
+                    self.notify(ctx, t!("copied-text", text = path), None);
                 }
                 None => {
                     let syntax = &self.docs[self.active].syntax;
                     let message = if is_xml(syntax) {
-                        "the caret isn't inside an element, or an end tag doesn't match its start tag."
+                        t!("xpath-no-element")
                     } else {
-                        "this document isn't XML."
+                        t!("xpath-not-xml")
                     };
-                    self.tool_error(ctx, "Copy XPath", message, None, false);
+                    self.tool_error(ctx, &t!("copy-xpath"), &message, None, false);
                 }
             },
             _ => {}
@@ -283,10 +288,12 @@ impl EttinApp {
             let doc = &self.docs[index];
             let (line, col) = line_col(&text, e.offset.unwrap_or(0));
             let pos = e.offset.map(|o| doc.editor.buffer.rope().byte_to_char(o));
-            let text = format!(
-                "Saved, but {} isn't well-formed: line {line}, column {col}: {}",
-                doc.title(),
-                e.message
+            let text = t!(
+                "saved-not-well-formed",
+                name = doc.title(),
+                line = line,
+                column = col,
+                message = e.message
             );
             let jump = pos.map(|p| (doc.id, p));
             self.notice = Some(crate::text_tools_ui::Notice {
@@ -343,7 +350,7 @@ impl EttinApp {
         panel.error = None;
         panel.source = Some((doc.id, doc.editor.buffer.version()));
         if panel.expr.trim().is_empty() {
-            panel.error = Some("Type an XPath expression, like //item[@id='1'].".into());
+            panel.error = Some(t!("xpath-type-expression"));
             return;
         }
         panel.remember();
@@ -351,9 +358,11 @@ impl EttinApp {
             Ok(d) => d,
             Err(e) => {
                 let (line, col) = line_col(&text, e.offset.unwrap_or(0));
-                panel.error = Some(format!(
-                    "The document isn't well-formed XML (line {line}, column {col}: {})",
-                    e.message.trim_end_matches('.')
+                panel.error = Some(t!(
+                    "xpath-not-well-formed",
+                    line = line,
+                    column = col,
+                    message = e.message.trim_end_matches('.').to_owned()
                 ));
                 return;
             }
@@ -380,10 +389,11 @@ impl EttinApp {
             Ok(Outcome::Boolean(b)) => panel.value = Some(b.to_string()),
             Err(e) => {
                 panel.error = Some(match e.offset {
-                    Some(o) => format!(
-                        "{} (at character {})",
-                        e.message,
-                        panel.expr[..floor_char_boundary(&panel.expr, o.min(panel.expr.len()))]
+                    Some(o) => t!(
+                        "xpath-error-at",
+                        message = e.message,
+                        position = panel.expr
+                            [..floor_char_boundary(&panel.expr, o.min(panel.expr.len()))]
                             .chars()
                             .count()
                             + 1

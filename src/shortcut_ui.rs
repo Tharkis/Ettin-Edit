@@ -115,9 +115,9 @@ fn captured(ctx: &egui::Context) -> Option<Result<KeyboardShortcut, String>> {
                 );
                 Some(shortcut::parse(&shortcut::to_text(&s)))
             }
-            egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) => Some(Err(
-                "Ctrl+C, Ctrl+X and Ctrl+V are kept for copy, cut and paste".to_owned(),
-            )),
+            egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) => {
+                Some(Err(t!("shortcut-reserved-clipboard")))
+            }
             _ => None,
         })
     })
@@ -201,7 +201,7 @@ impl ShortcutMapper {
         }
 
         let mut open = true;
-        egui::Window::new("Shortcut Mapper")
+        egui::Window::new(t!("shortcut-mapper"))
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
             .id(Id::new("shortcut-mapper"))
@@ -211,13 +211,13 @@ impl ShortcutMapper {
             .default_size([680.0, 520.0])
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Find:");
+                    ui.label(t!("font-find-label"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.filter)
-                            .hint_text("Command or shortcut")
+                            .hint_text(t!("command-or-shortcut"))
                             .desired_width(260.0),
                     );
-                    ui.checkbox(&mut self.only_assigned, "Only commands with a shortcut");
+                    ui.checkbox(&mut self.only_assigned, t!("only-assigned"));
                 });
                 ui.add_space(4.0);
                 changed |= self.buttons(ui, rows, saved, palette);
@@ -273,10 +273,10 @@ impl ShortcutMapper {
             .and_then(|a| rows.iter().find(|r| &r.action == a));
 
         if let Some(conflict) = &self.conflict {
-            let text = format!(
-                "{} is already used by \"{}\".",
-                ui.ctx().format_shortcut(&conflict.shortcut),
-                conflict.other_path
+            let text = t!(
+                "shortcut-in-use",
+                shortcut = ui.ctx().format_shortcut(&conflict.shortcut),
+                command = conflict.other_path.clone()
             );
             let mut decided = None;
             egui::Frame::new()
@@ -286,10 +286,10 @@ impl ShortcutMapper {
                 .show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(text);
-                        if ui.button("Move It Here").clicked() {
+                        if ui.button(t!("move-it-here")).clicked() {
                             decided = Some(true);
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t!("cancel")).clicked() {
                             decided = Some(false);
                         }
                     });
@@ -312,42 +312,46 @@ impl ShortcutMapper {
 
         ui.horizontal(|ui| match row {
             None => {
-                ui.label(RichText::new("Select a command to change its shortcut.").weak());
+                ui.label(RichText::new(t!("select-command")).weak());
             }
             Some(row) if row.fixed => {
-                ui.label(
-                    RichText::new(format!(
-                        "\"{}\" belongs to the text box and can't be changed.",
-                        row.path
-                    ))
-                    .weak(),
-                );
+                ui.label(RichText::new(t!("shortcut-fixed", command = row.path.clone())).weak());
             }
             Some(row) => {
                 if self.capture.is_some() {
                     ui.label(
-                        RichText::new("Press the new shortcut… (Esc cancels)")
+                        RichText::new(t!("press-shortcut"))
                             .color(palette.accent)
                             .strong(),
                     );
                     return;
                 }
                 let has = !current(row, saved).is_empty();
-                if ui.button(if has { "Change…" } else { "Set…" }).clicked() {
+                if ui
+                    .button(if has {
+                        t!("change-shortcut")
+                    } else {
+                        t!("set-shortcut")
+                    })
+                    .clicked()
+                {
                     self.capture = Some(Capture::Replace);
                     self.error = None;
                 }
-                if has && ui.button("Add Another…").clicked() {
+                if has && ui.button(t!("add-another-shortcut")).clicked() {
                     self.capture = Some(Capture::Add);
                     self.error = None;
                 }
-                if ui.add_enabled(has, egui::Button::new("Remove")).clicked() {
+                if ui
+                    .add_enabled(has, egui::Button::new(t!("remove")))
+                    .clicked()
+                {
                     store(saved, &row.defaults, &row.action, &[]);
                     changed = true;
                 }
                 let modified = saved.contains_key(&actions::command_key(&row.action));
                 if ui
-                    .add_enabled(modified, egui::Button::new("Reset to Default"))
+                    .add_enabled(modified, egui::Button::new(t!("reset-to-default")))
                     .clicked()
                 {
                     saved.remove(&actions::command_key(&row.action));
@@ -360,19 +364,16 @@ impl ShortcutMapper {
         }
         ui.horizontal(|ui| {
             if ui
-                .add_enabled(!saved.is_empty(), egui::Button::new("Reset All Shortcuts"))
+                .add_enabled(
+                    !saved.is_empty(),
+                    egui::Button::new(t!("reset-all-shortcuts")),
+                )
                 .clicked()
             {
                 saved.clear();
                 changed = true;
             }
-            ui.label(
-                RichText::new(
-                    "Shortcuts need Ctrl or Alt, unless they use a function key (F1–F12).",
-                )
-                .weak()
-                .small(),
-            );
+            ui.label(RichText::new(t!("shortcut-rule")).weak().small());
         });
         changed
     }
@@ -414,10 +415,10 @@ impl ShortcutMapper {
             .column(egui_extras::Column::exact(200.0))
             .header(row_h, |mut h| {
                 h.col(|ui| {
-                    ui.strong("Command");
+                    ui.strong(t!("command"));
                 });
                 h.col(|ui| {
-                    ui.strong("Shortcut");
+                    ui.strong(t!("shortcut"));
                 });
             })
             .body(|body| {

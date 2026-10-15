@@ -29,13 +29,13 @@ impl Section {
         Section::Plugins,
     ];
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         match self {
-            Section::Editor => "Editing",
-            Section::Display => "Display",
-            Section::NewDocument => "New Documents",
-            Section::General => "Files and Startup",
-            Section::Plugins => "Plugins",
+            Section::Editor => t!("prefs-editing"),
+            Section::Display => t!("prefs-display"),
+            Section::NewDocument => t!("prefs-new-documents"),
+            Section::General => t!("prefs-general"),
+            Section::Plugins => t!("menu-plugins"),
         }
     }
 }
@@ -48,6 +48,10 @@ pub enum PrefsEvent {
     Shortcuts,
     /// Open the theme colour editor.
     Styles,
+    /// Show the interface in the language now in the settings.
+    Language,
+    /// Open the folder of the user's translations.
+    TranslationsFolder,
 }
 
 #[derive(Default)]
@@ -59,6 +63,8 @@ pub struct PrefsDialog {
     fonts_rx: Option<Receiver<Vec<SystemFont>>>,
     font_filter: String,
     all_fonts: bool,
+    /// The interface languages, read when the dialog opens.
+    languages: Vec<crate::i18n::Language>,
 }
 
 fn heading(ui: &mut Ui, text: &str) {
@@ -70,6 +76,7 @@ fn heading(ui: &mut Ui, text: &str) {
 impl PrefsDialog {
     pub fn show(&mut self) {
         self.open = true;
+        self.languages = crate::i18n::available();
     }
 
     fn load_fonts(&mut self, ctx: &egui::Context) {
@@ -104,7 +111,7 @@ impl PrefsDialog {
             self.fonts_rx = None;
         }
         let mut open = true;
-        egui::Window::new("Preferences")
+        egui::Window::new(t!("preferences"))
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
             .id(Id::new("preferences"))
@@ -126,10 +133,10 @@ impl PrefsDialog {
                             }
                         }
                         ui.add_space(12.0);
-                        if ui.button("Shortcut Mapper…").clicked() {
+                        if ui.button(t!("shortcut-mapper-dots")).clicked() {
                             events.push(PrefsEvent::Shortcuts);
                         }
-                        if ui.button("Theme Colours…").clicked() {
+                        if ui.button(t!("theme-colours-dots")).clicked() {
                             events.push(PrefsEvent::Styles);
                         }
                     });
@@ -144,7 +151,10 @@ impl PrefsDialog {
                                     self.display(ui, settings, palette, &mut events)
                                 }
                                 Section::NewDocument => new_document(ui, settings, languages),
-                                Section::General => general(ui, settings),
+                                Section::General => {
+                                    self.interface_language(ui, settings, &mut events);
+                                    general(ui, settings)
+                                }
                                 Section::Plugins => plugins(ui, settings),
                             });
                     });
@@ -163,21 +173,21 @@ impl PrefsDialog {
         palette: &Palette,
         events: &mut Vec<PrefsEvent>,
     ) {
-        heading(ui, "Font");
+        heading(ui, &t!("prefs-font"));
         let current = if settings.editor_font.family.is_empty() {
-            "Built-in (Hack)".to_owned()
+            t!("built-in-font")
         } else {
             settings.editor_font.family.clone()
         };
         ui.horizontal(|ui| {
-            ui.label("Editor font:");
+            ui.label(t!("editor-font-label"));
             ui.label(RichText::new(&current).color(palette.accent));
-            if !settings.editor_font.family.is_empty() && ui.button("Use Built-in").clicked() {
+            if !settings.editor_font.family.is_empty() && ui.button(t!("use-built-in")).clicked() {
                 events.push(PrefsEvent::Font(EditorFont::default()));
             }
         });
         ui.horizontal(|ui| {
-            ui.label("Size:");
+            ui.label(t!("font-size-label"));
             let mut size = settings.default_font_size;
             if ui
                 .add(
@@ -190,23 +200,23 @@ impl PrefsDialog {
                 settings.default_font_size = size;
                 settings.font_size = size;
             }
-            ui.label(RichText::new("Ctrl+0 returns to this size after zooming").weak());
+            ui.label(RichText::new(t!("font-size-hint")).weak());
         });
         self.load_fonts(ui.ctx());
         ui.horizontal(|ui| {
-            ui.label("Find:");
+            ui.label(t!("font-find-label"));
             ui.add(
                 egui::TextEdit::singleline(&mut self.font_filter)
-                    .hint_text("Font name")
+                    .hint_text(t!("font-name-hint"))
                     .desired_width(200.0),
             );
-            ui.checkbox(&mut self.all_fonts, "Show proportional fonts");
+            ui.checkbox(&mut self.all_fonts, t!("show-proportional-fonts"));
         });
         match &self.fonts {
             None => {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("Looking for installed fonts…");
+                    ui.label(t!("looking-for-fonts"));
                 });
             }
             Some(fonts) => {
@@ -228,7 +238,7 @@ impl PrefsDialog {
                             .auto_shrink([false, true])
                             .show(ui, |ui| {
                                 if shown.is_empty() {
-                                    ui.label(RichText::new("No fonts match").weak());
+                                    ui.label(RichText::new(t!("no-fonts-match")).weak());
                                 }
                                 for f in shown {
                                     let selected = settings.editor_font.path.as_ref()
@@ -236,7 +246,7 @@ impl PrefsDialog {
                                         && settings.editor_font.index == f.index;
                                     let mut label = f.family.clone();
                                     if !f.monospace {
-                                        label += "  (proportional)";
+                                        label += &format!("  ({})", t!("proportional"));
                                     }
                                     if ui.selectable_label(selected, label).clicked() {
                                         events.push(PrefsEvent::Font(f.to_editor_font()));
@@ -246,73 +256,58 @@ impl PrefsDialog {
                     });
             }
         }
-        heading(ui, "Show");
-        ui.checkbox(&mut settings.word_wrap, "Word wrap");
-        ui.checkbox(&mut settings.show_line_numbers, "Line numbers");
+        heading(ui, &t!("prefs-show"));
+        ui.checkbox(&mut settings.word_wrap, t!("prefs-word-wrap"));
+        ui.checkbox(&mut settings.show_line_numbers, t!("prefs-line-numbers"));
         ui.checkbox(
             &mut settings.highlight_current_line,
-            "Highlight the current line",
+            t!("prefs-highlight-line"),
         );
-        ui.checkbox(&mut settings.show_whitespace, "Whitespace symbols");
-        ui.checkbox(&mut settings.show_eol, "End-of-line symbols");
-        ui.checkbox(&mut settings.indent_guides, "Indent guides");
+        ui.checkbox(&mut settings.show_whitespace, t!("prefs-whitespace"));
+        ui.checkbox(&mut settings.show_eol, t!("prefs-eol"));
+        ui.checkbox(&mut settings.indent_guides, t!("prefs-indent-guides"));
         ui.horizontal(|ui| {
-            ui.checkbox(&mut settings.show_edge, "Long-line marker at column");
+            ui.checkbox(&mut settings.show_edge, t!("prefs-edge"));
             ui.add(egui::DragValue::new(&mut settings.edge_column).range(10..=400));
         });
     }
 }
 
 fn editing(ui: &mut Ui, settings: &mut Settings) {
-    heading(ui, "Indentation");
+    heading(ui, &t!("prefs-indentation"));
     ui.horizontal(|ui| {
-        ui.label("Tab width:");
+        ui.label(t!("prefs-tab-width"));
         ui.add(egui::DragValue::new(&mut settings.tab_width).range(1..=16));
-        ui.label("columns");
+        ui.label(t!("prefs-columns"));
     });
-    ui.radio_value(&mut settings.use_spaces, false, "Indent with tabs");
-    ui.radio_value(&mut settings.use_spaces, true, "Indent with spaces");
-    ui.checkbox(
-        &mut settings.smart_indent,
-        "Smart indentation (keep the indent, and indent after an opening bracket)",
-    );
-    heading(ui, "Typing");
-    ui.checkbox(
-        &mut settings.auto_close,
-        "Close brackets and quotes automatically",
-    );
-    ui.checkbox(
-        &mut settings.close_tags,
-        "Close HTML and XML tags automatically",
-    );
-    ui.checkbox(
-        &mut settings.word_completion,
-        "Suggest words from the document while typing",
-    );
+    ui.radio_value(&mut settings.use_spaces, false, t!("prefs-indent-tabs"));
+    ui.radio_value(&mut settings.use_spaces, true, t!("prefs-indent-spaces"));
+    ui.checkbox(&mut settings.smart_indent, t!("prefs-smart-indent"));
+    heading(ui, &t!("prefs-typing"));
+    ui.checkbox(&mut settings.auto_close, t!("prefs-auto-close"));
+    ui.checkbox(&mut settings.close_tags, t!("prefs-close-tags"));
+    ui.checkbox(&mut settings.word_completion, t!("prefs-word-completion"));
     ui.checkbox(
         &mut settings.language_completion,
-        "Suggest the language's keywords and functions",
+        t!("prefs-language-completion"),
     );
-    ui.checkbox(
-        &mut settings.parameter_hints,
-        "Show a function's parameters while typing a call",
-    );
+    ui.checkbox(&mut settings.parameter_hints, t!("prefs-parameter-hints"));
 }
 
 fn new_document(ui: &mut Ui, settings: &mut Settings, languages: &[String]) {
-    heading(ui, "Line ending");
+    heading(ui, &t!("prefs-line-ending"));
     ui.radio_value(
         &mut settings.new_line_ending,
         None,
-        format!(
-            "This system's default ({})",
-            LineEnding::platform_default().short_label()
+        t!(
+            "prefs-system-line-ending",
+            ending = LineEnding::platform_default().short_label()
         ),
     );
     for le in [LineEnding::Lf, LineEnding::CrLf, LineEnding::Cr] {
         ui.radio_value(&mut settings.new_line_ending, Some(le), le.label());
     }
-    heading(ui, "Encoding");
+    heading(ui, &t!("menu-encoding"));
     let current = if settings.new_encoding.is_empty() {
         "UTF-8".to_owned()
     } else {
@@ -330,7 +325,7 @@ fn new_document(ui: &mut Ui, settings: &mut Settings, languages: &[String]) {
                 }
             }
             for (group, list) in legacy_groups() {
-                ui.label(RichText::new(group).small().weak());
+                ui.label(RichText::new(crate::i18n::tr(group)).small().weak());
                 for (label, _) in list {
                     if ui.selectable_label(current == label, label).clicked() {
                         settings.new_encoding = label.to_owned();
@@ -338,7 +333,7 @@ fn new_document(ui: &mut Ui, settings: &mut Settings, languages: &[String]) {
                 }
             }
         });
-    heading(ui, "Language");
+    heading(ui, &t!("menu-language"));
     egui::ComboBox::from_id_salt("new-language")
         .selected_text(&settings.new_language)
         .width(240.0)
@@ -355,45 +350,82 @@ fn new_document(ui: &mut Ui, settings: &mut Settings, languages: &[String]) {
         });
 }
 
+impl PrefsDialog {
+    /// The language picker: follow the system, or one of the languages.
+    fn interface_language(
+        &mut self,
+        ui: &mut Ui,
+        settings: &mut Settings,
+        events: &mut Vec<PrefsEvent>,
+    ) {
+        heading(ui, &t!("prefs-interface-language"));
+        let name_of = |code: &str| {
+            self.languages
+                .iter()
+                .find(|l| l.code == code)
+                .map(|l| l.name.clone())
+                .unwrap_or_else(|| code.to_owned())
+        };
+        let system = name_of(&crate::i18n::resolve("", &self.languages));
+        let system_label = t!("prefs-system-language", language = system);
+        let selected = if settings.ui_language.is_empty() {
+            system_label.clone()
+        } else {
+            name_of(&settings.ui_language)
+        };
+        let before = settings.ui_language.clone();
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("ui-language")
+                .selected_text(selected)
+                .width(240.0)
+                .height(320.0)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut settings.ui_language, String::new(), system_label);
+                    ui.separator();
+                    for l in &self.languages {
+                        let mut label = l.name.clone();
+                        if l.name != l.code {
+                            label += &format!("  ({})", l.code);
+                        }
+                        ui.selectable_value(&mut settings.ui_language, l.code.clone(), label);
+                    }
+                });
+            if ui.button(t!("open-translations-folder")).clicked() {
+                events.push(PrefsEvent::TranslationsFolder);
+            }
+            if ui.button(t!("reload-translations")).clicked() {
+                self.languages = crate::i18n::available();
+                events.push(PrefsEvent::Language);
+            }
+        });
+        ui.label(RichText::new(t!("prefs-translations-hint")).weak());
+        if settings.ui_language != before {
+            events.push(PrefsEvent::Language);
+        }
+    }
+}
+
 fn general(ui: &mut Ui, settings: &mut Settings) {
-    heading(ui, "Startup and exit");
+    heading(ui, &t!("prefs-startup"));
+    ui.checkbox(&mut settings.restore_session, t!("prefs-restore-session"));
+    ui.checkbox(&mut settings.remember_unsaved, t!("prefs-remember-unsaved"));
+    ui.checkbox(&mut settings.single_instance, t!("prefs-single-instance"));
+    heading(ui, &t!("prefs-files"));
+    ui.checkbox(&mut settings.auto_reload, t!("prefs-auto-reload"));
+    ui.checkbox(&mut settings.xml_check_on_save, t!("prefs-xml-check"));
+    heading(ui, &t!("prefs-printing"));
     ui.checkbox(
-        &mut settings.restore_session,
-        "Reopen the files that were open last time",
+        &mut settings.print_line_numbers,
+        t!("prefs-print-line-numbers"),
     );
-    ui.checkbox(
-        &mut settings.remember_unsaved,
-        "Quit without asking about unsaved changes, and bring them back next time",
-    );
-    ui.checkbox(
-        &mut settings.single_instance,
-        "Open files in the running Ettin Edit window",
-    );
-    heading(ui, "Files");
-    ui.checkbox(
-        &mut settings.auto_reload,
-        "Reload files changed on disk automatically when they have no unsaved changes",
-    );
-    ui.checkbox(
-        &mut settings.xml_check_on_save,
-        "Check that XML is well-formed each time it's saved",
-    );
-    heading(ui, "Printing");
-    ui.checkbox(&mut settings.print_line_numbers, "Print line numbers");
-    ui.checkbox(
-        &mut settings.print_colours,
-        "Print syntax colours (darkened to read well on paper)",
-    );
-    heading(ui, "Updates");
-    ui.checkbox(
-        &mut settings.check_updates,
-        "Check for a new version of Ettin Edit once a week",
-    );
+    ui.checkbox(&mut settings.print_colours, t!("prefs-print-colours"));
+    heading(ui, &t!("prefs-updates"));
+    ui.checkbox(&mut settings.check_updates, t!("prefs-check-updates"));
 }
 
 fn plugins(ui: &mut Ui, settings: &mut Settings) {
-    heading(ui, "Programs that run plugins");
-    ui.label(RichText::new("Leave empty to find them on the PATH.").weak());
+    heading(ui, &t!("prefs-plugin-programs"));
+    ui.label(RichText::new(t!("prefs-plugin-path-hint")).weak());
     egui::Grid::new("plugin-paths")
         .num_columns(2)
         .spacing([8.0, 6.0])
@@ -413,5 +445,5 @@ fn plugins(ui: &mut Ui, settings: &mut Settings) {
             );
             ui.end_row();
         });
-    ui.label(RichText::new("Changes apply when plugins are reloaded.").weak());
+    ui.label(RichText::new(t!("prefs-plugin-reload-hint")).weak());
 }

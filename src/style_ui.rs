@@ -9,18 +9,18 @@ use plist::{Dictionary, Value};
 
 use crate::theme::{Palette, parse_hex, to_hex};
 
-/// The editor colours a theme can set, with the names shown for them.
+/// The editor colours a theme can set, with the message ids of their names.
 const GLOBALS: &[(&str, &str)] = &[
-    ("background", "Background"),
-    ("foreground", "Text"),
-    ("caret", "Caret"),
-    ("selection", "Selection"),
-    ("lineHighlight", "Current line"),
-    ("gutterForeground", "Line numbers"),
-    ("guide", "Indent guides"),
-    ("invisibles", "Whitespace symbols"),
-    ("findHighlight", "Search matches"),
-    ("accent", "Accent (tabs, buttons, folds)"),
+    ("background", "style-background"),
+    ("foreground", "style-text"),
+    ("caret", "style-caret"),
+    ("selection", "style-selection"),
+    ("lineHighlight", "style-current-line"),
+    ("gutterForeground", "style-line-numbers"),
+    ("guide", "style-indent-guides"),
+    ("invisibles", "style-whitespace"),
+    ("findHighlight", "style-search-matches"),
+    ("accent", "style-accent"),
 ];
 
 pub enum StyleEvent {
@@ -82,7 +82,7 @@ fn optional_color(ui: &mut Ui, color: &mut Option<Color32>, fallback: Color32) -
             changed |= color_edit_button_srgba(ui, c, Alpha::OnlyBlend).changed();
             if ui
                 .small_button("×")
-                .on_hover_text("Don't set this colour")
+                .on_hover_text(t!("unset-colour"))
                 .clicked()
             {
                 *color = None;
@@ -91,8 +91,8 @@ fn optional_color(ui: &mut Ui, color: &mut Option<Color32>, fallback: Color32) -
         }
         None => {
             if ui
-                .button(RichText::new("Set").small())
-                .on_hover_text("Choose a colour")
+                .button(RichText::new(t!("set-colour")).small())
+                .on_hover_text(t!("choose-colour"))
                 .clicked()
             {
                 *color = Some(fallback);
@@ -122,7 +122,7 @@ impl StyleEditor {
             }
             Err(e) => {
                 self.doc = None;
-                self.error = Some(format!("Couldn't read the theme file: {e}"));
+                self.error = Some(t!("theme-read-failed", error = e.to_string()));
             }
         }
     }
@@ -145,7 +145,7 @@ impl StyleEditor {
         }
         let mut open = true;
         let mut changed = false;
-        egui::Window::new("Theme Colours")
+        egui::Window::new(t!("theme-colours"))
             .id(Id::new("style-editor"))
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
@@ -198,7 +198,7 @@ impl StyleEditor {
         events: &mut Vec<StyleEvent>,
     ) {
         ui.horizontal(|ui| {
-            ui.label("Theme:");
+            ui.label(t!("theme-label"));
             egui::ComboBox::from_id_salt("style-theme")
                 .selected_text(&self.name)
                 .width(180.0)
@@ -216,7 +216,7 @@ impl StyleEditor {
                 });
             let save = ui.add_enabled(
                 self.dirty,
-                egui::Button::new("Save").fill(if self.dirty {
+                egui::Button::new(t!("save")).fill(if self.dirty {
                     palette.accent.gamma_multiply(0.6)
                 } else {
                     Color32::TRANSPARENT
@@ -233,14 +233,14 @@ impl StyleEditor {
                 self.dirty = false;
             }
             if ui
-                .add_enabled(self.dirty, egui::Button::new("Discard Changes"))
+                .add_enabled(self.dirty, egui::Button::new(t!("discard-changes")))
                 .clicked()
             {
                 events.push(StyleEvent::Discard);
                 let (name, saved) = (self.name.clone(), self.saved.clone());
                 self.load(&name, &saved);
             }
-            if ui.button("Save As New Theme…").clicked() {
+            if ui.button(t!("save-as-new-theme")).clicked() {
                 self.new_name = Some(String::new());
                 self.focus_name = true;
             }
@@ -248,10 +248,10 @@ impl StyleEditor {
         if let Some(new_name) = &mut self.new_name {
             let mut done = None;
             ui.horizontal(|ui| {
-                ui.label("New theme name:");
+                ui.label(t!("new-theme-name"));
                 let r = ui.add(
                     egui::TextEdit::singleline(new_name)
-                        .hint_text("Name for the new theme")
+                        .hint_text(t!("new-theme-name-hint"))
                         .desired_width(220.0),
                 );
                 if std::mem::take(&mut self.focus_name) {
@@ -262,16 +262,16 @@ impl StyleEditor {
                 let bad = name.is_empty()
                     || name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']);
                 let ok = !bad && !taken;
-                if ui.add_enabled(ok, egui::Button::new("Save")).clicked()
+                if ui.add_enabled(ok, egui::Button::new(t!("save"))).clicked()
                     || (ok && r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
                 {
                     done = Some(Some(name.clone()));
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(t!("cancel")).clicked() {
                     done = Some(None);
                 }
                 if taken {
-                    ui.label(RichText::new("A theme has this name").weak());
+                    ui.label(RichText::new(t!("theme-name-taken")).weak());
                 }
             });
             match done {
@@ -297,13 +297,7 @@ impl StyleEditor {
                 None => {}
             }
         }
-        ui.label(
-            RichText::new(
-                "Changes show at once. Save keeps them; closing this window without saving drops them.",
-            )
-            .small()
-            .weak(),
-        );
+        ui.label(RichText::new(t!("theme-colours-hint")).small().weak());
     }
 }
 
@@ -332,13 +326,13 @@ fn globals(ui: &mut Ui, doc: &mut Value, palette: &Palette) -> bool {
         return false;
     };
     let mut changed = false;
-    ui.label(RichText::new("Editor").strong());
+    ui.label(RichText::new(t!("style-editor")).strong());
     egui::Grid::new("style-globals")
         .num_columns(4)
         .spacing([12.0, 6.0])
         .show(ui, |ui| {
             for (i, (key, label)) in GLOBALS.iter().enumerate() {
-                ui.label(*label);
+                ui.label(crate::i18n::tr(label));
                 ui.horizontal(|ui| {
                     let mut c = color_of(settings, key);
                     if optional_color(ui, &mut c, palette.text) {
@@ -358,22 +352,16 @@ fn globals(ui: &mut Ui, doc: &mut Value, palette: &Palette) -> bool {
 fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Syntax").strong());
+        ui.label(RichText::new(t!("style-syntax")).strong());
         ui.add_space(12.0);
-        ui.label("Find:");
+        ui.label(t!("font-find-label"));
         ui.add(
             egui::TextEdit::singleline(filter)
-                .hint_text("Rule name or scope, like string or keyword")
+                .hint_text(t!("rule-filter-hint"))
                 .desired_width(280.0),
         );
     });
-    ui.label(
-        RichText::new(
-            "Each rule colours the text whose scope matches. Separate several scopes with commas.",
-        )
-        .small()
-        .weak(),
-    );
+    ui.label(RichText::new(t!("rules-hint")).small().weak());
     let Some(list) = entries(doc) else {
         return false;
     };
@@ -384,11 +372,11 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
         .striped(true)
         .spacing([8.0, 4.0])
         .show(ui, |ui| {
-            ui.label(RichText::new("Name").weak());
-            ui.label(RichText::new("Scope").weak());
-            ui.label(RichText::new("Text").weak());
-            ui.label(RichText::new("Background").weak());
-            ui.label(RichText::new("Style").weak());
+            ui.label(RichText::new(t!("rule-name")).weak());
+            ui.label(RichText::new(t!("rule-scope")).weak());
+            ui.label(RichText::new(t!("style-text")).weak());
+            ui.label(RichText::new(t!("style-background")).weak());
+            ui.label(RichText::new(t!("rule-style")).weak());
             ui.label("");
             ui.end_row();
             for (i, entry) in list.iter_mut().enumerate() {
@@ -417,7 +405,7 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
                 if ui
                     .add_sized(
                         [150.0, 20.0],
-                        egui::TextEdit::singleline(&mut name).hint_text("(no name)"),
+                        egui::TextEdit::singleline(&mut name).hint_text(t!("no-name")),
                     )
                     .changed()
                 {
@@ -494,7 +482,7 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
                 });
                 if ui
                     .small_button("🗑")
-                    .on_hover_text("Delete this rule")
+                    .on_hover_text(t!("delete-rule"))
                     .clicked()
                 {
                     remove = Some(i);
@@ -506,14 +494,14 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
         list.remove(i);
         changed = true;
     }
-    if ui.button("Add Rule").clicked() {
+    if ui.button(t!("add-rule")).clicked() {
         let mut settings = Dictionary::new();
         settings.insert(
             "foreground".to_owned(),
             Value::String(to_hex(palette.accent)),
         );
         let mut rule = Dictionary::new();
-        rule.insert("name".to_owned(), Value::String("New rule".to_owned()));
+        rule.insert("name".to_owned(), Value::String(t!("new-rule")));
         rule.insert(
             "scope".to_owned(),
             Value::String(if filter.trim().is_empty() {

@@ -184,7 +184,7 @@ impl Panel {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui
                     .add(egui::Button::new("×").frame(false))
-                    .on_hover_text("Close panel")
+                    .on_hover_text(t!("close-panel"))
                     .clicked()
                 {
                     events.push(PanelEvent {
@@ -463,7 +463,7 @@ impl Panel {
                                     .sense(Sense::click())
                                     .truncate(),
                             );
-                            if resp.on_hover_text("Click to sort").clicked() {
+                            if resp.on_hover_text(t!("click-to-sort")).clicked() {
                                 clicked_header = Some(c);
                             }
                         });

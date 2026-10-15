@@ -267,6 +267,7 @@ document raises an error.
 | `prompt(text, value="", title=None)` | `prompt(text, {value, title})` | Asks for a line of text. Returns `None`/`null` if cancelled. |
 | `set_clipboard(text)` | `setClipboard(text)` | Copies text. |
 | `run_action(action)` | `runAction(action)` | Runs one of Ettin Edit's own commands (see below). |
+| `ui_language()` | `uiLanguage()` | The language Ettin Edit's menus are in, like `"en"` or `"de"` (see below). |
 | `log(*values)` | `log(...values)` | Writes a line to the plugin log. |
 
 `run_action` takes the name of an Ettin Edit command, such as `"Duplicate"`,
@@ -275,6 +276,35 @@ need options take an object, such as
 `{"SortLines": {"kind": "IgnoreCase", "desc": false}}` or
 `{"ConvertCase": "Upper"}`. The names are the ones in Ettin Edit's
 `src/actions.rs`.
+
+### Translating your plugin
+
+Ettin Edit doesn't translate plugins, but it tells them which language its
+own menus are in, so a plugin can pick its own wording. `ui_language()` /
+`uiLanguage()` returns a language code such as `"en"`, `"de"` or `"pt-BR"`.
+Keep your strings in the plugin, with English as the fallback:
+
+```python
+from ettin import active, command, message, ui_language, run
+
+TEXT = {
+    "en": {"title": "Count Words", "result": "{} words"},
+    "de": {"title": "Wörter zählen", "result": "{} Wörter"},
+}
+lang = ui_language()
+strings = TEXT.get(lang) or TEXT.get(lang.split("-")[0]) or TEXT["en"]
+
+@command(strings["title"])
+def count():
+    message(strings["result"].format(len(active().text.split())))
+
+run()
+```
+
+Command titles are set when the plugin starts. If the user changes the
+language in Preferences, the new titles appear after **Plugins > Reload
+Plugins** or the next start; messages that call `ui_language()` when they
+run follow the change straight away.
 
 ## Panels
 
@@ -349,7 +379,8 @@ plugins with `node main.js`, in the plugin's folder.
 
 Ettin Edit sends these notifications:
 
-- `initialize` `{plugin, ettin, api}`. Always first. `api` is 1.
+- `initialize` `{plugin, ettin, api, language}`. Always first. `api` is 1.
+  `language` is the interface language, like `en` or `de`.
 - `command` `{id}`.
 - `event` `{event, doc}`.
 - `panel` `{panel, item, event, value, values}`.
@@ -379,6 +410,7 @@ the active tab.
 | `ui.message` | `text, kind?` | |
 | `ui.prompt` | `prompt, value?, title?` | string or `null` |
 | `clipboard.set` | `text` | |
+| `app.language` | | the interface language, like `"de"` |
 | `panel.show` | `id, title?, items, position?` | |
 | `panel.close` | `id` | |
 

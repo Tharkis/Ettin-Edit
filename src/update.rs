@@ -53,11 +53,11 @@ pub fn is_newer(candidate: &str, current: &str) -> bool {
 
 /// Reads the release's version, page and notes from the GitHub API's JSON.
 pub fn parse_release(json: &str) -> Result<Release, String> {
-    let value: serde_json::Value = serde_json::from_str(json)
-        .map_err(|e| format!("The release list didn't make sense: {e}"))?;
+    let value: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| t!("update-bad-json", error = e.to_string()))?;
     let tag = value["tag_name"]
         .as_str()
-        .ok_or("The release list has no version")?;
+        .ok_or_else(|| t!("update-no-version"))?;
     Ok(Release {
         version: tag.trim_start_matches(['v', 'V']).to_owned(),
         page: value["html_url"]
@@ -90,16 +90,14 @@ fn fetch() -> Result<Release, String> {
         .header("Accept", "application/vnd.github+json")
         .call()
         .map_err(|e| match e {
-            ureq::Error::StatusCode(404) => "No published release was found (HTTP 404). \
-                Update checks only work while the Ettin Edit repository is public."
-                .to_owned(),
-            ureq::Error::StatusCode(code) => format!("GitHub answered with HTTP {code}."),
-            other => format!("Couldn't reach GitHub: {other}"),
+            ureq::Error::StatusCode(404) => t!("update-not-found"),
+            ureq::Error::StatusCode(code) => t!("update-http-error", code = code),
+            other => t!("update-unreachable", error = other.to_string()),
         })?;
     let body = response
         .body_mut()
         .read_to_string()
-        .map_err(|e| format!("Couldn't read GitHub's answer: {e}"))?;
+        .map_err(|e| t!("update-read-failed", error = e.to_string()))?;
     parse_release(&body)
 }
 
@@ -166,22 +164,26 @@ impl UpdateCheck {
         let mut close = false;
         egui::Modal::new(Id::new("update-check")).show(ctx, |ui| {
             ui.set_width(420.0);
-            ui.label(RichText::new("Check for Updates").strong().size(16.0));
+            ui.label(
+                RichText::new(t!("check-for-updates-title"))
+                    .strong()
+                    .size(16.0),
+            );
             ui.add_space(6.0);
             let current = env!("CARGO_PKG_VERSION");
             match &self.shown {
                 None => {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label("Asking GitHub for the latest release…");
+                        ui.label(t!("update-asking"));
                     });
                 }
                 Some(Outcome::Newer(release)) => {
                     ui.label(
-                        RichText::new(format!("Ettin Edit {} is available.", release.version))
+                        RichText::new(t!("update-available", version = release.version.clone()))
                             .color(palette.accent),
                     );
-                    ui.label(format!("You have version {current}."));
+                    ui.label(t!("update-current", version = current));
                     if !release.notes.is_empty() {
                         ui.add_space(6.0);
                         egui::ScrollArea::vertical()
@@ -190,31 +192,33 @@ impl UpdateCheck {
                     }
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Open Download Page").clicked() {
+                        if ui.button(t!("open-download-page")).clicked() {
                             events.push(UpdateEvent::OpenPage(release.page.clone()));
                             close = true;
                         }
-                        if !self.asked && ui.button("Don't Check Automatically").clicked() {
+                        if !self.asked && ui.button(t!("dont-check-automatically")).clicked() {
                             events.push(UpdateEvent::StopChecking);
                             close = true;
                         }
                     });
                 }
                 Some(Outcome::UpToDate(latest)) if latest == current => {
-                    ui.label(format!("You have the latest version, {current}."));
+                    ui.label(t!("update-latest", version = current));
                 }
                 Some(Outcome::UpToDate(latest)) => {
-                    ui.label(format!(
-                        "You have version {current}; the newest release is {latest}."
+                    ui.label(t!(
+                        "update-newer-local",
+                        version = current,
+                        latest = latest.clone()
                     ));
                 }
                 Some(Outcome::Failed(error)) => {
-                    ui.label(RichText::new("Couldn't check for updates.").color(palette.brace_bad));
+                    ui.label(RichText::new(t!("update-failed")).color(palette.brace_bad));
                     ui.label(RichText::new(error).small());
                 }
             }
             ui.add_space(8.0);
-            if ui.button("Close").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if ui.button(t!("close")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                 close = true;
             }
         });

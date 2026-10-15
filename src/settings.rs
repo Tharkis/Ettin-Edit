@@ -15,6 +15,8 @@ pub const MAX_RECENT: usize = 12;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    /// The interface language, like `de`; empty follows the system.
+    pub ui_language: String,
     pub theme: String,
     /// The editor font size, changed by zooming.
     pub font_size: f32,
@@ -112,6 +114,7 @@ pub struct PluginPrefs {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            ui_language: String::new(),
             theme: "Ettin Dark".to_owned(),
             font_size: 14.0,
             default_font_size: 14.0,

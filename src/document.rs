@@ -17,11 +17,11 @@ pub enum LineEnding {
 }
 
 impl LineEnding {
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> String {
         match self {
-            LineEnding::Lf => "Unix (LF)",
-            LineEnding::CrLf => "Windows (CR LF)",
-            LineEnding::Cr => "Macintosh (CR)",
+            LineEnding::Lf => t!("eol-unix"),
+            LineEnding::CrLf => t!("eol-windows"),
+            LineEnding::Cr => t!("eol-mac"),
         }
     }
 
@@ -208,10 +208,11 @@ impl Document {
             let bytes = self.encoding.encode(&text).map_err(|c| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!(
-                        "\"{c}\" (U+{:04X}) can't be saved as {}. Choose an encoding that has it, such as UTF-8, from the Encoding menu.",
-                        c as u32,
-                        self.encoding.name()
+                    t!(
+                        "cant-encode-char",
+                        char = c.to_string(),
+                        code = format!("{:04X}", c as u32),
+                        encoding = self.encoding.name()
                     ),
                 )
             })?;
@@ -261,7 +262,7 @@ impl Document {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| p.display().to_string()),
-            None => format!("new {}", self.untitled_number),
+            None => t!("untitled-name", number = self.untitled_number),
         }
     }
 

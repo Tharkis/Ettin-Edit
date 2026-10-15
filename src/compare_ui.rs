@@ -197,20 +197,22 @@ impl CompareView {
     pub fn summary_text(&self) -> String {
         let s = self.result.summary;
         if s.is_empty() {
-            return "No differences".into();
+            return t!("no-differences");
         }
         let mut parts = Vec::new();
-        for (n, what) in [
-            (s.changed, "changed"),
-            (s.added, "added"),
-            (s.removed, "removed"),
-            (s.moved, "moved"),
+        for (n, id) in [
+            (s.changed, "lines-changed"),
+            (s.added, "lines-added"),
+            (s.removed, "lines-removed"),
+            (s.moved, "lines-moved"),
         ] {
             if n > 0 {
-                parts.push(format!("{n} {what}"));
+                let mut args = crate::i18n::Args::new();
+                args.set("count", n);
+                parts.push(crate::i18n::tr_args(id, &args));
             }
         }
-        format!("Lines: {}", parts.join(", "))
+        t!("compare-lines-summary", parts = parts.join(", "))
     }
 
     pub fn ui(&mut self, ui: &mut Ui, palette: &Palette, font_size: f32) -> Option<CompareAction> {
@@ -226,55 +228,62 @@ impl CompareView {
                     let n = self.result.hunks.len();
                     ui.add_enabled_ui(n > 0, |ui| {
                         if ui
-                            .button("First")
-                            .on_hover_text("First difference")
+                            .button(t!("first"))
+                            .on_hover_text(t!("first-difference"))
                             .clicked()
                         {
                             self.go_to(0);
                         }
-                        if icon_button(ui, "↑", "Previous difference (Shift+F7)") {
+                        if icon_button(ui, "↑", &t!("previous-difference-hover")) {
                             self.step(false);
                         }
-                        if icon_button(ui, "↓", "Next difference (F7)") {
+                        if icon_button(ui, "↓", &t!("next-difference-hover")) {
                             self.step(true);
                         }
-                        if ui.button("Last").on_hover_text("Last difference").clicked() {
+                        if ui
+                            .button(t!("last"))
+                            .on_hover_text(t!("last-difference"))
+                            .clicked()
+                        {
                             self.go_to(n.saturating_sub(1));
                         }
                     });
                     let position = match (self.current, n) {
-                        (_, 0) => "Identical".to_owned(),
-                        (Some(c), _) => format!("Difference {} of {n}", c + 1),
-                        (None, _) => format!("{n} differences"),
+                        (_, 0) => t!("identical"),
+                        (Some(c), _) => t!("difference-of", current = c + 1, total = n),
+                        (None, _) => t!("differences-count", count = n),
                     };
                     ui.label(RichText::new(position).color(palette.text));
                     ui.label(RichText::new(self.summary_text()).color(palette.text_dim));
                     if self.result.timed_out {
-                        ui.label(
-                            RichText::new("(approximate: the files are very different)")
-                                .color(palette.text_dim),
-                        );
+                        ui.label(RichText::new(t!("compare-approximate")).color(palette.text_dim));
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if icon_button(ui, "×", "Close the comparison") {
+                        if icon_button(ui, "×", &t!("close-comparison-hover")) {
                             action = Some(CompareAction::Close);
                         }
                         if ui
-                            .button("Export Patch")
-                            .on_hover_text("Open the differences as a unified diff in a new tab")
+                            .button(t!("export-patch"))
+                            .on_hover_text(t!("export-patch-hover"))
                             .clicked()
                         {
                             action = Some(CompareAction::ExportPatch);
                         }
-                        if ui.button("Swap Sides").clicked() {
+                        if ui.button(t!("swap-sides")).clicked() {
                             action = Some(CompareAction::Swap);
                         }
-                        ui.menu_button("Options", |ui| {
+                        ui.menu_button(t!("options"), |ui| {
                             let before = self.opts;
-                            ui.checkbox(&mut self.opts.ignore_whitespace, "Ignore Spaces and Tabs");
-                            ui.checkbox(&mut self.opts.ignore_case, "Ignore Case");
-                            ui.checkbox(&mut self.opts.ignore_empty_lines, "Ignore Empty Lines");
-                            ui.checkbox(&mut self.opts.detect_moves, "Detect Moved Lines");
+                            ui.checkbox(
+                                &mut self.opts.ignore_whitespace,
+                                t!("compare-ignore-whitespace"),
+                            );
+                            ui.checkbox(&mut self.opts.ignore_case, t!("compare-ignore-case"));
+                            ui.checkbox(
+                                &mut self.opts.ignore_empty_lines,
+                                t!("compare-ignore-empty-lines"),
+                            );
+                            ui.checkbox(&mut self.opts.detect_moves, t!("compare-detect-moves"));
                             if self.opts != before {
                                 self.recompute();
                             }
@@ -303,12 +312,7 @@ impl CompareView {
         for (k, side) in [&self.left, &self.right].into_iter().enumerate() {
             let x = title_rect.left() + k as f32 * col_w + 10.0;
             let lines = side.lines.len();
-            let text = format!(
-                "{}   {} line{}",
-                side.title,
-                lines,
-                if lines == 1 { "" } else { "s" }
-            );
+            let text = format!("{}   {}", side.title, t!("line-count", count = lines));
             ui.painter()
                 .with_clip_rect(Rect::from_min_size(
                     Pos2::new(title_rect.left() + k as f32 * col_w, title_rect.top()),

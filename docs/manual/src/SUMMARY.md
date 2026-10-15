@@ -31,6 +31,7 @@
 - [Keyboard shortcuts](shortcuts.md)
 - [Themes and colours](themes.md)
 - [Languages](languages.md)
+- [Translations](translations.md)
 
 # Plugins
 

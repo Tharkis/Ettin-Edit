@@ -49,11 +49,11 @@ impl ColType {
         }
     }
 
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> String {
         match self {
-            ColType::Text => "Text",
-            ColType::Integer => "Integer",
-            ColType::Real => "Decimal",
+            ColType::Text => t!("column-type-text"),
+            ColType::Integer => t!("column-type-integer"),
+            ColType::Real => t!("column-type-decimal"),
         }
     }
 }
@@ -68,11 +68,11 @@ pub struct Table {
 /// Name of a delimiter for menus and messages.
 pub fn delimiter_name(d: u8) -> String {
     match d {
-        b',' => "Comma".into(),
-        b';' => "Semicolon".into(),
-        b'\t' => "Tab".into(),
-        b'|' => "Pipe".into(),
-        b' ' => "Space".into(),
+        b',' => t!("delimiter-comma"),
+        b';' => t!("delimiter-semicolon"),
+        b'\t' => t!("delimiter-tab"),
+        b'|' => t!("delimiter-pipe"),
+        b' ' => t!("delimiter-space"),
         other => format!("'{}'", other as char),
     }
 }

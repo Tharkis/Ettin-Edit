@@ -380,9 +380,10 @@ impl ApiLibrary {
                     .map_err(|e| e.to_string())
                     .and_then(|src| lib.add_source(&src));
                 if let Err(e) = result {
-                    errors.push(format!(
-                        "Skipped the API file {}: {e}",
-                        name.unwrap_or_default()
+                    errors.push(t!(
+                        "api-file-skipped",
+                        name = name.unwrap_or_default(),
+                        error = e
                     ));
                 }
             }

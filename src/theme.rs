@@ -433,9 +433,10 @@ pub fn load_themes(user_dir: Option<&Path>) -> (Vec<ThemeDef>, Vec<String>) {
     if let Some(dir) = user_dir
         && let Err(e) = install_builtins(dir, false)
     {
-        errors.push(format!(
-            "Couldn't write the built-in themes to {}: {e}",
-            dir.display()
+        errors.push(t!(
+            "themes-write-failed",
+            path = dir.display().to_string(),
+            error = e.to_string()
         ));
     }
     let mut themes = Vec::new();
@@ -445,9 +446,11 @@ pub fn load_themes(user_dir: Option<&Path>) -> (Vec<ThemeDef>, Vec<String>) {
             ThemeSet::load_from_reader(&mut Cursor::new(&text))
                 .map(|t| (t, text))
                 .map_err(|e| {
-                    errors.push(format!(
-                        "The theme file {} has a problem, so the original {name} theme is used: {e}",
-                        path.display()
+                    errors.push(t!(
+                        "theme-file-problem",
+                        path = path.display().to_string(),
+                        name = *name,
+                        error = e.to_string()
                     ))
                 })
                 .ok()
@@ -481,7 +484,11 @@ pub fn load_themes(user_dir: Option<&Path>) -> (Vec<ThemeDef>, Vec<String>) {
             let text = std::fs::read_to_string(&path).unwrap_or_default();
             match ThemeSet::load_from_reader(&mut Cursor::new(&text)) {
                 Ok(syntax) => themes.push(theme_def(name, syntax, true, Some(&text))),
-                Err(e) => errors.push(format!("Skipped the theme {}: {e}", path.display())),
+                Err(e) => errors.push(t!(
+                    "theme-skipped",
+                    path = path.display().to_string(),
+                    error = e.to_string()
+                )),
             }
         }
     }

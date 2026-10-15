@@ -68,6 +68,12 @@ Opened files always keep their own line ending and encoding.
 
 ## Files and Startup
 
+**Interface language**
+
+- The language of menus, dialogs and messages: the same as your system's, or
+  one you choose. **Open Translations Folder** and **Reload** are for adding
+  your own translations. See [Translations](translations.md).
+
 **Startup and exit**
 
 - **Reopen the files that were open last time**: start where you left off.
