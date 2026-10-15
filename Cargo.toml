@@ -28,6 +28,7 @@ csv = "1.4.0"
 egui_extras = "0.36"
 skrifa = "0.44"
 plist = "1.10"
+ureq = "3"
 
 [profile.release]
 opt-level = 3
