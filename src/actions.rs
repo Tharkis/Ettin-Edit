@@ -54,6 +54,8 @@ pub enum Action {
     ClearRecent,
     About,
     CheckForUpdates,
+    Print,
+    ExportHtml,
     ToggleUpdateCheck,
     // Files
     ReloadFromDisk,
@@ -491,6 +493,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         // Macros
         (s(CMD_SHIFT, Key::R), Action::ToggleMacroRecording),
         (s(CMD_SHIFT, Key::P), Action::PlayMacro),
+        (s(CMD, Key::P), Action::Print),
     ]
 }
 

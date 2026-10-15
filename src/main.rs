@@ -22,6 +22,7 @@ mod menu;
 mod palette_ui;
 mod plugins;
 mod prefs_ui;
+mod print;
 mod search;
 mod search_ui;
 mod session;

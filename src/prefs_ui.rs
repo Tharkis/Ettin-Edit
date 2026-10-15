@@ -370,6 +370,17 @@ fn general(ui: &mut Ui, settings: &mut Settings) {
         &mut settings.xml_check_on_save,
         "Check that XML is well-formed each time it's saved",
     );
+    heading(ui, "Printing");
+    ui.checkbox(&mut settings.print_line_numbers, "Print line numbers");
+    ui.checkbox(
+        &mut settings.print_colours,
+        "Print syntax colours (darkened to read well on paper)",
+    );
+    heading(ui, "Updates");
+    ui.checkbox(
+        &mut settings.check_updates,
+        "Check for a new version of Ettin Edit once a week",
+    );
 }
 
 fn plugins(ui: &mut Ui, settings: &mut Settings) {

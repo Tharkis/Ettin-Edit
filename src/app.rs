@@ -6,6 +6,7 @@ mod csv_query;
 mod menus;
 mod panels;
 mod plugins;
+mod printing;
 mod text_tools;
 mod views;
 mod xml_schema;
@@ -1095,6 +1096,8 @@ impl EttinApp {
             }
             Action::About => self.show_about = true,
             Action::CheckForUpdates => self.updates.start(ctx, true),
+            Action::Print => self.print(false),
+            Action::ExportHtml => self.print(true),
             Action::ToggleUpdateCheck => self.settings.check_updates = !self.settings.check_updates,
             Action::Preferences => {
                 self.prefs.show();
@@ -1879,6 +1882,9 @@ impl EttinApp {
                     self.menu_item(ui, "Open Containing Folder", Action::OpenContainingFolder);
                 });
                 self.menu_item(ui, "Open Terminal Here", Action::OpenTerminalHere);
+                ui.separator();
+                self.menu_item(ui, "Print…", Action::Print);
+                self.menu_item(ui, "Export as HTML…", Action::ExportHtml);
                 ui.separator();
                 self.menu_item(
                     ui,

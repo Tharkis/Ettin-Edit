@@ -61,6 +61,9 @@ pub struct Settings {
     pub last_xsl: Option<PathBuf>,
     /// Look for a newer release once a week.
     pub check_updates: bool,
+    pub print_line_numbers: bool,
+    /// Print with syntax colours (darkened for paper) rather than all black.
+    pub print_colours: bool,
     /// When the last automatic update check ran (Unix seconds).
     pub last_update_check: i64,
     /// How Compare matches lines.
@@ -139,6 +142,8 @@ impl Default for Settings {
             xml_schemas: BTreeMap::new(),
             last_xsl: None,
             check_updates: true,
+            print_line_numbers: true,
+            print_colours: true,
             last_update_check: 0,
             compare: crate::compare::CompareOptions::default(),
             plugins: BTreeMap::new(),
