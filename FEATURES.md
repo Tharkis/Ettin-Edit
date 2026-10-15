@@ -278,7 +278,7 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 - [x] Plugin events: document opened/saved/closed, text changed, tab switched
 - [x] Plugin panels (dock a custom view, e.g. a tree or a grid)
 - [x] Plugin folder in the config directory, enable/disable per plugin
-- [ ] Plugin manager: browse, install, update, remove (planned for 1.0)
+- [x] Plugin manager: browse, install, update, remove (Plugins > Manage Plugins: Installed and Available tabs from a plugin index, Install from File or Folder, updates when the index has a newer version, Remove to the trash; new and updated plugins ask for permission)
 - [x] Sample plugins in both Python and JavaScript
 - [x] Sandboxing / permission prompts for plugins (a permission prompt the first time a plugin runs and again when its files change; plugins are not sandboxed)
 

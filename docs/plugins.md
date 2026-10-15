@@ -82,6 +82,59 @@ Ettin Edit doesn't ask about the sample plugins you install from the Plugins
 menu. While you write a plugin of your own, tick **Don't ask when it
 changes** for it in Manage Plugins, so reloading it doesn't ask each time.
 
+## Sharing plugins
+
+**Plugins > Manage Plugins** has two tabs. **Installed** lists your plugins,
+with **Remove…** (the folder moves to the trash) and **Update to x.y** when
+the plugin index has a newer version. **Available** lists the plugins in the
+index, with a filter box and an **Install** button. **Install from File…**
+installs a `.zip`, and **Install from Folder…** copies a folder that has a
+`plugin.json`. A plugin you install or update always asks for permission
+before it runs, even if you ticked **Don't ask when it changes**.
+
+To share a plugin, zip it. `plugin.json` can be at the top of the zip or
+inside one folder:
+
+```
+shout.zip                 shout.zip
+  plugin.json               shout/
+  main.py                     plugin.json
+                              main.py
+```
+
+The plugin's id (its folder name) comes from the index, otherwise from the
+folder in the zip, otherwise from the zip's file name. Zips with absolute
+paths or `..` in them are refused.
+
+The index is a JSON file; Ettin Edit reads
+`https://raw.githubusercontent.com/Tharkis/Ettin-Edit/main/plugins/index.json`
+unless you change the address at the bottom of the Available tab. To list a
+plugin there, add an entry to `plugins/index.json` in the Ettin Edit
+repository and open a pull request:
+
+```json
+{
+  "plugins": [
+    {
+      "id": "shout",
+      "name": "Shout",
+      "version": "1.0.0",
+      "description": "Makes the selection upper case.",
+      "author": "You",
+      "homepage": "https://example.com/shout",
+      "download": "https://example.com/shout-1.0.0.zip",
+      "sha256": "optional: the zip's SHA-256, checked before installing",
+      "min_app_version": "optional: the oldest Ettin Edit it works with"
+    }
+  ]
+}
+```
+
+Versions are compared number by number, so `1.10` is newer than `1.9`. A
+`download` address without `https://` is relative to the index itself, so
+you can host your own index next to your zips. Each Ettin Edit release
+attaches `<id>.zip` for the sample plugins.
+
 ## A Python plugin
 
 ```python

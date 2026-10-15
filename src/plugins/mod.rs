@@ -14,6 +14,7 @@ pub mod manifest;
 pub mod panel;
 pub mod process;
 pub mod shortcut;
+pub mod store;
 pub mod ui;
 
 use std::collections::{BTreeMap, HashSet, VecDeque};

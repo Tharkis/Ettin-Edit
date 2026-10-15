@@ -48,6 +48,8 @@ pub(crate) struct PluginUi {
     /// The paths in Manage Plugins, while being edited.
     python: Option<String>,
     node: Option<String>,
+    /// The plugin index, installs in progress and the manager's tabs.
+    pub store: crate::plugins::store::Store,
 }
 
 fn param_usize(params: &Value, key: &str) -> Result<Option<usize>, CallError> {
@@ -62,6 +64,14 @@ fn param_usize(params: &Value, key: &str) -> Result<Option<usize>, CallError> {
 
 fn param_str<'a>(params: &'a Value, key: &str) -> Result<&'a str, CallError> {
     str_param(params, key).ok_or((INVALID_PARAMS, format!("\"{key}\" must be text")))
+}
+
+/// The plugin index address, or the default one when the setting is empty.
+fn index_url(setting: &str) -> String {
+    match setting.trim() {
+        "" => crate::plugins::store::DEFAULT_INDEX_URL.to_owned(),
+        url => url.to_owned(),
+    }
 }
 
 fn read_only() -> CallError {
@@ -110,6 +120,7 @@ impl EttinApp {
                 jump: None,
             });
         }
+        self.finish_installs(ctx);
         self.plugin_events(ctx);
     }
 
@@ -621,14 +632,26 @@ impl EttinApp {
                 .plugin_ui
                 .node
                 .get_or_insert_with(|| self.settings.node_path.clone());
+            if matches!(
+                self.plugin_ui.store.index,
+                crate::plugins::store::IndexState::NotLoaded
+            ) {
+                self.plugin_ui
+                    .store
+                    .fetch_index(&index_url(&self.settings.plugin_index_url), ctx);
+            }
             let actions = plugin_ui::manager(
                 ctx,
                 &mut self.plugin_ui.manager_open,
-                &self.plugins,
-                &self.settings.plugins,
-                python,
-                node,
-                &palette,
+                plugin_ui::ManagerView {
+                    host: &self.plugins,
+                    prefs: &self.settings.plugins,
+                    python,
+                    node,
+                    index_url: &mut self.settings.plugin_index_url,
+                    store: &mut self.plugin_ui.store,
+                    palette: &palette,
+                },
             );
             // The paths count once they're edited; plugins pick them up when they start.
             self.settings.python_path = python.trim().to_owned();
@@ -726,7 +749,146 @@ impl EttinApp {
             ManagerAction::InstallSamples => self.run(ctx, Action::InstallSamplePlugins),
             ManagerAction::ShowLog => self.plugin_ui.log_open = true,
             ManagerAction::ShowGuide => self.run(ctx, Action::PluginGuide),
+            ManagerAction::RefreshIndex => {
+                let url = index_url(&self.settings.plugin_index_url);
+                self.plugin_ui.store.fetch_index(&url, ctx);
+            }
+            ManagerAction::Install(id) => {
+                let Some(root) = self.plugins_root() else {
+                    return;
+                };
+                let Some(entry) = self.plugin_ui.store.entry(&id).cloned() else {
+                    return;
+                };
+                // An update replaces the folder, so stop the old version first.
+                if let Some(i) = self.plugins.index_of(&id) {
+                    self.plugins.stop(i, now);
+                }
+                self.plugin_ui.store.install_entry(&entry, root, ctx);
+            }
+            ManagerAction::InstallFromFile => {
+                let Some(root) = self.plugins_root() else {
+                    return;
+                };
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Install Plugin from File")
+                    .add_filter("Plugin (.zip)", &["zip"])
+                    .pick_file()
+                {
+                    self.plugin_ui.store.install_file(path, root, ctx);
+                }
+            }
+            ManagerAction::InstallFromFolder => {
+                let Some(root) = self.plugins_root() else {
+                    return;
+                };
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Install Plugin from Folder")
+                    .pick_folder()
+                {
+                    if let Some(i) = path
+                        .file_name()
+                        .and_then(|n| crate::plugins::store::id_from_name(&n.to_string_lossy()))
+                        .and_then(|id| self.plugins.index_of(&id))
+                    {
+                        self.plugins.stop(i, now);
+                    }
+                    self.plugin_ui.store.install_folder(path, root, ctx);
+                }
+            }
+            ManagerAction::Remove(id) => self.remove_plugin(&id, now),
         }
+    }
+
+    /// The plugins folder, or an error when there's no config folder.
+    fn plugins_root(&mut self) -> Option<std::path::PathBuf> {
+        let root = self.plugins.dir.clone();
+        if root.is_none() {
+            self.errors
+                .push("There's no config folder to put plugins in.".to_owned());
+        }
+        root
+    }
+
+    /// Moves a plugin's folder to the trash and forgets its settings.
+    fn remove_plugin(&mut self, id: &str, now: f64) {
+        let Some(i) = self.plugins.index_of(id) else {
+            return;
+        };
+        let name = self.plugins.plugins[i].name().to_owned();
+        let dir = self.plugins.plugins[i].dir.clone();
+        self.plugins.stop(i, now);
+        if let Err(e) = crate::plugins::store::to_trash(&dir) {
+            self.plugin_ui.store.error = Some(format!("Couldn't move {name} to the trash: {e}"));
+            self.reload_plugins(now);
+            return;
+        }
+        self.settings.plugins.remove(id);
+        self.settings.save();
+        self.reload_plugins(now);
+        self.notice = Some(Notice {
+            text: format!("Removed {name}; its folder is in the trash."),
+            error: false,
+            since: None,
+            jump: None,
+        });
+    }
+
+    fn reload_plugins(&mut self, now: f64) {
+        self.plugins.reload(
+            &self.settings.plugins,
+            &self.settings.python_path,
+            &self.settings.node_path,
+            now,
+        );
+    }
+
+    /// Loads plugins the manager finished installing. A new or updated
+    /// plugin always asks for permission before it runs.
+    fn finish_installs(&mut self, ctx: &egui::Context) {
+        let done = self.plugin_ui.store.poll();
+        if done.is_empty() {
+            return;
+        }
+        let now = ctx.input(|i| i.time);
+        let mut text = Vec::new();
+        let mut error = false;
+        for result in done {
+            match result {
+                Ok(installed) => {
+                    let pref = self
+                        .settings
+                        .plugins
+                        .entry(installed.id.clone())
+                        .or_default();
+                    pref.approved = None;
+                    pref.trust_changes = false;
+                    pref.disabled = false;
+                    let version = if installed.version.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" {}", installed.version)
+                    };
+                    text.push(if installed.updated {
+                        format!("Updated {} to{version}.", installed.name)
+                    } else {
+                        format!("Installed {}{version}.", installed.name)
+                    });
+                }
+                Err(e) => {
+                    error = true;
+                    text.push(e);
+                }
+            }
+        }
+        self.settings.save();
+        self.reload_plugins(now);
+        self.notice = Some(Notice {
+            text: text.join(" "),
+            error,
+            since: None,
+            jump: None,
+        });
     }
 
     /// Runs the plugin commands from the Plugins menu.

@@ -150,9 +150,33 @@ jobs:
           name: windows
           path: ettin-edit-*.zip
 
+  plugins:
+    name: Sample plugin zips
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+      - name: Zip each sample plugin
+        # One <id>.zip per folder in plugins/samples, with plugin.json at the
+        # top, for the download links in plugins/index.json.
+        run: |
+          mkdir -p plugin-zips
+          for dir in plugins/samples/*/; do
+            id=$(basename "$dir")
+            test -f "$dir/plugin.json" || continue
+            (cd "$dir" && zip -r -X "$GITHUB_WORKSPACE/plugin-zips/$id.zip" . -x '__pycache__/*' '*/__pycache__/*' '*.pyc')
+          done
+          ls -l plugin-zips
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugins
+          path: plugin-zips/*.zip
+
   publish:
     name: Publish release
-    needs: [version, linux, arch, windows]
+    needs: [version, linux, arch, windows, plugins]
     if: needs.version.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
