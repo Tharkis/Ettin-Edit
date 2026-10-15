@@ -57,7 +57,11 @@ pub fn to_text(s: &KeyboardShortcut) -> String {
     if m.shift {
         text += "Shift+";
     }
-    text += s.logical_key.name();
+    // Newer egui versions name the plus key "Plus"; keep writing "+".
+    text += match s.logical_key {
+        Key::Plus => "+",
+        key => key.name(),
+    };
     text
 }
 
@@ -132,7 +136,7 @@ mod tests {
             ("Ctrl+Shift+F12", "Ctrl+Shift+F12"),
             ("F6", "F6"),
             ("Alt+1", "Alt+1"),
-            ("Ctrl++", "Ctrl+Plus"),
+            ("Ctrl++", "Ctrl++"),
             ("Shift+F3", "Shift+F3"),
         ] {
             let s = parse(text).unwrap();

@@ -73,6 +73,8 @@ pub struct Settings {
     /// The Python and Node programs plugins run with; empty finds them on the PATH.
     pub python_path: String,
     pub node_path: String,
+    /// Where Manage Plugins reads the list of plugins to install from.
+    pub plugin_index_url: String,
     /// The editor font; the built-in one when no file is set.
     pub editor_font: crate::fonts::EditorFont,
     /// Columns between tab stops.
@@ -149,6 +151,7 @@ impl Default for Settings {
             plugins: BTreeMap::new(),
             python_path: String::new(),
             node_path: String::new(),
+            plugin_index_url: crate::plugins::store::DEFAULT_INDEX_URL.to_owned(),
             editor_font: crate::fonts::EditorFont::default(),
             tab_width: crate::editor::layout::DEFAULT_TAB_WIDTH,
             new_line_ending: None,

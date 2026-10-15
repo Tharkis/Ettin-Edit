@@ -29,6 +29,8 @@ egui_extras = "0.36"
 skrifa = "0.44"
 plist = "1.10"
 ureq = { version = "3", features = ["platform-verifier"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+sha2 = "0.11"
 
 [profile.release]
 opt-level = 3
