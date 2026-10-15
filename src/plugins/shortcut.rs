@@ -127,16 +127,16 @@ mod tests {
 
     #[test]
     fn writes_shortcuts_back_as_text() {
-        for text in [
-            "Ctrl+Alt+U",
-            "Ctrl+Shift+F12",
-            "F6",
-            "Alt+1",
-            "Ctrl++",
-            "Shift+F3",
+        for (text, written) in [
+            ("Ctrl+Alt+U", "Ctrl+Alt+U"),
+            ("Ctrl+Shift+F12", "Ctrl+Shift+F12"),
+            ("F6", "F6"),
+            ("Alt+1", "Alt+1"),
+            ("Ctrl++", "Ctrl+Plus"),
+            ("Shift+F3", "Shift+F3"),
         ] {
             let s = parse(text).unwrap();
-            assert_eq!(to_text(&s), text);
+            assert_eq!(to_text(&s), written);
             assert!(same(&parse(&to_text(&s)).unwrap(), &s));
         }
     }
