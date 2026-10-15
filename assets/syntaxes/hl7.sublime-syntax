@@ -1,0 +1,235 @@
+%YAML 1.2
+---
+# HL7 version 2 grammar for Ettin Edit, written from the HL7 v2 message
+# structure rules.
+#
+# Each message header (MSH, or FHS/BHS for files and batches) names its own
+# separators: MSH-1 is the field separator and MSH-2 lists the component,
+# repetition, escape and subcomponent characters. The `sel-*` contexts read
+# those characters one at a time and add a matching rule for each to the
+# message's prototype, so the rest of the message is coloured with the
+# separators it declared. Text before any header uses the standard |^~\&.
+#
+# The `sel-*` contexts list every ASCII punctuation character and are
+# repetitive by design.
+name: HL7
+file_extensions: [hl7]
+first_line_match: '^(?:MSH|FHS|BHS)[^\w\s]'
+scope: text.hl7
+
+variables:
+  header: '(?:MSH|FHS|BHS)'
+  escape_body: '(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\\\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)'
+
+contexts:
+  main:
+    - match: '^({{header}})(?=[^\w\s])'
+      captures:
+        1: entity.name.tag.segment.hl7
+      push: sel-field
+    - include: segment
+    - include: standard-separators
+
+  segment:
+    - match: '^[A-Z][A-Z0-9]{2}(?![A-Za-z0-9])'
+      scope: entity.name.tag.segment.hl7
+    - match: '(?<![\w.])[+-]?\d+(?:\.\d+)?(?![\w.])'
+      scope: constant.numeric.hl7
+
+  standard-separators:
+    - match: '\\{{escape_body}}\\'
+      scope: constant.character.escape.hl7
+    - match: '\|'
+      scope: keyword.operator.separator.field.hl7
+    - match: '\^'
+      scope: punctuation.separator.component.hl7
+    - match: '~'
+      scope: punctuation.separator.repetition.hl7
+    - match: '&'
+      scope: punctuation.separator.subcomponent.hl7
+
+  # The rest of a message whose header could not be read.
+  standard-body:
+    - match: '^(?={{header}}[^\w\s])'
+      pop: true
+    - include: segment
+    - include: standard-separators
+
+  # The rest of a message; its separators come from the prototype rules
+  # added while reading the header.
+  body:
+    - match: '^(?={{header}}[^\w\s])'
+      pop: true
+    - match: '(?<=^[A-Z]{3}[^\w\s]{5})[^\w\s]'
+      scope: constant.character.encoding.truncation.hl7
+    - include: segment
+
+  sel-field:
+    - {match: '\|', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\|', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '!', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '!', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '"', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '"', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\#', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\#', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\$', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\$', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '%', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '%', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\&', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\&', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '''', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '''', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\(', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\(', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\)', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\)', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\*', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\*', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\+', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\+', scope: keyword.operator.separator.field.hl7}]}
+    - {match: ',', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: ',', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\-', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\-', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\.', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\.', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '/', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '/', scope: keyword.operator.separator.field.hl7}]}
+    - {match: ':', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: ':', scope: keyword.operator.separator.field.hl7}]}
+    - {match: ';', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: ';', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '<', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '<', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '=', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '=', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '>', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '>', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\?', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\?', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '@', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '@', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\[', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\[', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\\', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\\', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\]', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\]', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\^', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\^', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '`', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '`', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\{', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\{', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\}', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\}', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '\~', scope: keyword.operator.separator.field.hl7, set: sel-component, with_prototype: [{match: '\~', scope: keyword.operator.separator.field.hl7}]}
+    - {match: '', set: standard-body}
+
+  sel-component:
+    - {match: '\^', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\^', scope: punctuation.separator.component.hl7}]}
+    - {match: '!', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '!', scope: punctuation.separator.component.hl7}]}
+    - {match: '"', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '"', scope: punctuation.separator.component.hl7}]}
+    - {match: '\#', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\#', scope: punctuation.separator.component.hl7}]}
+    - {match: '\$', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\$', scope: punctuation.separator.component.hl7}]}
+    - {match: '%', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '%', scope: punctuation.separator.component.hl7}]}
+    - {match: '\&', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\&', scope: punctuation.separator.component.hl7}]}
+    - {match: '''', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '''', scope: punctuation.separator.component.hl7}]}
+    - {match: '\(', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\(', scope: punctuation.separator.component.hl7}]}
+    - {match: '\)', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\)', scope: punctuation.separator.component.hl7}]}
+    - {match: '\*', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\*', scope: punctuation.separator.component.hl7}]}
+    - {match: '\+', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\+', scope: punctuation.separator.component.hl7}]}
+    - {match: ',', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: ',', scope: punctuation.separator.component.hl7}]}
+    - {match: '\-', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\-', scope: punctuation.separator.component.hl7}]}
+    - {match: '\.', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\.', scope: punctuation.separator.component.hl7}]}
+    - {match: '/', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '/', scope: punctuation.separator.component.hl7}]}
+    - {match: ':', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: ':', scope: punctuation.separator.component.hl7}]}
+    - {match: ';', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: ';', scope: punctuation.separator.component.hl7}]}
+    - {match: '<', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '<', scope: punctuation.separator.component.hl7}]}
+    - {match: '=', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '=', scope: punctuation.separator.component.hl7}]}
+    - {match: '>', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '>', scope: punctuation.separator.component.hl7}]}
+    - {match: '\?', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\?', scope: punctuation.separator.component.hl7}]}
+    - {match: '@', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '@', scope: punctuation.separator.component.hl7}]}
+    - {match: '\[', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\[', scope: punctuation.separator.component.hl7}]}
+    - {match: '\\', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\\', scope: punctuation.separator.component.hl7}]}
+    - {match: '\]', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\]', scope: punctuation.separator.component.hl7}]}
+    - {match: '`', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '`', scope: punctuation.separator.component.hl7}]}
+    - {match: '\{', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\{', scope: punctuation.separator.component.hl7}]}
+    - {match: '\|', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\|', scope: punctuation.separator.component.hl7}]}
+    - {match: '\}', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\}', scope: punctuation.separator.component.hl7}]}
+    - {match: '\~', scope: constant.character.encoding.hl7, set: sel-repetition, with_prototype: [{match: '\~', scope: punctuation.separator.component.hl7}]}
+    - {match: '', set: body}
+
+  sel-repetition:
+    - {match: '\~', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\~', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '!', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '!', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '"', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '"', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\#', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\#', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\$', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\$', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '%', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '%', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\&', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\&', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '''', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '''', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\(', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\(', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\)', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\)', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\*', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\*', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\+', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\+', scope: punctuation.separator.repetition.hl7}]}
+    - {match: ',', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: ',', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\-', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\-', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\.', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\.', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '/', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '/', scope: punctuation.separator.repetition.hl7}]}
+    - {match: ':', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: ':', scope: punctuation.separator.repetition.hl7}]}
+    - {match: ';', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: ';', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '<', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '<', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '=', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '=', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '>', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '>', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\?', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\?', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '@', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '@', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\[', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\[', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\\', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\\', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\]', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\]', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\^', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\^', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '`', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '`', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\{', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\{', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\|', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\|', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '\}', scope: constant.character.encoding.hl7, set: sel-escape, with_prototype: [{match: '\}', scope: punctuation.separator.repetition.hl7}]}
+    - {match: '', set: body}
+
+  sel-escape:
+    - {match: '\\', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\\(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\\\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\\', scope: constant.character.escape.hl7}]}
+    - {match: '!', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '!(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^!\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)!', scope: constant.character.escape.hl7}]}
+    - {match: '"', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '"(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^"\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)"', scope: constant.character.escape.hl7}]}
+    - {match: '\#', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\#(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\#\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\#', scope: constant.character.escape.hl7}]}
+    - {match: '\$', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\$(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\$\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\$', scope: constant.character.escape.hl7}]}
+    - {match: '%', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '%(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^%\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)%', scope: constant.character.escape.hl7}]}
+    - {match: '\&', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\&(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\&\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\&', scope: constant.character.escape.hl7}]}
+    - {match: '''', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '''(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^''\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)''', scope: constant.character.escape.hl7}]}
+    - {match: '\(', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\((?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\(\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\(', scope: constant.character.escape.hl7}]}
+    - {match: '\)', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\)(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\)\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\)', scope: constant.character.escape.hl7}]}
+    - {match: '\*', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\*(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\*\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\*', scope: constant.character.escape.hl7}]}
+    - {match: '\+', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\+(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\+\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\+', scope: constant.character.escape.hl7}]}
+    - {match: ',', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: ',(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^,\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*),', scope: constant.character.escape.hl7}]}
+    - {match: '\-', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\-(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\-\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\-', scope: constant.character.escape.hl7}]}
+    - {match: '\.', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\.(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\.\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\.', scope: constant.character.escape.hl7}]}
+    - {match: '/', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '/(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^/\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)/', scope: constant.character.escape.hl7}]}
+    - {match: ':', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: ':(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^:\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*):', scope: constant.character.escape.hl7}]}
+    - {match: ';', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: ';(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^;\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*);', scope: constant.character.escape.hl7}]}
+    - {match: '<', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '<(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^<\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)<', scope: constant.character.escape.hl7}]}
+    - {match: '=', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '=(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^=\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)=', scope: constant.character.escape.hl7}]}
+    - {match: '>', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '>(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^>\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)>', scope: constant.character.escape.hl7}]}
+    - {match: '\?', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\?(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\?\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\?', scope: constant.character.escape.hl7}]}
+    - {match: '@', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '@(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^@\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)@', scope: constant.character.escape.hl7}]}
+    - {match: '\[', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\[(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\[\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\[', scope: constant.character.escape.hl7}]}
+    - {match: '\]', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\](?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\]\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\]', scope: constant.character.escape.hl7}]}
+    - {match: '\^', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\^(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\^\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\^', scope: constant.character.escape.hl7}]}
+    - {match: '`', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '`(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^`\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)`', scope: constant.character.escape.hl7}]}
+    - {match: '\{', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\{(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\{\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\{', scope: constant.character.escape.hl7}]}
+    - {match: '\|', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\|(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\|\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\|', scope: constant.character.escape.hl7}]}
+    - {match: '\}', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\}(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\}\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\}', scope: constant.character.escape.hl7}]}
+    - {match: '\~', scope: constant.character.encoding.hl7, set: sel-subcomponent, with_prototype: [{match: '\~(?:[FSTREPHN]|X[0-9A-Fa-f]*|Z[^\~\n]*|C[0-9A-Fa-f]{4}|M[0-9A-Fa-f]{4,6}|\.[a-z]{2}[+-]?\d*)\~', scope: constant.character.escape.hl7}]}
+    - {match: '', set: body}
+
+  sel-subcomponent:
+    - {match: '\&', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\&', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '!', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '!', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '"', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '"', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\#', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\#', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\$', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\$', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '%', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '%', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '''', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '''', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\(', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\(', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\)', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\)', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\*', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\*', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\+', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\+', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: ',', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: ',', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\-', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\-', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\.', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\.', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '/', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '/', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: ':', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: ':', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: ';', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: ';', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '<', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '<', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '=', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '=', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '>', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '>', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\?', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\?', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '@', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '@', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\[', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\[', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\\', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\\', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\]', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\]', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\^', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\^', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '`', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '`', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\{', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\{', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\|', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\|', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\}', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\}', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '\~', scope: constant.character.encoding.hl7, set: body, with_prototype: [{match: '\~', scope: punctuation.separator.subcomponent.hl7}]}
+    - {match: '', set: body}

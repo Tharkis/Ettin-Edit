@@ -12,6 +12,8 @@ mod editor;
 mod encoding;
 mod file_ui;
 mod fonts;
+#[allow(dead_code)] // The Function List panel is not wired yet.
+mod function_list;
 mod highlight;
 mod instance;
 mod macros;
@@ -26,6 +28,7 @@ mod text_tools_ui;
 mod theme;
 mod tools;
 mod tools_ui;
+mod user_lang;
 
 use std::path::PathBuf;
 

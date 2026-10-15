@@ -1,0 +1,165 @@
+%YAML 1.2
+---
+# Swift grammar for Ettin Edit, written from The Swift Programming Language
+# reference.
+name: Swift
+file_extensions: [swift]
+first_line_match: '^#!.*\bswift\b'
+scope: source.swift
+
+variables:
+  ident: '(?:[A-Za-z_][\w]*|`[^`\n]+`)'
+  numeric: '(?<![\w$])(?:0x[0-9A-Fa-f_]+(?:\.[0-9A-Fa-f_]+)?(?:[pP][+-]?\d+)?|0o[0-7_]+|0b[01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d[\d_]*)?)(?![\w$])'
+
+contexts:
+  main:
+    - include: statements
+
+  statements:
+    - include: comments
+    - include: strings
+    - include: attributes
+    - include: declarations
+    - include: keywords
+    - match: '{{numeric}}'
+      scope: constant.numeric.swift
+    - include: identifiers
+    - include: operators
+
+  comments:
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.swift
+      push: block-comment
+    - match: '//.*'
+      scope: comment.line.double-slash.swift
+
+  block-comment:
+    - meta_scope: comment.block.swift
+    - match: '\*/'
+      scope: punctuation.definition.comment.end.swift
+      pop: true
+    - match: '/\*'
+      push: block-comment
+
+  strings:
+    - match: '#+"""'
+      scope: punctuation.definition.string.begin.swift
+      push: raw-multiline
+    - match: '#+"'
+      scope: punctuation.definition.string.begin.swift
+      push: raw-string
+    - match: '"""'
+      scope: punctuation.definition.string.begin.swift
+      push: multiline-string
+    - match: '"'
+      scope: punctuation.definition.string.begin.swift
+      push: string
+
+  escapes:
+    - match: '\\\('
+      scope: punctuation.section.interpolation.begin.swift
+      push: interpolation
+    - match: '\\(?:[0\\tnr"'']|u\{[0-9A-Fa-f]{1,8}\})'
+      scope: constant.character.escape.swift
+
+  string:
+    - meta_scope: string.quoted.double.swift
+    - include: escapes
+    - match: '"'
+      scope: punctuation.definition.string.end.swift
+      pop: true
+    - match: '\n'
+      scope: invalid.illegal.newline.swift
+      pop: true
+
+  multiline-string:
+    - meta_scope: string.quoted.triple.swift
+    - include: escapes
+    - match: '"""'
+      scope: punctuation.definition.string.end.swift
+      pop: true
+
+  raw-string:
+    - meta_scope: string.quoted.double.raw.swift
+    - match: '"#+'
+      scope: punctuation.definition.string.end.swift
+      pop: true
+    - match: '\n'
+      pop: true
+
+  raw-multiline:
+    - meta_scope: string.quoted.triple.raw.swift
+    - match: '"""#+'
+      scope: punctuation.definition.string.end.swift
+      pop: true
+
+  interpolation:
+    - clear_scopes: 1
+    - meta_scope: meta.interpolation.swift
+    - match: '\)'
+      scope: punctuation.section.interpolation.end.swift
+      pop: true
+    - include: parens-or-statements
+
+  parens-or-statements:
+    - match: '\('
+      push: parens
+    - include: statements
+
+  parens:
+    - match: '\)'
+      pop: true
+    - include: parens-or-statements
+
+  attributes:
+    - match: '@[A-Za-z_]\w*'
+      scope: storage.modifier.attribute.swift
+    - match: '#(?:if|elseif|else|endif|available|unavailable|selector|keyPath|file|fileID|filePath|line|column|function|dsohandle|warning|error|sourceLocation|colorLiteral|imageLiteral|fileLiteral|externalMacro)\b'
+      scope: keyword.other.preprocessor.swift
+
+  declarations:
+    - match: '\b(func)\s+({{ident}}|[-+*/%<>=!&|^~?.]+)'
+      captures:
+        1: storage.type.function.swift
+        2: entity.name.function.swift
+    - match: '\b(init|deinit|subscript)\b(?=\s*[?!]?\s*[(<{])'
+      captures:
+        1: entity.name.function.swift
+    - match: '\b(class|struct|enum|protocol|extension|actor|typealias|associatedtype|macro)\s+(?!(?:func|var|let)\b)({{ident}})'
+      captures:
+        1: storage.type.swift
+        2: entity.name.class.swift
+
+  keywords:
+    - match: '\b(?:if|else|guard|switch|case|default|for|while|repeat|break|continue|fallthrough|return|throw|try|catch|defer|do|where|await|in)\b'
+      scope: keyword.control.swift
+    - match: '\bimport\b'
+      scope: keyword.control.import.swift
+    - match: '\b(?:let|var|func|class|struct|enum|protocol|extension|actor|typealias|associatedtype|operator|precedencegroup)\b'
+      scope: storage.type.swift
+    - match: '\b(?:public|private|fileprivate|internal|open|package|static|final|override|mutating|nonmutating|lazy|weak|unowned|optional|required|convenience|dynamic|indirect|inout|some|any|async|throws|rethrows|nonisolated|isolated|consuming|borrowing|prefix|postfix|infix)\b'
+      scope: storage.modifier.swift
+    - match: '\b(?:is|as)\b[?!]?'
+      scope: keyword.operator.word.swift
+    - match: '\b(?:true|false|nil)\b'
+      scope: constant.language.swift
+    - match: '\b(?:self|Self|super)\b'
+      scope: variable.language.swift
+
+  identifiers:
+    - match: '({{ident}})(?=\s*(?:<[\w\s,.?<>]*>)?\s*\()'
+      captures:
+        1: variable.function.swift
+    - match: '\b[A-Z][\w]*'
+      scope: support.class.swift
+    - match: '\$\d+'
+      scope: variable.language.swift
+    - match: '{{ident}}'
+
+  operators:
+    - match: '->'
+      scope: keyword.operator.arrow.swift
+    - match: '\.\.\.|\.\.<|[-+*/%=!<>&|^~?]+'
+      scope: keyword.operator.swift
+    - match: '[;,]'
+      scope: punctuation.separator.swift

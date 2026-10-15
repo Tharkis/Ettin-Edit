@@ -1,0 +1,56 @@
+%YAML 1.2
+---
+# Grammar for .env files (KEY=value lines read by shells, Docker Compose and
+# dotenv libraries), written for Ettin Edit.
+name: Dotenv
+file_extensions: [.env, env, .envrc, .flaskenv]
+scope: source.dotenv
+
+contexts:
+  main:
+    - match: '^\s*#.*'
+      scope: comment.line.number-sign.dotenv
+    - match: '^\s*(export)\b'
+      captures:
+        1: storage.modifier.dotenv
+    - match: '([A-Za-z_][\w.-]*)\s*(=)'
+      captures:
+        1: variable.other.env.dotenv
+        2: keyword.operator.assignment.dotenv
+      push: value
+
+  value:
+    - match: '\n'
+      pop: true
+    - match: '"'
+      scope: punctuation.definition.string.begin.dotenv
+      push: double-string
+    - match: "'"
+      scope: punctuation.definition.string.begin.dotenv
+      push: single-string
+    - match: '(?<=\s)#.*'
+      scope: comment.line.number-sign.dotenv
+    - include: references
+    - match: '(?i)\b(?:true|false|yes|no|on|off|null)\b(?=\s*(?:#|$))'
+      scope: constant.language.dotenv
+    - match: '(?<![\w.:/-])[+-]?\d+(?:\.\d+)?(?![\w.:/-])'
+      scope: constant.numeric.dotenv
+
+  references:
+    - match: '\$\{[^}\n]*\}|\$[A-Za-z_]\w*'
+      scope: variable.other.readwrite.dotenv
+
+  double-string:
+    - meta_scope: string.quoted.double.dotenv
+    - match: '\\.'
+      scope: constant.character.escape.dotenv
+    - include: references
+    - match: '"'
+      scope: punctuation.definition.string.end.dotenv
+      pop: true
+
+  single-string:
+    - meta_scope: string.quoted.single.dotenv
+    - match: "'"
+      scope: punctuation.definition.string.end.dotenv
+      pop: true

@@ -124,12 +124,14 @@ impl EttinApp {
     /// `owner` is false when another Ettin Edit window already runs and owns the session.
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, owner: bool) -> Self {
         let settings = Settings::load();
-        let (themes, theme_errors) = theme::load_themes(settings::themes_dir().as_deref());
+        let (themes, mut theme_errors) = theme::load_themes(settings::themes_dir().as_deref());
         let theme_idx = themes
             .iter()
             .position(|t| t.name == settings.theme)
             .unwrap_or(0);
-        let highlighter = Highlighter::new();
+        let (highlighter, language_errors) =
+            Highlighter::new(crate::highlight::languages_dir().as_deref());
+        theme_errors.extend(language_errors);
         let languages = highlighter.language_names();
 
         let mut app = Self {

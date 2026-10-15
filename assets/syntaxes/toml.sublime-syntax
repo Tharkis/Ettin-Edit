@@ -1,0 +1,169 @@
+%YAML 1.2
+---
+# TOML grammar for Ettin Edit, written from the TOML 1.0 specification.
+name: TOML
+file_extensions: [toml, tml, Pipfile, Cargo.lock, poetry.lock, uv.lock]
+scope: source.toml
+
+variables:
+  bare_key: '[A-Za-z0-9_-]+'
+  key_ahead: '(?=\s*[.=])'
+  date: '\d{4}-\d{2}-\d{2}'
+  time: '\d{2}:\d{2}:\d{2}(?:\.\d+)?'
+  offset: '(?:[Zz]|[+-]\d{2}:\d{2})'
+
+contexts:
+  main:
+    - include: comments
+    - match: '^\s*(\[\[)'
+      captures:
+        1: punctuation.definition.table.array.begin.toml
+      push: array-table-header
+    - match: '^\s*(\[)'
+      captures:
+        1: punctuation.definition.table.begin.toml
+      push: table-header
+    - include: keys
+    - match: '='
+      scope: keyword.operator.assignment.toml
+      push: value-line
+
+  comments:
+    - match: '#.*'
+      scope: comment.line.number-sign.toml
+
+  table-header:
+    - meta_scope: meta.section.table.toml
+    - match: '\]'
+      scope: punctuation.definition.table.end.toml
+      pop: true
+    - include: header-names
+
+  array-table-header:
+    - meta_scope: meta.section.table.array.toml
+    - match: '\]\]'
+      scope: punctuation.definition.table.array.end.toml
+      pop: true
+    - include: header-names
+
+  header-names:
+    - match: '{{bare_key}}'
+      scope: entity.name.section.toml
+    - match: '"(?:[^"\\\n]|\\.)*"'
+      scope: entity.name.section.toml
+    - match: "'[^'\\n]*'"
+      scope: entity.name.section.toml
+    - match: '\.'
+      scope: punctuation.separator.key.toml
+    - match: '\n'
+      pop: true
+    - match: '[^\s\]]'
+      scope: invalid.illegal.toml
+
+  keys:
+    - match: '{{bare_key}}{{key_ahead}}'
+      scope: meta.mapping.key.toml entity.name.tag.toml
+    - match: '"(?:[^"\\\n]|\\.)*"{{key_ahead}}'
+      scope: meta.mapping.key.toml entity.name.tag.toml
+    - match: "'[^'\\n]*'{{key_ahead}}"
+      scope: meta.mapping.key.toml entity.name.tag.toml
+    - match: '\.(?=\s*[A-Za-z0-9_"''-])'
+      scope: punctuation.separator.key.toml
+
+  # The value after `key =`, up to the end of the line. Arrays, inline tables
+  # and multi-line strings carry on over line ends in their own contexts.
+  value-line:
+    - match: '\n'
+      pop: true
+    - include: comments
+    - include: values
+
+  values:
+    - match: '"""'
+      scope: punctuation.definition.string.begin.toml
+      push: basic-multiline
+    - match: "'''"
+      scope: punctuation.definition.string.begin.toml
+      push: literal-multiline
+    - match: '"'
+      scope: punctuation.definition.string.begin.toml
+      push: basic-string
+    - match: "'"
+      scope: punctuation.definition.string.begin.toml
+      push: literal-string
+    - match: '\['
+      scope: punctuation.section.array.begin.toml
+      push: array
+    - match: '\{'
+      scope: punctuation.section.table.inline.begin.toml
+      push: inline-table
+    - match: '{{date}}(?:[Tt ]{{time}}{{offset}}?)?|{{time}}'
+      scope: constant.other.datetime.toml
+    - match: '\b(?:true|false)\b'
+      scope: constant.language.boolean.toml
+    - match: '[+-]?\b(?:inf|nan)\b'
+      scope: constant.numeric.float.toml
+    - match: '\b0x[0-9A-Fa-f](?:_?[0-9A-Fa-f])*\b|\b0o[0-7](?:_?[0-7])*\b|\b0b[01](?:_?[01])*\b'
+      scope: constant.numeric.integer.toml
+    - match: '[+-]?\b(?:0|[1-9](?:_?\d)*)(?:\.\d(?:_?\d)*)?(?:[eE][+-]?\d(?:_?\d)*)?\b'
+      scope: constant.numeric.toml
+    - match: ','
+      scope: punctuation.separator.toml
+
+  array:
+    - meta_scope: meta.sequence.toml
+    - match: '\]'
+      scope: punctuation.section.array.end.toml
+      pop: true
+    - include: comments
+    - include: values
+
+  inline-table:
+    - meta_scope: meta.mapping.toml
+    - match: '\}'
+      scope: punctuation.section.table.inline.end.toml
+      pop: true
+    - include: keys
+    - match: '='
+      scope: keyword.operator.assignment.toml
+    - include: values
+
+  basic-string:
+    - meta_scope: string.quoted.double.toml
+    - include: escapes
+    - match: '"'
+      scope: punctuation.definition.string.end.toml
+      pop: true
+    - match: '\n'
+      scope: invalid.illegal.unclosed-string.toml
+      pop: true
+
+  basic-multiline:
+    - meta_scope: string.quoted.triple.toml
+    - match: '"{3,5}'
+      scope: punctuation.definition.string.end.toml
+      pop: true
+    - match: '\\\s*$'
+      scope: constant.character.escape.line-ending.toml
+    - include: escapes
+
+  literal-string:
+    - meta_scope: string.quoted.single.toml
+    - match: "'"
+      scope: punctuation.definition.string.end.toml
+      pop: true
+    - match: '\n'
+      scope: invalid.illegal.unclosed-string.toml
+      pop: true
+
+  literal-multiline:
+    - meta_scope: string.quoted.triple.toml
+    - match: "'{3,5}"
+      scope: punctuation.definition.string.end.toml
+      pop: true
+
+  escapes:
+    - match: '\\(?:[btnfre"\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|x[0-9A-Fa-f]{2})'
+      scope: constant.character.escape.toml
+    - match: '\\.'
+      scope: invalid.illegal.escape.toml

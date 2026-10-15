@@ -1,0 +1,69 @@
+%YAML 1.2
+---
+# Protocol Buffers grammar for Ettin Edit, written from the proto2/proto3
+# language specifications.
+name: Protocol Buffers
+file_extensions: [proto]
+scope: source.proto
+
+contexts:
+  main:
+    - include: comments
+    - include: strings
+    - match: '\b(message|enum|service|extend|oneof)\s+([\w.]+)'
+      captures:
+        1: storage.type.proto
+        2: entity.name.class.proto
+    - match: '\b(rpc)\s+(\w+)'
+      captures:
+        1: storage.type.function.proto
+        2: entity.name.function.proto
+    - match: '\b(?:syntax|edition|package|import|option|returns|reserved|extensions|to|max|weak|public)\b'
+      scope: keyword.other.proto
+    - match: '\b(?:repeated|optional|required|stream)\b'
+      scope: storage.modifier.proto
+    - match: '\b(?:double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes|map|group)\b'
+      scope: storage.type.proto
+    - match: '\b(?:true|false)\b'
+      scope: constant.language.proto
+    - match: '(?<![\w.])-?(?:0[xX][0-9A-Fa-f]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|inf|nan)(?![\w.])'
+      scope: constant.numeric.proto
+    - match: '\b[A-Z][\w]*(?:\.[A-Z][\w]*)*\b'
+      scope: support.class.proto
+    - match: '[=;,.<>\[\]]'
+      scope: punctuation.separator.proto
+
+  comments:
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.proto
+      push:
+        - meta_scope: comment.block.proto
+        - match: '\*/'
+          scope: punctuation.definition.comment.end.proto
+          pop: true
+    - match: '//.*'
+      scope: comment.line.double-slash.proto
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.proto
+      push:
+        - meta_scope: string.quoted.double.proto
+        - match: '\\.'
+          scope: constant.character.escape.proto
+        - match: '"'
+          scope: punctuation.definition.string.end.proto
+          pop: true
+        - match: '\n'
+          pop: true
+    - match: "'"
+      scope: punctuation.definition.string.begin.proto
+      push:
+        - meta_scope: string.quoted.single.proto
+        - match: '\\.'
+          scope: constant.character.escape.proto
+        - match: "'"
+          scope: punctuation.definition.string.end.proto
+          pop: true
+        - match: '\n'
+          pop: true

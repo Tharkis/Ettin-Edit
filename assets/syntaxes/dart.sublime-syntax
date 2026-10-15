@@ -1,0 +1,172 @@
+%YAML 1.2
+---
+# Dart grammar for Ettin Edit, written from the Dart language specification.
+name: Dart
+file_extensions: [dart]
+first_line_match: '^#!.*\bdart\b'
+scope: source.dart
+
+variables:
+  ident: '[A-Za-z_$][\w$]*'
+  params: '\([^()]*(?:\([^()]*\)[^()]*)*\)'
+
+contexts:
+  main:
+    - include: statements
+
+  statements:
+    - include: comments
+    - include: strings
+    - include: annotations
+    - include: declarations
+    - include: keywords
+    - match: '(?<![\w$])(?:0[xX][0-9A-Fa-f_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d[\d_]*)?|\.\d[\d_]*(?:[eE][+-]?\d[\d_]*)?)(?![\w$])'
+      scope: constant.numeric.dart
+    - include: identifiers
+    - include: operators
+
+  comments:
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.dart
+      push: block-comment
+    - match: '///.*'
+      scope: comment.line.documentation.dart
+    - match: '//.*'
+      scope: comment.line.double-slash.dart
+
+  block-comment:
+    - meta_scope: comment.block.dart
+    - match: '\*/'
+      scope: punctuation.definition.comment.end.dart
+      pop: true
+    - match: '/\*'
+      push: block-comment
+
+  strings:
+    - match: "r'''"
+      scope: punctuation.definition.string.begin.dart
+      push: [{meta_scope: string.quoted.triple.raw.dart}, {match: "'''", scope: punctuation.definition.string.end.dart, pop: true}]
+    - match: 'r"""'
+      scope: punctuation.definition.string.begin.dart
+      push: [{meta_scope: string.quoted.triple.raw.dart}, {match: '"""', scope: punctuation.definition.string.end.dart, pop: true}]
+    - match: "r'[^'\\n]*'"
+      scope: string.quoted.single.raw.dart
+    - match: 'r"[^"\n]*"'
+      scope: string.quoted.double.raw.dart
+    - match: "'''"
+      scope: punctuation.definition.string.begin.dart
+      push: triple-single
+    - match: '"""'
+      scope: punctuation.definition.string.begin.dart
+      push: triple-double
+    - match: "'"
+      scope: punctuation.definition.string.begin.dart
+      push: single-string
+    - match: '"'
+      scope: punctuation.definition.string.begin.dart
+      push: double-string
+
+  string-content:
+    - match: '\\(?:x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|u\{[0-9A-Fa-f]+\}|.)'
+      scope: constant.character.escape.dart
+    - match: '\$\{'
+      scope: punctuation.section.interpolation.begin.dart
+      push: interpolation
+    - match: '\$[A-Za-z_][\w]*'
+      scope: variable.other.interpolation.dart
+
+  single-string:
+    - meta_scope: string.quoted.single.dart
+    - include: string-content
+    - match: "'"
+      scope: punctuation.definition.string.end.dart
+      pop: true
+    - match: '\n'
+      pop: true
+
+  double-string:
+    - meta_scope: string.quoted.double.dart
+    - include: string-content
+    - match: '"'
+      scope: punctuation.definition.string.end.dart
+      pop: true
+    - match: '\n'
+      pop: true
+
+  triple-single:
+    - meta_scope: string.quoted.triple.dart
+    - include: string-content
+    - match: "'''"
+      scope: punctuation.definition.string.end.dart
+      pop: true
+
+  triple-double:
+    - meta_scope: string.quoted.triple.dart
+    - include: string-content
+    - match: '"""'
+      scope: punctuation.definition.string.end.dart
+      pop: true
+
+  interpolation:
+    - clear_scopes: 1
+    - meta_scope: meta.interpolation.dart
+    - match: '\}'
+      scope: punctuation.section.interpolation.end.dart
+      pop: true
+    - include: braces-or-statements
+
+  braces-or-statements:
+    - match: '\{'
+      push: braces
+    - include: statements
+
+  braces:
+    - match: '\}'
+      pop: true
+    - include: braces-or-statements
+
+  annotations:
+    - match: '@{{ident}}(?:\.{{ident}})*'
+      scope: storage.modifier.annotation.dart
+
+  declarations:
+    - match: '\b(class|mixin|enum|extension|typedef)\s+(?!(?:on|class)\b)({{ident}})'
+      captures:
+        1: storage.type.dart
+        2: entity.name.class.dart
+    # Functions and methods: name(params) followed by a body on the same line.
+    - match: '(?<![.\w$])(?!(?:if|for|while|switch|catch|return|assert|super|this|new|await|on)\b)({{ident}})(?=\s*(?:<[^<>()]*>)?\s*{{params}}\s*(?:async\*?|sync\*)?\s*(?:\{|=>))'
+      captures:
+        1: entity.name.function.dart
+
+  keywords:
+    - match: '\b(?:if|else|for|while|do|switch|case|default|break|continue|return|throw|rethrow|try|catch|finally|on|assert|yield|await|when)\b'
+      scope: keyword.control.dart
+    - match: '\b(?:import|export|library|part|of|show|hide|deferred)\b'
+      scope: keyword.control.import.dart
+    - match: '\b(?:var|void|dynamic|class|enum|typedef|mixin|extension|Function)\b'
+      scope: storage.type.dart
+    - match: '\b(?:static|abstract|external|factory|covariant|required|late|final|const|async|sync|base|interface|sealed|operator|get|set|implements|extends|with)\b(?!\s*[(:])'
+      scope: storage.modifier.dart
+    - match: '\b(?:is|as|new|in)\b!?'
+      scope: keyword.operator.word.dart
+    - match: '\b(?:true|false|null)\b'
+      scope: constant.language.dart
+    - match: '\b(?:this|super)\b'
+      scope: variable.language.dart
+
+  identifiers:
+    - match: '({{ident}})(?=\s*(?:<[\w\s,.?<>]*>)?\s*\()'
+      captures:
+        1: variable.function.dart
+    - match: '\b[A-Z][\w$]*'
+      scope: support.class.dart
+    - match: '{{ident}}'
+
+  operators:
+    - match: '=>'
+      scope: storage.type.function.arrow.dart
+    - match: '\?\?=?|\.\.\.?\??|\?\.|[-+*/%~=!<>&|^?:]+'
+      scope: keyword.operator.dart
+    - match: '[;,]'
+      scope: punctuation.separator.dart
