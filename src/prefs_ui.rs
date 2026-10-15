@@ -289,6 +289,14 @@ fn editing(ui: &mut Ui, settings: &mut Settings) {
         &mut settings.word_completion,
         "Suggest words from the document while typing",
     );
+    ui.checkbox(
+        &mut settings.language_completion,
+        "Suggest the language's keywords and functions",
+    );
+    ui.checkbox(
+        &mut settings.parameter_hints,
+        "Show a function's parameters while typing a call",
+    );
 }
 
 fn new_document(ui: &mut Ui, settings: &mut Settings, languages: &[String]) {

@@ -18,8 +18,23 @@ work that remains. It is updated with every release.
 
 ## Release history
 
-### Unreleased
+### 1.1: Syntax-aware folding, keyword completion and parameter hints
 
+#### Code folding
+- [x] Folding follows the language's grammar instead of indentation: multi-line `{ }`, `[ ]` and `( )` (not inside strings or comments), HTML/XML/JSX tags (empty HTML elements and `<tag/>` don't open one), the code inside `<script>` and `<style>`, keyword blocks in Ruby, Lua, shell scripts, Pascal and CMake, LaTeX environments, INI/TOML sections, Markdown headings and fenced code, multi-line comments and runs of line comments, and `#region` / `#endregion` markers
+- [x] `folding` pairs in `.lang.json` languages, brackets or words (`["if", "end"]`), drive folding
+- [x] The closing line stays visible, so `} else {` folds each half; Python, YAML, plain text and files without blocks still fold by indentation
+- [x] The scan runs in the background and resumes from the first edited line, so typing in big files stays smooth
+
+#### Completion and parameter hints
+- [x] The completion list offers the language's keywords and functions next to words from the document, each marked as a keyword or with its signature
+- [x] Parameter hints: typing `(` after a function shows its signatures above the caret, with the current parameter in bold; it follows the caret between arguments and nested calls, Esc closes it, Ctrl+Shift+Space shows it again (Edit > Auto-Completion)
+- [x] Signatures of the functions the document defines, read from their definitions (parameters spread over several lines too), for the ~25 languages the function list understands
+- [x] Built-in keyword and function lists for Python, JavaScript/TypeScript, Rust, C, C++, C#, Java, Go, PHP, Lua, Ruby, Kotlin, Swift, SQL, PowerShell, CSS, HTML and shell scripts; other languages complete the keywords their grammar colours
+- [x] Your own lists: `.json` files in the `api` folder (Language > Open Completion Lists Folder) add keywords and signatures for any language ([docs/languages.md](docs/languages.md#completion-and-parameter-hints))
+- [x] Settings > Keyword and Function Completion and Settings > Parameter Hints, also in Preferences
+
+#### Other
 - [x] Application icon in the top-left corner of the window (click it for About), plus 32 to 128 px sizes in the Linux icon theme
 
 ### 0.1: Tabbed editor, themes and syntax highlighting
@@ -366,8 +381,6 @@ are original implementations, available from the Tools menu without installing a
 Features that are planned or only partly done.
 
 ### Editing
-- [ ] Function parameter hints and language keyword completion
-- [ ] Syntax-aware code folding (by grammar instead of indentation)
 - [~] Word wrap on very large files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines
 
 ### XML

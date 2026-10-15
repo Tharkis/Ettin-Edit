@@ -44,6 +44,10 @@ pub struct Settings {
     pub smart_indent: bool,
     pub use_spaces: bool,
     pub word_completion: bool,
+    /// Suggest the language's keywords and functions too.
+    pub language_completion: bool,
+    /// Show a function's parameters while typing a call.
+    pub parameter_hints: bool,
     pub macros: Vec<SavedMacro>,
     /// Opening a file while Ettin Edit runs sends it to the open window.
     pub single_instance: bool,
@@ -135,6 +139,8 @@ impl Default for Settings {
             smart_indent: true,
             use_spaces: false,
             word_completion: true,
+            language_completion: true,
+            parameter_hints: true,
             macros: Vec::new(),
             single_instance: true,
             remember_unsaved: true,

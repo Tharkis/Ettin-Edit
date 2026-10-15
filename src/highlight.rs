@@ -7,9 +7,9 @@
 //! (`*.sublime-syntax` as-is, and `*.lang.json` simple definitions, see
 //! [`crate::user_lang`]).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use syntect::parsing::syntax_definition::{
     ContextReference, MatchOperation, Pattern, SyntaxDefinition,
@@ -233,7 +233,11 @@ fn check_definition(def: &SyntaxDefinition) -> Result<(), String> {
 }
 
 pub struct Highlighter {
-    pub syntaxes: SyntaxSet,
+    /// Shared with the background fold scans.
+    pub syntaxes: Arc<SyntaxSet>,
+    /// The words each grammar highlights as keywords, for completion in
+    /// languages without a keyword list of their own.
+    pub grammar_words: HashMap<String, Vec<String>>,
 }
 
 impl Highlighter {
@@ -241,7 +245,8 @@ impl Highlighter {
     /// [`languages_dir`]). Returns one message for each user file that failed to load.
     pub fn new(user_dir: Option<&Path>) -> (Self, Vec<String>) {
         let mut h = Self {
-            syntaxes: SyntaxSet::new(),
+            syntaxes: Arc::new(SyntaxSet::new()),
+            grammar_words: HashMap::new(),
         };
         let errors = h.reload(user_dir);
         (h, errors)
@@ -258,11 +263,15 @@ impl Highlighter {
             None => (Vec::new(), Vec::new()),
         };
         layer(&mut defs, user);
+        self.grammar_words = defs
+            .iter()
+            .map(|d| (d.name.clone(), crate::lang_api::grammar_keywords(d)))
+            .collect();
         let mut builder = SyntaxSetBuilder::new();
         for def in defs {
             builder.add(def);
         }
-        self.syntaxes = builder.build();
+        self.syntaxes = Arc::new(builder.build());
         errors
     }
 

@@ -12,6 +12,12 @@ impl EttinApp {
     pub(super) fn reload_languages(&mut self) {
         let errors = self.highlighter.reload(languages_dir().as_deref());
         self.errors.extend(errors);
+        let (apis, errors) = crate::lang_api::ApiLibrary::load(
+            crate::lang_api::api_dir().as_deref(),
+            self.highlighter.grammar_words.clone(),
+        );
+        self.apis = apis;
+        self.errors.extend(errors);
         self.languages = self.highlighter.language_names();
         // Highlighting caches belong to the old grammars; reloading the themes drops them.
         self.reload_themes();
@@ -19,6 +25,28 @@ impl EttinApp {
             if !self.languages.contains(&doc.syntax) {
                 doc.syntax = crate::highlight::PLAIN_TEXT.to_owned();
             }
+        }
+    }
+
+    /// Opens the folder of the user's keyword and function lists, making it
+    /// with a commented example the first time.
+    pub(super) fn open_api_folder(&mut self) {
+        let Some(dir) = crate::lang_api::api_dir() else {
+            return;
+        };
+        let example = dir.join("example.json.txt");
+        let result = std::fs::create_dir_all(&dir)
+            .and_then(|_| {
+                if example.exists() {
+                    Ok(())
+                } else {
+                    std::fs::write(&example, crate::lang_api::API_TEMPLATE)
+                }
+            })
+            .map_err(|e| format!("Couldn't make {}: {e}", dir.display()))
+            .and_then(|_| system::open_folder(&dir));
+        if let Err(e) = result {
+            self.errors.push(e);
         }
     }
 

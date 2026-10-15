@@ -60,6 +60,8 @@ pub struct EttinApp {
     theme_idx: usize,
     applied_theme: Option<usize>,
     highlighter: Highlighter,
+    /// Keywords and function signatures for completion and parameter hints.
+    apis: crate::lang_api::ApiLibrary,
     languages: Vec<String>,
     pending: Vec<Action>,
     close_queue: Option<CloseQueue>,
@@ -204,6 +206,11 @@ impl EttinApp {
             Highlighter::new(crate::highlight::languages_dir().as_deref());
         theme_errors.extend(language_errors);
         let languages = highlighter.language_names();
+        let (apis, api_errors) = crate::lang_api::ApiLibrary::load(
+            crate::lang_api::api_dir().as_deref(),
+            highlighter.grammar_words.clone(),
+        );
+        theme_errors.extend(api_errors);
 
         let mut app = Self {
             docs: Vec::new(),
@@ -215,6 +222,7 @@ impl EttinApp {
             theme_idx,
             applied_theme: None,
             highlighter,
+            apis,
             languages,
             pending: Vec::new(),
             close_queue: None,
@@ -1102,6 +1110,7 @@ impl EttinApp {
             Action::Print => self.print(false),
             Action::NewLanguage => self.new_language(),
             Action::OpenLanguagesFolder => self.open_languages_folder(),
+            Action::OpenApiFolder => self.open_api_folder(),
             Action::ReloadLanguages => self.reload_languages(),
             Action::LanguageGuide => self.language_guide(),
             Action::ExportHtml => self.print(true),
@@ -1301,6 +1310,8 @@ impl EttinApp {
                 editor.insert_text(ctx, &text);
             }
             Action::SelectNextOccurrence => editor.select_next_occurrence(),
+            Action::CompleteWord => editor.update_completion(true),
+            Action::ShowParameterHint => editor.update_hint(true),
             Action::SelectAllOccurrences => {
                 editor.select_all_occurrences();
             }
@@ -1368,6 +1379,12 @@ impl EttinApp {
             Action::ToggleUseSpaces => self.settings.use_spaces = !self.settings.use_spaces,
             Action::ToggleCompletion => {
                 self.settings.word_completion = !self.settings.word_completion
+            }
+            Action::ToggleLanguageCompletion => {
+                self.settings.language_completion = !self.settings.language_completion
+            }
+            Action::ToggleParameterHints => {
+                self.settings.parameter_hints = !self.settings.parameter_hints
             }
             Action::ToggleSingleInstance => {
                 self.settings.single_instance = !self.settings.single_instance
@@ -2117,6 +2134,18 @@ impl EttinApp {
                     s.word_completion,
                     Action::ToggleCompletion,
                 );
+                self.toggle_item(
+                    ui,
+                    "Keyword and Function Completion",
+                    s.language_completion,
+                    Action::ToggleLanguageCompletion,
+                );
+                self.toggle_item(
+                    ui,
+                    "Parameter Hints",
+                    s.parameter_hints,
+                    Action::ToggleParameterHints,
+                );
                 ui.separator();
                 self.toggle_item(
                     ui,
@@ -2254,6 +2283,7 @@ impl EttinApp {
         ui.separator();
         self.menu_item(ui, "New Language…", Action::NewLanguage);
         self.menu_item(ui, "Open Languages Folder", Action::OpenLanguagesFolder);
+        self.menu_item(ui, "Open Completion Lists Folder", Action::OpenApiFolder);
         self.menu_item(ui, "Reload Languages", Action::ReloadLanguages);
         self.menu_item(ui, "Language Guide", Action::LanguageGuide);
     }
@@ -2542,9 +2572,14 @@ impl EttinApp {
         let ctx = ui.ctx().clone();
         let mut menu_model = menus::MenuModel::new(&ctx);
         let context_menu = self.context_menu(&mut menu_model, index);
+        let Some(language) = self.docs.get(index).map(|d| d.syntax.clone()) else {
+            return false;
+        };
+        let api = self.apis.get(&language);
         let Some(doc) = self.docs.get_mut(index) else {
             return false;
         };
+        doc.editor.set_api(api);
         let syntax = self.highlighter.syntax(&doc.syntax);
         let s = &self.settings;
         doc.editor.opts = EditOptions {
@@ -2552,6 +2587,8 @@ impl EttinApp {
             smart_indent: s.smart_indent,
             use_spaces: s.use_spaces,
             completion: s.word_completion && !self.recorder.is_recording(),
+            language_completion: s.language_completion && !self.recorder.is_recording(),
+            parameter_hints: s.parameter_hints && !self.recorder.is_recording(),
             colon_indents: matches!(doc.syntax.as_str(), "Python" | "YAML" | "Nim"),
             markup: matches!(
                 doc.syntax.as_str(),

@@ -4,7 +4,9 @@
 pub mod buffer;
 mod find;
 mod fold;
+mod fold_scan;
 pub mod highlight;
+mod hints;
 pub mod layout;
 pub mod lines;
 mod map;
@@ -24,6 +26,7 @@ use layout::RowIndex;
 use selection::{Selection, Selections};
 
 pub use find::{FindOutcome, MAX_HIGHLIGHTS};
+pub use hints::CallHint;
 pub use smart::EditOptions;
 pub use view::ViewConfig;
 
@@ -55,14 +58,22 @@ pub struct Editor {
     pub bookmarks: BTreeSet<usize>,
     /// Typing behaviour (auto-close, indentation, completion), set by the app.
     pub opts: EditOptions,
-    /// The word-completion list, while it is open.
+    /// The completion list, while it is open.
     pub completion: Option<smart::Completion>,
+    /// The parameter hint, while the caret is in a call.
+    pub hint: Option<CallHint>,
+    /// The language's keywords and functions, set by the app.
+    pub api: Arc<crate::lang_api::LanguageApi>,
+    /// Functions the document defines, found at a buffer version.
+    doc_signatures: Option<(u64, Arc<hints::DocSignatures>)>,
     /// The rectangular selection being made, and the selections it produced.
     column: Option<(smart::ColumnSel, Selections)>,
     /// Where an Alt+drag rectangular selection started (visual row, column).
     column_drag: Option<(usize, usize)>,
     /// Folded regions: first line → last hidden line.
     folds: BTreeMap<usize, usize>,
+    /// The regions the language's grammar finds, kept up to date in the background.
+    fold_scan: fold_scan::FoldScanner,
     /// The carets and scrolling of the other view, when the document is shown
     /// in both views of a split. Swapped in with [`Editor::swap_view`].
     other_view: Option<Box<ViewState>>,
@@ -84,6 +95,7 @@ struct ViewState {
     pending_scroll_rows: isize,
     last_click: Option<(f64, egui::Pos2, u8)>,
     completion: Option<smart::Completion>,
+    hint: Option<CallHint>,
     column: Option<(smart::ColumnSel, Selections)>,
     column_drag: Option<(usize, usize)>,
 }
@@ -134,9 +146,13 @@ impl Editor {
             bookmarks: BTreeSet::new(),
             opts: EditOptions::default(),
             completion: None,
+            hint: None,
+            api: Arc::default(),
+            doc_signatures: None,
             column: None,
             column_drag: None,
             folds: BTreeMap::new(),
+            fold_scan: fold_scan::FoldScanner::default(),
             other_view: None,
             map_view: (0.0, 1.0),
             map_scroll: None,
@@ -156,6 +172,7 @@ impl Editor {
             pending_scroll_rows: 0,
             last_click: None,
             completion: None,
+            hint: None,
             column: None,
             column_drag: None,
         }));
@@ -194,6 +211,7 @@ impl Editor {
         );
         std::mem::swap(&mut self.last_click, &mut other.last_click);
         std::mem::swap(&mut self.completion, &mut other.completion);
+        std::mem::swap(&mut self.hint, &mut other.hint);
         std::mem::swap(&mut self.column, &mut other.column);
         std::mem::swap(&mut self.column_drag, &mut other.column_drag);
         self.selections.clamp(self.buffer.len_chars());
@@ -830,6 +848,7 @@ impl Editor {
         self.marks.clear();
         self.bookmarks.clear();
         self.folds.clear();
+        self.fold_scan.reset();
     }
 }
 

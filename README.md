@@ -50,7 +50,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 
 | | |
 | --- | --- |
-| ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing, code folding, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second. |
+| ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing, code folding that follows the grammar, keyword completion, parameter hints, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second. |
 | 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with live preview. Drop in any `.tmTheme` you like. |
 | 🔎 **Finds things** | Find and replace with regex, Find All in open tabs, Find in Files in the background, marks and a results panel. |
 | 🧰 **Tools menu** | JSON and JavaScript formatting, minifying and a live JSON tree (JSTool). Base64, URL, HTML entities and SAML (MIME tools). XPath, pretty print, XSD/DTD validation and XSLT (XML Tools). |
@@ -171,7 +171,7 @@ See [LICENSE](LICENSE).
 | `src/instance.rs` | Single-window mode: hands files to the Ettin Edit already running |
 | `src/system.rs` | Opening the file manager and a terminal, and reading the last Git commit |
 | `src/file_ui.rs` | Rename, move to trash and summary dialogs, the changed-on-disk bar, the Encoding menu |
-| `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `view.rs` (drawing, keyboard and mouse) |
+| `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `fold_scan.rs` (grammar-aware fold regions, scanned in the background), `hints.rs` (parameter hints), `view.rs` (drawing, keyboard and mouse) |
 | `src/search.rs` | Search queries (plain, whole word, regex), replacement templates, and Find in Files |
 | `src/search_ui.rs` | The find bar, results panel, and the Go to Line and Find in Files dialogs |
 | `src/tools_ui.rs` | The Column Editor and macro dialogs |
@@ -194,6 +194,7 @@ See [LICENSE](LICENSE).
 | `src/folder_ui.rs`, `src/function_list_ui.rs`, `src/editor/map.rs`, `src/app/panels.rs` | The folder panel, function list and document map |
 | `src/function_list.rs` | Finding functions, classes and headings in about 40 languages |
 | `src/user_lang.rs`, `src/app/languages.rs`, `assets/syntaxes/` | User-defined languages (`.lang.json` to a grammar) and the extra built-in grammars |
+| `src/lang_api.rs`, `assets/api/` | Keyword and function lists for completion and parameter hints, and the user's own lists in the `api` folder |
 | `src/tools/xsd.rs`, `src/tools/dtd.rs`, `src/tools/xslt.rs`, `src/app/xml_schema.rs` | XSD and DTD validation and XSLT 1.0 |
 | `src/print.rs`, `src/app/printing.rs` | Printing and HTML export |
 | `src/update.rs` | Checking GitHub for a newer release |

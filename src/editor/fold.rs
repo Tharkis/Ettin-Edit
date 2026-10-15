@@ -1,7 +1,8 @@
-//! Code folding by indentation: a line folds when the lines after it are
-//! indented deeper, and the region runs until the indentation comes back.
-//! This works for any language without a grammar of its own, and closing
-//! brackets on their own line stay visible.
+//! Code folding. Regions come from the language's grammar where it has
+//! blocks (brackets, tags, keywords; see `fold_scan`), and otherwise from
+//! indentation: a line folds when the lines after it are indented deeper,
+//! and the region runs until the indentation comes back. Either way, a
+//! closing bracket on its own line stays visible.
 
 use std::collections::BTreeMap;
 
@@ -50,6 +51,21 @@ impl Editor {
     /// Fold-column marks for `lines`, which must be in order and may skip
     /// lines hidden in folds.
     pub fn fold_marks(&self, lines: &[usize]) -> Vec<FoldMark> {
+        if let Some(r) = self.fold_scan.regions() {
+            return lines
+                .iter()
+                .map(|&l| {
+                    let header = r.starts.contains_key(&l);
+                    let next = self.folds.get(&l).map_or(l + 1, |&end| end + 1);
+                    FoldMark {
+                        header,
+                        above: r.depth(l) > 0,
+                        below: r.depth(next) > 0,
+                        end: !header && r.ends_at(l),
+                    }
+                })
+                .collect();
+        }
         let Some(&first) = lines.first() else {
             return Vec::new();
         };
@@ -100,6 +116,9 @@ impl Editor {
 
     /// True when `line` starts a foldable region.
     pub fn is_fold_start(&self, line: usize) -> bool {
+        if let Some(r) = self.fold_scan.regions() {
+            return r.starts.contains_key(&line);
+        }
         let Some(own) = self.indent_cols(line) else {
             return false;
         };
@@ -109,6 +128,9 @@ impl Editor {
 
     /// The last line of the region `line` starts, if it starts one.
     pub fn fold_end(&self, line: usize) -> Option<usize> {
+        if let Some(r) = self.fold_scan.regions() {
+            return r.starts.get(&line).copied();
+        }
         let own = self.indent_cols(line)?;
         let (first, indent) = self.next_non_blank(line, BLANK_LOOKAHEAD)?;
         if indent <= own {
@@ -156,6 +178,14 @@ impl Editor {
         if self.is_fold_start(line) {
             return Some(line);
         }
+        if let Some(r) = self.fold_scan.regions() {
+            return r
+                .starts
+                .range(..line)
+                .rev()
+                .find(|&(_, &end)| end >= line)
+                .map(|(&h, _)| h);
+        }
         let mut target = self.indent_cols(line);
         let mut l = line;
         // For a blank line, use the indentation of the next text line.
@@ -200,6 +230,7 @@ impl Editor {
     /// Folds every region in the document, nested ones included.
     pub fn fold_all(&mut self) {
         self.sync_caches();
+        self.fold_scan.finish_now(&self.buffer);
         self.folds = self.all_folds(None);
         self.refresh_hidden();
         self.move_carets_out_of_folds();
@@ -208,6 +239,7 @@ impl Editor {
     /// Folds the regions at nesting `level` (1 = outermost) and unfolds the rest.
     pub fn fold_level(&mut self, level: usize) {
         self.sync_caches();
+        self.fold_scan.finish_now(&self.buffer);
         self.folds = self.all_folds(Some(level));
         self.refresh_hidden();
         self.move_carets_out_of_folds();
@@ -220,6 +252,14 @@ impl Editor {
 
     /// Every fold region in one pass, optionally only those at one nesting level.
     fn all_folds(&self, level: Option<usize>) -> BTreeMap<usize, usize> {
+        if let Some(r) = self.fold_scan.regions() {
+            return r
+                .starts
+                .iter()
+                .filter(|&(&h, _)| level.is_none_or(|lv| r.level(h) == lv))
+                .map(|(&h, &e)| (h, e))
+                .collect();
+        }
         let mut out = BTreeMap::new();
         // Open regions: (header line, header indent, last text line so far).
         let mut stack: Vec<(usize, usize, usize)> = Vec::new();
