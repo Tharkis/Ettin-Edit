@@ -1,0 +1,95 @@
+%YAML 1.2
+---
+# HashiCorp Configuration Language grammar for Ettin Edit (Terraform, OpenTofu,
+# Packer, Nomad), written from the HCL native syntax specification.
+name: Terraform (HCL)
+file_extensions: [tf, tfvars, hcl, nomad, tofu]
+scope: source.hcl
+
+variables:
+  ident: '[A-Za-z_][\w-]*'
+
+contexts:
+  main:
+    - include: body
+
+  body:
+    - include: comments
+    - match: '^\s*({{ident}})(?=(?:\s+(?:"[^"\n]*"|{{ident}}))*\s*\{)'
+      captures:
+        1: storage.type.block.hcl
+    - match: '({{ident}})\s*(=)(?![=>])'
+      captures:
+        1: variable.other.member.hcl
+        2: keyword.operator.assignment.hcl
+    - include: expressions
+
+  comments:
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.hcl
+      push:
+        - meta_scope: comment.block.hcl
+        - match: '\*/'
+          scope: punctuation.definition.comment.end.hcl
+          pop: true
+    - match: '(?:#|//).*'
+      scope: comment.line.hcl
+
+  expressions:
+    - include: comments
+    - match: '<<-?\s*([A-Za-z_]\w*)\s*$'
+      scope: punctuation.definition.string.begin.hcl
+      push: heredoc
+    - match: '"'
+      scope: punctuation.definition.string.begin.hcl
+      push: string
+    - match: '\b(?:true|false|null)\b'
+      scope: constant.language.hcl
+    - match: '\b(?:for|in|if|else|endif|endfor)\b'
+      scope: keyword.control.hcl
+    - match: '(?<![\w.-])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w.-])'
+      scope: constant.numeric.hcl
+    - match: '({{ident}})(?=\()'
+      captures:
+        1: support.function.hcl
+    - match: '\{'
+      scope: punctuation.section.block.begin.hcl
+      push: object
+    - match: '=>|==|!=|<=|>=|&&|\|\||[-+*/%<>!?:]|\.\.\.'
+      scope: keyword.operator.hcl
+
+  object:
+    - match: '\}'
+      scope: punctuation.section.block.end.hcl
+      pop: true
+    - include: body
+
+  string:
+    - meta_scope: string.quoted.double.hcl
+    - match: '\\(?:[nrt"\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})'
+      scope: constant.character.escape.hcl
+    - match: '[$%]\{'
+      scope: punctuation.section.interpolation.begin.hcl
+      push: interpolation
+    - match: '"'
+      scope: punctuation.definition.string.end.hcl
+      pop: true
+    - match: '\n'
+      pop: true
+
+  heredoc:
+    - meta_scope: string.unquoted.heredoc.hcl
+    - match: '^\s*\1\s*$'
+      scope: punctuation.definition.string.end.hcl
+      pop: true
+    - match: '[$%]\{'
+      scope: punctuation.section.interpolation.begin.hcl
+      push: interpolation
+
+  interpolation:
+    - clear_scopes: 1
+    - meta_scope: meta.interpolation.hcl
+    - match: '\}'
+      scope: punctuation.section.interpolation.end.hcl
+      pop: true
+    - include: expressions

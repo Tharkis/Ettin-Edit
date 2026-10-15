@@ -239,6 +239,40 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 - [x] HL7 Viewer plugin (Plugins > Install Sample Plugins): HL7 v2 messages as a tree of segments, fields, repetitions, components and subcomponents; the tree follows the caret; an inspector shows each piece's designation (e.g. `ORC-4.1`), name, data type, optionality, repeatability, length and table from an HL7 v2.5.1 dictionary, and edits its value in place
 - [x] Plugin API: a `caret` event, trees that select and reveal a node, and panels that scroll back to the top
 
+## Release 1.0: customisation, panels, languages and installers (done)
+
+### Settings and customisation
+- [x] Settings > Preferences (Ctrl+,): editor font and size, tab width, tabs or spaces, typing helpers, what's shown, new-document line ending, encoding and language, startup and file options, printing, update checks, plugin programs
+- [x] Font picker listing the installed fonts (monospaced first, proportional on request); a CJK fallback still covers Chinese, Japanese and Korean
+- [x] Shortcut Mapper (Settings menu): every command, saved macro and plugin command with its shortcuts; add, change or remove any of them, with conflicts shown; Reset All
+- [x] Theme colour editor (Theme > Edit Theme Colours…): window and syntax colours with live preview, Save, Save As a new theme, Discard
+- [x] Command palette (F1): every command, searchable by any words, with its shortcut
+
+### Panels and views
+- [x] Function List (View menu): functions, classes, methods, headings, sections and keys for about 40 languages, nested, with a filter; follows the caret and jumps on click
+- [x] Document Map (View menu): the whole document in miniature with the visible part marked; click or drag to scroll
+- [x] Folder as Workspace (File > Open Folder as Workspace…): a file tree on the left that opens files with a click, follows the current file, refreshes by itself, shows hidden files on request, and has Find in Files Here and Open Terminal Here
+- [x] Distraction-free mode (F11): full screen, no menus, tabs or panels, and the text in a centred column
+- [x] Tab List (the ⏷ button at the end of the tabs, or View > Tab List…): search the open tabs by name or folder
+
+### Languages
+- [x] 17 more grammars: TOML, INI (and cfg, conf, properties, systemd units, .editorconfig, .gitconfig), TypeScript, TSX, PowerShell, Dockerfile, HL7, Kotlin, Swift, Dart, Zig, CMake, Nginx, `.env`, Protobuf, GraphQL and Terraform/HCL
+- [x] User-defined languages: short `.lang.json` files (keywords, comments, strings, operators, numbers, folding), or any `.sublime-syntax` grammar, in the languages folder; Language > New Language…, Open Languages Folder, Reload Languages and Language Guide ([docs/languages.md](docs/languages.md))
+
+### XML Tools
+- [x] Validate: against the XSD named by `xsi:schemaLocation` / `noNamespaceSchemaLocation`, the DOCTYPE's DTD, or the schema last used for that file; Validate Against… picks one. Problems are listed in the results panel and jump to their line
+- [x] XSL Transform…: XSLT 1.0 into a new tab (HTML or XML output gets its language), with `xsl:message` texts shown
+
+### Files, printing and updates
+- [x] File > Print… (Ctrl+P): opens the document in the browser's print preview, with syntax colours darkened for paper (a dark theme prints with Ettin Light's colours) and line numbers; both can be turned off in Preferences
+- [x] File > Export as HTML…: the document as a web page in the current theme's colours
+- [x] Help > Check for Updates…, and a weekly automatic check (Help menu or Preferences) that only speaks up when there's a newer release
+- [x] Saved macros keep their shortcuts when another macro is deleted
+
+### Installers
+- [x] Windows installer (`setup.exe`): per-user without admin rights, or for everyone; Start menu, optional desktop shortcut, "Edit with Ettin Edit" in Explorer's right-click menu, "Open with" for 33 text and code file types, optional PATH entry, and an uninstaller
+- [x] Debian / Ubuntu `.deb` package, next to the Arch package and the Linux `.tar.gz`
+
 ## Core editor features still missing
 
 ### Editing
@@ -247,30 +281,30 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 
 ### View
 - [x] Split view (two documents side by side) and clone the same document into both views (0.7)
-- [ ] Document map (minimap)
-- [ ] Function list panel
-- [ ] Folder as workspace (file tree side panel)
-- [ ] Distraction-free / full-screen mode
-- [ ] Tabs list dropdown
+- [x] Document map (minimap) (1.0)
+- [x] Function list panel (1.0)
+- [x] Folder as workspace (file tree side panel) (1.0)
+- [x] Distraction-free / full-screen mode (1.0)
+- [x] Tabs list dropdown (1.0)
 
 ### Files and encodings
-- [ ] Print and print preview
+- [x] Print and print preview, through the browser (1.0)
 - [x] Very large file mode (incremental highlighting so 2 MB+ files keep colours), done in 0.2
 
 ### Settings and customisation
-- [ ] Preferences dialog (fonts, tab width, spaces vs tabs, default encoding/EOL, new-document defaults)
-- [ ] Font family picker
-- [ ] Shortcut mapper (rebind any command)
-- [ ] Style configurator (edit theme colours in the app)
-- [ ] User-defined languages (custom keywords, comments, operators)
-- [ ] More grammars (TOML, INI, TypeScript, PowerShell, Dockerfile, etc.), and loading `.sublime-syntax` files from the user folder
+- [x] Preferences dialog (fonts, tab width, spaces vs tabs, default encoding/EOL, new-document defaults) (1.0)
+- [x] Font family picker (1.0)
+- [x] Shortcut mapper (rebind any command) (1.0)
+- [x] Style configurator (edit theme colours in the app) (1.0)
+- [x] User-defined languages (custom keywords, comments, operators): `.lang.json` files in the `languages` folder; see [docs/languages.md](docs/languages.md)
+- [x] More grammars (TOML, INI, TypeScript, PowerShell, Dockerfile, etc.), and loading `.sublime-syntax` files from the user folder: also TSX, HL7, Kotlin, Swift, Dart, Zig, CMake, Nginx, `.env`, Protobuf, GraphQL and Terraform/HCL; user grammars replace built-ins of the same name
 - [ ] Localisation / translations
 
 ### Platform and distribution
-- [~] Application icon and desktop integration: icon and Linux `.desktop` file done in 0.2; Windows file associations still to come
-- [~] Installers / packages: Arch `PKGBUILD` done in 0.2; Windows installer, AppImage / Flatpak / .deb still to come
+- [x] Application icon and desktop integration: icon and Linux `.desktop` file in 0.2; Windows "Open with", right-click menu and Start menu entries from the installer in 1.0
+- [~] Installers / packages: Arch package (0.2), Windows installer and `.deb` (1.0); AppImage and Flatpak not yet
 - [x] CI builds for Linux and Windows, done in 0.2
-- [ ] Auto-update check
+- [x] Update check, by hand or weekly (1.0)
 
 ## Plugin system (Python and JavaScript)
 - [x] Runtime model: out-of-process plugins over JSON-RPC (one JSON message per line on standard input and output), so a crashing plugin can't take the editor down and any installed Python 3 or Node.js works
@@ -278,7 +312,7 @@ JavaScript script. See [docs/plugins.md](docs/plugins.md), also under Plugins > 
 - [x] Plugin events: document opened/saved/closed, text changed, tab switched
 - [x] Plugin panels (dock a custom view, e.g. a tree or a grid)
 - [x] Plugin folder in the config directory, enable/disable per plugin
-- [ ] Plugin manager: browse, install, update, remove (planned for 1.0)
+- [x] Plugin manager: browse, install, update, remove (Plugins > Manage Plugins: Installed and Available tabs from a plugin index, Install from File or Folder, updates when the index has a newer version, Remove to the trash; new and updated plugins ask for permission)
 - [x] Sample plugins in both Python and JavaScript
 - [x] Sandboxing / permission prompts for plugins (a permission prompt the first time a plugin runs and again when its files change; plugins are not sandboxed)
 
@@ -318,10 +352,10 @@ These can ship built in or as first-party plugins once the plugin system exists.
 - [x] Linearize XML (remove formatting)
 - [x] Check XML syntax (well-formedness) with error line and column
 - [x] Automatic syntax check on save (optional)
-- [ ] Validate against XSD or DTD (with schema picker and remembered association), planned for 0.10
+- [x] Validate against XSD or DTD (with schema picker and remembered association) (1.0). Not supported: `xs:key`/`keyref`/`unique`, `xs:redefine`, and fetching schemas over the network
 - [x] XPath expression evaluation with results list
 - [x] Show the current XPath at the cursor in the status bar, copy it
-- [ ] XSL transformation of the current document into a new tab, planned for 0.10
+- [x] XSL transformation of the current document into a new tab (XSLT 1.0) (1.0). Not supported: `xsl:import`, `xsl:include`, `document()`
 - [x] Auto-close tags while typing
 - [x] Escape / unescape XML special characters
 - [ ] Comment / uncomment selection, convert text to XML

@@ -16,7 +16,10 @@ pub const MAX_RECENT: usize = 12;
 #[serde(default)]
 pub struct Settings {
     pub theme: String,
+    /// The editor font size, changed by zooming.
     pub font_size: f32,
+    /// The size zooming resets to.
+    pub default_font_size: f32,
     pub word_wrap: bool,
     pub show_line_numbers: bool,
     pub highlight_current_line: bool,
@@ -52,6 +55,17 @@ pub struct Settings {
     pub close_tags: bool,
     /// Check that XML is well-formed each time it's saved.
     pub xml_check_on_save: bool,
+    /// The schema (XSD or DTD) each XML file was last validated against.
+    pub xml_schemas: BTreeMap<String, PathBuf>,
+    /// The last XSL stylesheet run, where the next one is picked from.
+    pub last_xsl: Option<PathBuf>,
+    /// Look for a newer release once a week.
+    pub check_updates: bool,
+    pub print_line_numbers: bool,
+    /// Print with syntax colours (darkened for paper) rather than all black.
+    pub print_colours: bool,
+    /// When the last automatic update check ran (Unix seconds).
+    pub last_update_check: i64,
     /// How Compare matches lines.
     pub compare: crate::compare::CompareOptions,
     /// Per plugin (by folder name): turned off, and which version was allowed to run.
@@ -59,6 +73,26 @@ pub struct Settings {
     /// The Python and Node programs plugins run with; empty finds them on the PATH.
     pub python_path: String,
     pub node_path: String,
+    /// Where Manage Plugins reads the list of plugins to install from.
+    pub plugin_index_url: String,
+    /// The editor font; the built-in one when no file is set.
+    pub editor_font: crate::fonts::EditorFont,
+    /// Columns between tab stops.
+    pub tab_width: usize,
+    /// Line ending for new documents; `None` uses the platform's.
+    pub new_line_ending: Option<crate::document::LineEnding>,
+    /// Encoding for new documents, by name; empty is UTF-8.
+    pub new_encoding: String,
+    /// Language for new documents.
+    pub new_language: String,
+    /// Shortcuts changed in the shortcut mapper: command key to shortcuts
+    /// (an empty list removes the default ones).
+    pub shortcuts: BTreeMap<String, Vec<String>>,
+    pub function_list: bool,
+    pub doc_map: bool,
+    pub folder_panel: bool,
+    /// The folder shown in the folder panel.
+    pub workspace: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -76,6 +110,7 @@ impl Default for Settings {
         Self {
             theme: "Ettin Dark".to_owned(),
             font_size: 14.0,
+            default_font_size: 14.0,
             word_wrap: false,
             show_line_numbers: true,
             highlight_current_line: true,
@@ -106,10 +141,27 @@ impl Default for Settings {
             auto_reload: false,
             close_tags: true,
             xml_check_on_save: false,
+            xml_schemas: BTreeMap::new(),
+            last_xsl: None,
+            check_updates: true,
+            print_line_numbers: true,
+            print_colours: true,
+            last_update_check: 0,
             compare: crate::compare::CompareOptions::default(),
             plugins: BTreeMap::new(),
             python_path: String::new(),
             node_path: String::new(),
+            plugin_index_url: crate::plugins::store::DEFAULT_INDEX_URL.to_owned(),
+            editor_font: crate::fonts::EditorFont::default(),
+            tab_width: crate::editor::layout::DEFAULT_TAB_WIDTH,
+            new_line_ending: None,
+            new_encoding: String::new(),
+            new_language: crate::highlight::PLAIN_TEXT.to_owned(),
+            shortcuts: BTreeMap::new(),
+            function_list: false,
+            doc_map: false,
+            folder_panel: false,
+            workspace: None,
         }
     }
 }

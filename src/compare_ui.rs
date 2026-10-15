@@ -123,7 +123,6 @@ impl DiffColors {
 
 /// Longest line drawn; the rest of a very long line is cut off.
 const MAX_LINE_CHARS: usize = 4000;
-const TAB_WIDTH: usize = 4;
 const OVERVIEW_W: f32 = 14.0;
 
 impl CompareView {
@@ -535,7 +534,7 @@ fn display_line(line: &str) -> (String, Vec<usize>) {
     for c in line.chars().take(MAX_LINE_CHARS) {
         cols.push(col);
         if c == '\t' {
-            let n = TAB_WIDTH - col % TAB_WIDTH;
+            let n = crate::editor::layout::tab_width() - col % crate::editor::layout::tab_width();
             out.extend(std::iter::repeat_n(' ', n));
             col += n;
         } else {

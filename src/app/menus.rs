@@ -125,14 +125,12 @@ impl EttinApp {
                     .commands
                     .iter()
                     .map(|c| {
-                        m.item_with_shortcut(
-                            &c.title,
-                            c.shortcut.as_ref(),
-                            Action::PluginCommand {
-                                plugin: p.id.clone(),
-                                command: c.id.clone(),
-                            },
-                        )
+                        let action = Action::PluginCommand {
+                            plugin: p.id.clone(),
+                            command: c.id.clone(),
+                        };
+                        let shortcut = actions::effective_shortcut(&action, c.shortcut);
+                        m.item_with_shortcut(&c.title, shortcut.as_ref(), action)
                     })
                     .collect();
                 submenu(p.name(), items)
@@ -141,7 +139,7 @@ impl EttinApp {
     }
 
     /// The Edit menu, enabled for tab `index`.
-    fn edit_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
+    pub(super) fn edit_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
         let editor = self.docs.get(index).map(|d| &d.editor);
         let read_only = editor.is_some_and(|e| e.buffer.read_only);
         let can_undo = editor.is_some_and(|e| e.buffer.can_undo());
@@ -262,7 +260,7 @@ impl EttinApp {
     }
 
     /// The Tools menu.
-    fn tools_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
+    pub(super) fn tools_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
         use crate::tools::mime::MimeOp::*;
         let mut mime = Vec::new();
         for (i, group) in [
@@ -321,6 +319,9 @@ impl EttinApp {
                 self.settings.xml_check_on_save,
                 Action::ToggleXmlCheckOnSave,
             ),
+            m.item("Validate", Action::Xml(XmlOp::ValidateSchema)),
+            m.item("Validate Against…", Action::Xml(XmlOp::ChooseSchema)),
+            m.item("XSL Transform…", Action::Xml(XmlOp::XslTransform)),
             MenuEntry::Separator,
             m.toggle("XPath Panel", self.xpath.open, Action::ToggleXPathPanel),
             m.item("Copy Current XPath", Action::CopyXPath),

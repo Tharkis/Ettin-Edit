@@ -1,0 +1,108 @@
+%YAML 1.2
+---
+# INI-style configuration grammar for Ettin Edit. Covers classic .ini files,
+# Java .properties, freedesktop .desktop entries, systemd units and Windows
+# .reg exports, which all share the `[section]` / `key=value` shape.
+name: INI
+file_extensions:
+  - ini
+  - cfg
+  - conf
+  - properties
+  - desktop
+  - directory
+  - reg
+  - inf
+  - url
+  - service
+  - socket
+  - timer
+  - mount
+  - automount
+  - swap
+  - path
+  - target
+  - slice
+  - scope
+  - network
+  - netdev
+  - link
+  - .editorconfig
+  - .gitconfig
+  - .npmrc
+  - .pylintrc
+  - .flake8
+first_line_match: '^(?:Windows Registry Editor Version [\d.]+|REGEDIT4)\s*$'
+scope: source.ini
+
+contexts:
+  main:
+    - match: '^\s*[;#!].*'
+      scope: comment.line.ini
+    - match: '^(?:Windows Registry Editor Version [\d.]+|REGEDIT4)\s*$'
+      scope: keyword.other.header.ini
+    - match: '^\s*(\[)([^\]\n]*)(\])'
+      captures:
+        1: punctuation.definition.section.begin.ini
+        2: entity.name.section.ini
+        3: punctuation.definition.section.end.ini
+    - match: '^\s*(@)\s*(=)'
+      captures:
+        1: variable.language.default-value.ini
+        2: keyword.operator.assignment.ini
+      push: value
+    - match: '^\s*("(?:[^"\\\n]|\\.)*")\s*(=)'
+      captures:
+        1: meta.mapping.key.ini entity.name.tag.ini
+        2: keyword.operator.assignment.ini
+      push: value
+    - match: '^\s*([^\s=:;#!\[][^=:\n]*?)\s*([=:])'
+      captures:
+        1: meta.mapping.key.ini entity.name.tag.ini
+        2: keyword.operator.assignment.ini
+      push: value
+
+  value:
+    - match: '\n'
+      pop: true
+    - match: '\b(dword|qword)(:)([0-9A-Fa-f]+)\b'
+      captures:
+        1: storage.type.ini
+        2: punctuation.separator.ini
+        3: constant.numeric.integer.hexadecimal.ini
+    - match: '\b(hex(?:\([0-9A-Fa-f]+\))?)(:)'
+      captures:
+        1: storage.type.ini
+        2: punctuation.separator.ini
+      set: hex-bytes
+    - match: '"'
+      scope: punctuation.definition.string.begin.ini
+      push: double-string
+    - match: '\$\{[^}\n]*\}|\$[A-Za-z_]\w*|%[A-Za-z_]\w*%|%[A-Za-z%]'
+      scope: variable.other.ini
+    - match: '(?i)(?<![\w.-])(?:true|false|yes|no|on|off|none)(?![\w.-])'
+      scope: constant.language.ini
+    - match: '(?<![\w.-])[+-]?(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)(?![\w.-])'
+      scope: constant.numeric.ini
+    - match: '\\$'
+      scope: constant.character.escape.line-continuation.ini
+
+  hex-bytes:
+    - match: '\n'
+      pop: true
+    - match: '[0-9A-Fa-f]{2}'
+      scope: constant.numeric.integer.hexadecimal.ini
+    - match: ','
+      scope: punctuation.separator.ini
+    - match: '\\$'
+      scope: constant.character.escape.line-continuation.ini
+
+  double-string:
+    - meta_scope: string.quoted.double.ini
+    - match: '\\.'
+      scope: constant.character.escape.ini
+    - match: '"'
+      scope: punctuation.definition.string.end.ini
+      pop: true
+    - match: '\n'
+      pop: true

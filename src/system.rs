@@ -11,6 +11,24 @@ fn hidden(mut cmd: Command) -> Command {
     cmd
 }
 
+/// Opens a web page in the default browser.
+pub fn open_url(url: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    let result = hidden({
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", "start", "", url]);
+        cmd
+    })
+    .spawn();
+    #[cfg(target_os = "macos")]
+    let result = Command::new("open").arg(url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let result = Command::new("xdg-open").arg(url).spawn();
+    result
+        .map(|_| ())
+        .map_err(|e| format!("Couldn't open {url}: {e}"))
+}
+
 /// Opens a folder in the system file manager.
 pub fn open_folder(dir: &Path) -> Result<(), String> {
     #[cfg(windows)]

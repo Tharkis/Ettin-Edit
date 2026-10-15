@@ -2,6 +2,9 @@
 //! menu, a keyboard shortcut, or (later) a plugin. Keeping one list of commands
 //! is what will let plugins call into the editor and add their own.
 
+use std::collections::BTreeMap;
+use std::sync::RwLock;
+
 use egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +53,14 @@ pub enum Action {
     RestoreThemes,
     ClearRecent,
     About,
+    CheckForUpdates,
+    NewLanguage,
+    OpenLanguagesFolder,
+    ReloadLanguages,
+    LanguageGuide,
+    Print,
+    ExportHtml,
+    ToggleUpdateCheck,
     // Files
     ReloadFromDisk,
     /// Keep the text as it is after the file changed or vanished on disk.
@@ -204,6 +215,18 @@ pub enum Action {
     ReloadPlugins,
     InstallSamplePlugins,
     PluginGuide,
+    // Customisation and panels
+    Preferences,
+    ShortcutMapper,
+    StyleConfigurator,
+    CommandPalette,
+    ToggleFunctionList,
+    ToggleDocMap,
+    ToggleFolderPanel,
+    OpenFolderAsWorkspace,
+    CloseWorkspace,
+    ToggleDistractionFree,
+    TabList,
 }
 
 impl Action {
@@ -233,6 +256,11 @@ impl Action {
                 | Action::ToggleXPathPanel
                 | Action::ManagePlugins
                 | Action::ShowPluginLog
+                | Action::Preferences
+                | Action::ShortcutMapper
+                | Action::StyleConfigurator
+                | Action::CommandPalette
+                | Action::TabList
         )
     }
 
@@ -315,9 +343,77 @@ const ALT_SHIFT: Modifiers = Modifiers {
 const NONE: Modifiers = Modifiers::NONE;
 const SHIFT: Modifiers = Modifiers::SHIFT;
 
-/// Keyboard shortcuts for actions that have one. A shortcut without Shift or
-/// Alt also matches with them held, so those variants must come first.
+/// Shortcuts changed in the shortcut mapper: each listed command's shortcuts
+/// replace its defaults (an empty list leaves it without one).
+static OVERRIDES: RwLock<Vec<(Action, Vec<KeyboardShortcut>)>> = RwLock::new(Vec::new());
+
+/// The key a command is saved under in the settings.
+pub fn command_key(action: &Action) -> String {
+    serde_json::to_string(action).unwrap_or_default()
+}
+
+/// Uses the shortcuts from the settings. Returns a message for each one that
+/// can't be read; those are left out.
+pub fn set_overrides(saved: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut list = Vec::new();
+    for (key, texts) in saved {
+        let Ok(action) = serde_json::from_str::<Action>(key) else {
+            // A command from an older or newer version; keep it in the settings.
+            continue;
+        };
+        let mut shortcuts = Vec::new();
+        for text in texts {
+            match crate::plugins::shortcut::parse(text) {
+                Ok(s) => shortcuts.push(s),
+                Err(e) => errors.push(format!("Shortcut settings: {e}")),
+            }
+        }
+        list.push((action, shortcuts));
+    }
+    *OVERRIDES.write().unwrap_or_else(|e| e.into_inner()) = list;
+    errors
+}
+
+/// Replaces the shortcuts of commands changed in the shortcut mapper, then
+/// puts the ones with more modifiers first (see [`shortcuts`]).
+pub fn apply_overrides(list: &mut Vec<(KeyboardShortcut, Action)>) {
+    let overrides = OVERRIDES.read().unwrap_or_else(|e| e.into_inner());
+    if overrides.is_empty() {
+        return;
+    }
+    list.retain(|(_, a)| !overrides.iter().any(|(o, _)| o == a));
+    for (action, shortcuts) in overrides.iter() {
+        for s in shortcuts {
+            list.push((*s, action.clone()));
+        }
+    }
+    list.sort_by_key(|(s, _)| std::cmp::Reverse(crate::plugins::shortcut::modifier_count(s)));
+}
+
+/// The shortcut shown for a command whose default is `default` (a plugin's),
+/// after the user's changes.
+pub fn effective_shortcut(
+    action: &Action,
+    default: Option<KeyboardShortcut>,
+) -> Option<KeyboardShortcut> {
+    let overrides = OVERRIDES.read().unwrap_or_else(|e| e.into_inner());
+    match overrides.iter().find(|(a, _)| a == action) {
+        Some((_, list)) => list.first().copied(),
+        None => default,
+    }
+}
+
+/// Keyboard shortcuts for actions that have one, after the user's changes.
 pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
+    let mut list = default_shortcuts();
+    apply_overrides(&mut list);
+    list
+}
+
+/// Ettin Edit's own shortcuts. A shortcut without Shift or Alt also matches
+/// with them held, so those variants must come first.
+pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
     let s = |m, k| KeyboardShortcut::new(m, k);
     vec![
         // Text tools (before the shorter combinations they contain)
@@ -333,6 +429,9 @@ pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD_ALT, Key::D), Action::CompareTabs),
         (s(SHIFT, Key::F7), Action::PrevDifference),
         (s(NONE, Key::F7), Action::NextDifference),
+        (s(CMD, Key::Comma), Action::Preferences),
+        (s(NONE, Key::F1), Action::CommandPalette),
+        (s(NONE, Key::F11), Action::ToggleDistractionFree),
         (s(CMD, Key::N), Action::NewTab),
         (s(CMD, Key::O), Action::Open),
         (s(CMD_SHIFT, Key::S), Action::SaveAll),
@@ -398,12 +497,13 @@ pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         // Macros
         (s(CMD_SHIFT, Key::R), Action::ToggleMacroRecording),
         (s(CMD_SHIFT, Key::P), Action::PlayMacro),
+        (s(CMD, Key::P), Action::Print),
     ]
 }
 
 /// Shortcuts shown in menus but handled by the editor itself, so text boxes
-/// keep their own undo, copy and paste.
-fn editor_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
+/// keep their own undo, copy and paste. They can't be changed.
+pub fn editor_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
     let s = |m, k| KeyboardShortcut::new(m, k);
     vec![
         (s(CMD, Key::Z), Action::Undo),

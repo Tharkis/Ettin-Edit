@@ -14,6 +14,7 @@ pub mod manifest;
 pub mod panel;
 pub mod process;
 pub mod shortcut;
+pub mod store;
 pub mod ui;
 
 use std::collections::{BTreeMap, HashSet, VecDeque};
@@ -1090,13 +1091,14 @@ mod process_tests {
         assert!(host.wants("saved"));
 
         host.run_command(folder, &host.plugins[0].commands[0].id.clone());
+        // print() / console.log() go to the log, not the protocol. They come
+        // through stderr, which is read separately, so either may arrive first.
         assert!(
-            pump(&mut host, |h| h.log.iter().any(|l| l.text == "got hello")),
+            pump(&mut host, |h| h.log.iter().any(|l| l.text == "got hello")
+                && h.log.iter().any(|l| l.text == "printed")),
             "no answer: {:?}",
             host.log.iter().map(|l| &l.text).collect::<Vec<_>>()
         );
-        // print() / console.log() go to the log, not the protocol.
-        assert!(host.log.iter().any(|l| l.text == "printed"));
 
         host.stop(0, 0.0);
         assert_eq!(host.plugins[0].status, Status::Stopped);

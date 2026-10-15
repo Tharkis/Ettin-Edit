@@ -44,6 +44,27 @@ pub fn parse(text: &str) -> Result<KeyboardShortcut, String> {
     Ok(KeyboardShortcut::new(mods, key))
 }
 
+/// Writes a shortcut the way [`parse`] reads it, such as `Ctrl+Shift+F12`.
+pub fn to_text(s: &KeyboardShortcut) -> String {
+    let m = s.modifiers;
+    let mut text = String::new();
+    if m.command || m.ctrl || m.mac_cmd {
+        text += "Ctrl+";
+    }
+    if m.alt {
+        text += "Alt+";
+    }
+    if m.shift {
+        text += "Shift+";
+    }
+    // Newer egui versions name the plus key "Plus"; keep writing "+".
+    text += match s.logical_key {
+        Key::Plus => "+",
+        key => key.name(),
+    };
+    text
+}
+
 fn key_from_name(name: &str) -> Option<Key> {
     let alias = match name.to_ascii_lowercase().as_str() {
         "del" => "Delete",
@@ -106,6 +127,22 @@ mod tests {
         assert!(parse("Ctrl+Shift+V").is_err());
         assert!(parse("Hyper+U").is_err());
         assert!(parse("Ctrl+Banana").is_err());
+    }
+
+    #[test]
+    fn writes_shortcuts_back_as_text() {
+        for (text, written) in [
+            ("Ctrl+Alt+U", "Ctrl+Alt+U"),
+            ("Ctrl+Shift+F12", "Ctrl+Shift+F12"),
+            ("F6", "F6"),
+            ("Alt+1", "Alt+1"),
+            ("Ctrl++", "Ctrl++"),
+            ("Shift+F3", "Shift+F3"),
+        ] {
+            let s = parse(text).unwrap();
+            assert_eq!(to_text(&s), written);
+            assert!(same(&parse(&to_text(&s)).unwrap(), &s));
+        }
     }
 
     #[test]

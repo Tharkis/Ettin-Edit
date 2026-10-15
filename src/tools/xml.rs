@@ -18,6 +18,12 @@ pub enum XmlOp {
     PrettyPrintAttributes,
     Linearize,
     CheckSyntax,
+    /// Validate against the document's XSD or DTD (found, remembered or picked).
+    ValidateSchema,
+    /// Pick the XSD or DTD to validate against, then validate.
+    ChooseSchema,
+    /// Run an XSL stylesheet over the document; the output opens in a new tab.
+    XslTransform,
     Escape,
     Unescape,
 }

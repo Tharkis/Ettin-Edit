@@ -1,13 +1,13 @@
 [package]
 name = "ettin-edit"
-version = "0.10.0"
+version = "1.0.0"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 
 [dependencies]
 eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "persistence"] }
 egui = "0.36"
-syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy", "parsing", "plist-load"] }
+syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy", "parsing", "plist-load", "yaml-load"] }
 rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -26,6 +26,11 @@ similar = { version = "2.7.0", features = ["unicode"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 csv = "1.4.0"
 egui_extras = "0.36"
+skrifa = "0.44"
+plist = "1.10"
+ureq = { version = "3", features = ["platform-verifier"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+sha2 = "0.11"
 
 [profile.release]
 opt-level = 3
@@ -35,3 +40,11 @@ strip = true
 
 [build-dependencies]
 winresource = "0.1"
+
+# The regex engines are very slow unoptimised; this keeps debug builds usable
+# (syntax highlighting and the function list both lean on them).
+[profile.dev.package.regex-automata]
+opt-level = 3
+
+[profile.dev.package.regex-syntax]
+opt-level = 3

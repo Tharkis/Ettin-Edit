@@ -8,6 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
+use std::rc::Rc;
 
 use roxmltree::{Document, Node, NodeType};
 
@@ -47,6 +48,7 @@ pub fn evaluate(doc: &Document, expr: &str) -> Result<Outcome, ToolError> {
                 node: root,
                 pos: 1,
                 size: 1,
+                env: None,
             },
         )
         .map_err(ToolError::new)?;
@@ -55,6 +57,7 @@ pub fn evaluate(doc: &Document, expr: &str) -> Result<Outcome, ToolError> {
         Value::Num(n) => Outcome::Number(n),
         Value::Str(s) => Outcome::String(s),
         Value::Bool(b) => Outcome::Boolean(b),
+        Value::Frag(f) => Outcome::String(f.string_value()),
     })
 }
 
@@ -67,6 +70,415 @@ pub fn number_to_string(n: f64) -> String {
         format!("{}", n as i64)
     } else {
         format!("{n}")
+    }
+}
+
+// ----------------------------------------------------------------------
+// Compiled expressions, for XSLT
+
+const FRAG_PATH: &str = "A result tree fragment can't be navigated or filtered in XSLT 1.0; use it as a string or with xsl:copy-of.";
+
+/// A result tree fragment: nodes an XSLT template built, held as a value.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Fragment {
+    pub nodes: Vec<FragNode>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum FragNode {
+    Element(FragElement),
+    /// Text; `raw` text is written without escaping.
+    Text {
+        text: String,
+        raw: bool,
+    },
+    Comment(String),
+    Pi {
+        target: String,
+        data: String,
+    },
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FragElement {
+    pub prefix: Option<String>,
+    pub local: String,
+    pub ns: Option<String>,
+    /// Namespace declarations to carry (prefix, URI); `None` is the default namespace.
+    pub ns_decls: Vec<(Option<String>, String)>,
+    pub attrs: Vec<FragAttr>,
+    pub children: Vec<FragNode>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FragAttr {
+    pub prefix: Option<String>,
+    pub local: String,
+    pub ns: Option<String>,
+    pub value: String,
+}
+
+impl Fragment {
+    pub fn string_value(&self) -> String {
+        fn walk(nodes: &[FragNode], out: &mut String) {
+            for n in nodes {
+                match n {
+                    FragNode::Text { text, .. } => out.push_str(text),
+                    FragNode::Element(e) => walk(&e.children, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = String::new();
+        walk(&self.nodes, &mut out);
+        out
+    }
+}
+
+/// Variables and extra functions an expression can use (XSLT supplies them).
+pub trait Env<'a, 'i> {
+    /// The value of `$name`, or an error naming the problem.
+    fn variable(&self, name: &str) -> Result<Value<'a, 'i>, String>;
+    /// Calls a function outside the core library. `None` means it doesn't exist.
+    fn function(
+        &self,
+        name: &str,
+        args: &[Value<'a, 'i>],
+        context: XNode<'a, 'i>,
+    ) -> Option<Result<Value<'a, 'i>, String>>;
+}
+
+/// An expression compiled once and evaluated many times, with namespace
+/// prefixes resolved when compiling (unprefixed names mean no namespace).
+#[derive(Clone, Debug, PartialEq)]
+pub struct XPath {
+    expr: Expr,
+}
+
+impl XPath {
+    /// Compiles `src`; `resolve` maps a prefix to its namespace URI, and
+    /// `extra_functions` are function names allowed besides the core library.
+    pub fn compile(
+        src: &str,
+        resolve: &dyn Fn(&str) -> Option<String>,
+        extra_functions: &[&str],
+    ) -> Result<Self, ToolError> {
+        let mut expr = Parser::with_functions(src, extra_functions)?.parse()?;
+        resolve_names(&mut expr, resolve).map_err(ToolError::new)?;
+        Ok(Self { expr })
+    }
+
+    /// Compiles an XSLT match pattern.
+    pub fn compile_pattern(
+        src: &str,
+        resolve: &dyn Fn(&str) -> Option<String>,
+        extra_functions: &[&str],
+    ) -> Result<Self, ToolError> {
+        let x = Self::compile(src, resolve, extra_functions)?;
+        if !is_pattern(&x.expr) {
+            return Err(ToolError::new(format!(
+                "'{src}' isn't a valid match pattern."
+            )));
+        }
+        Ok(x)
+    }
+
+    /// The alternatives of a union pattern (`a | b`), each on its own.
+    pub fn alternatives(&self) -> Vec<XPath> {
+        fn walk(e: &Expr, out: &mut Vec<XPath>) {
+            match e {
+                Expr::Union(a, b) => {
+                    walk(a, out);
+                    walk(b, out);
+                }
+                other => out.push(XPath {
+                    expr: other.clone(),
+                }),
+            }
+        }
+        let mut out = Vec::new();
+        walk(&self.expr, &mut out);
+        out
+    }
+
+    /// The default priority of a single (non-union) pattern, per XSLT 1.0 5.5.
+    pub fn default_priority(&self) -> f64 {
+        match &self.expr {
+            Expr::Path(Start::Context, steps)
+                if steps.len() == 1
+                    && steps[0].predicates.is_empty()
+                    && matches!(steps[0].axis, Axis::Child | Axis::Attribute) =>
+            {
+                match &steps[0].test {
+                    Test::Name { .. } | Test::Resolved { .. } | Test::Pi(Some(_)) => 0.0,
+                    Test::AnyIn(_) | Test::AnyInUri(_) => -0.25,
+                    _ => -0.5,
+                }
+            }
+            _ => 0.5,
+        }
+    }
+}
+
+fn resolve_names(e: &mut Expr, resolve: &dyn Fn(&str) -> Option<String>) -> Result<(), String> {
+    let lookup =
+        |p: &str| resolve(p).ok_or_else(|| format!("The namespace prefix '{p}' isn't declared."));
+    let steps = |steps: &mut Vec<Step>| -> Result<(), String> {
+        for s in steps {
+            s.test = match std::mem::replace(&mut s.test, Test::Node) {
+                Test::Name { prefix, local } => Test::Resolved {
+                    uri: prefix.as_deref().map(lookup).transpose()?,
+                    local,
+                },
+                Test::AnyIn(p) => Test::AnyInUri(lookup(&p)?),
+                t => t,
+            };
+            for p in &mut s.predicates {
+                resolve_names(p, resolve)?;
+            }
+        }
+        Ok(())
+    };
+    match e {
+        Expr::Or(a, b)
+        | Expr::And(a, b)
+        | Expr::Compare(_, a, b)
+        | Expr::Arith(_, a, b)
+        | Expr::Union(a, b) => {
+            resolve_names(a, resolve)?;
+            resolve_names(b, resolve)?;
+        }
+        Expr::Negate(a) => resolve_names(a, resolve)?,
+        Expr::Path(start, s) => {
+            if let Start::Expr(x) = start {
+                resolve_names(x, resolve)?;
+            }
+            steps(s)?;
+        }
+        Expr::Filter(x, preds) => {
+            resolve_names(x, resolve)?;
+            for p in preds {
+                resolve_names(p, resolve)?;
+            }
+        }
+        Expr::Call(_, args) => {
+            for a in args {
+                resolve_names(a, resolve)?;
+            }
+        }
+        Expr::Literal(_) | Expr::Number(_) | Expr::Var(_) => {}
+    }
+    Ok(())
+}
+
+fn is_pattern(e: &Expr) -> bool {
+    let key_or_id = |e: &Expr| {
+        matches!(e, Expr::Call(name, args)
+            if (name == "id" || name == "key")
+                && args.iter().all(|a| matches!(a, Expr::Literal(_) | Expr::Var(_))))
+    };
+    match e {
+        Expr::Union(a, b) => is_pattern(a) && is_pattern(b),
+        Expr::Call(..) => key_or_id(e),
+        Expr::Path(start, steps) => {
+            let start_ok = match start {
+                Start::Root | Start::Context => true,
+                Start::Expr(x) => key_or_id(x),
+            };
+            start_ok
+                && (!steps.is_empty() || !matches!(start, Start::Context))
+                && steps.iter().all(|s| match s.axis {
+                    Axis::Child | Axis::Attribute => true,
+                    Axis::DescendantOrSelf => s.test == Test::Node && s.predicates.is_empty(),
+                    _ => false,
+                })
+        }
+        _ => false,
+    }
+}
+
+/// Evaluates compiled expressions and patterns against one document.
+pub struct Engine<'a, 'i> {
+    ev: Evaluator<'a, 'i>,
+}
+
+impl<'a, 'i> Engine<'a, 'i> {
+    /// `skip` lists text nodes to treat as absent (stripped whitespace).
+    pub fn new(doc: &'a Document<'i>, skip: HashSet<roxmltree::NodeId>) -> Self {
+        Self {
+            ev: Evaluator {
+                doc,
+                prefixes: HashMap::new(),
+                defaults: HashSet::new(),
+                skip: skip.into_iter().map(|id| id.get()).collect(),
+            },
+        }
+    }
+
+    pub fn eval(
+        &self,
+        x: &XPath,
+        node: XNode<'a, 'i>,
+        pos: usize,
+        size: usize,
+        env: &dyn Env<'a, 'i>,
+    ) -> Result<Value<'a, 'i>, String> {
+        self.ev.eval(
+            &x.expr,
+            &Ctx {
+                node,
+                pos,
+                size,
+                env: Some(env),
+            },
+        )
+    }
+
+    /// True if `node` matches the pattern.
+    pub fn matches(
+        &self,
+        pattern: &XPath,
+        node: XNode<'a, 'i>,
+        env: &dyn Env<'a, 'i>,
+    ) -> Result<bool, String> {
+        self.ev.match_pattern(&pattern.expr, node, env)
+    }
+
+    pub fn string_value(&self, n: XNode<'a, 'i>) -> String {
+        self.ev.string_value(n)
+    }
+
+    pub fn string(&self, v: &Value) -> String {
+        self.ev.string(v)
+    }
+
+    pub fn number(&self, v: &Value) -> f64 {
+        self.ev.number(v)
+    }
+
+    pub fn boolean(&self, v: &Value) -> bool {
+        self.ev.boolean(v)
+    }
+
+    pub fn local_name(&self, n: XNode<'a, 'i>) -> &'a str {
+        self.ev.local_name(n)
+    }
+
+    pub fn namespace(&self, n: XNode<'a, 'i>) -> Option<&'a str> {
+        self.ev.namespace(n)
+    }
+
+    /// The node's children (without stripped whitespace).
+    pub fn children(&self, n: XNode<'a, 'i>) -> Vec<XNode<'a, 'i>> {
+        self.ev.axis(n, Axis::Child)
+    }
+
+    /// The node's preceding siblings, nearest first.
+    pub fn preceding_siblings(&self, n: XNode<'a, 'i>) -> Vec<XNode<'a, 'i>> {
+        self.ev.axis(n, Axis::PrecedingSibling)
+    }
+
+    pub fn ancestors_or_self(&self, n: XNode<'a, 'i>) -> Vec<XNode<'a, 'i>> {
+        self.ev.axis(n, Axis::AncestorOrSelf)
+    }
+
+    /// All nodes in document order (with attributes after their element).
+    pub fn all_nodes(&self) -> Vec<XNode<'a, 'i>> {
+        let mut out = Vec::new();
+        for n in self.ev.doc.root().descendants() {
+            if n.is_text() && self.ev.skip.contains(&n.id().get()) {
+                continue;
+            }
+            out.push(XNode::Node(n));
+            if n.is_element() {
+                out.extend((0..n.attributes().len()).map(|i| XNode::Attr(n, i)));
+            }
+        }
+        out
+    }
+}
+
+impl<'a, 'i> Evaluator<'a, 'i> {
+    fn match_pattern(
+        &self,
+        e: &Expr,
+        n: XNode<'a, 'i>,
+        env: &dyn Env<'a, 'i>,
+    ) -> Result<bool, String> {
+        match e {
+            Expr::Union(a, b) => {
+                Ok(self.match_pattern(a, n, env)? || self.match_pattern(b, n, env)?)
+            }
+            Expr::Call(..) => self.node_in(e, n, env),
+            Expr::Path(start, steps) => self.match_steps(n, start, steps, env),
+            _ => Err("This isn't a match pattern.".into()),
+        }
+    }
+
+    fn node_in(&self, e: &Expr, n: XNode<'a, 'i>, env: &dyn Env<'a, 'i>) -> Result<bool, String> {
+        let ctx = Ctx {
+            node: n,
+            pos: 1,
+            size: 1,
+            env: Some(env),
+        };
+        Ok(match self.eval(e, &ctx)? {
+            Value::Nodes(nodes) => nodes.contains(&n),
+            _ => false,
+        })
+    }
+
+    fn match_steps(
+        &self,
+        n: XNode<'a, 'i>,
+        start: &Start,
+        steps: &[Step],
+        env: &dyn Env<'a, 'i>,
+    ) -> Result<bool, String> {
+        let Some((last, rest)) = steps.split_last() else {
+            return match start {
+                Start::Root => Ok(matches!(n, XNode::Node(x) if x.is_root())),
+                Start::Context => Ok(true),
+                Start::Expr(e) => self.node_in(e, n, env),
+            };
+        };
+        if last.axis == Axis::DescendantOrSelf {
+            let mut cur = Some(n);
+            while let Some(m) = cur {
+                if self.match_steps(m, start, rest, env)? {
+                    return Ok(true);
+                }
+                cur = self.axis(m, Axis::Parent).into_iter().next();
+            }
+            return Ok(false);
+        }
+        let right_kind = match n {
+            XNode::Attr(..) => last.axis == Axis::Attribute,
+            XNode::Node(x) => {
+                last.axis == Axis::Child && !self.skip.contains(&x.id().get()) && !x.is_root()
+            }
+        };
+        if !right_kind || !self.matches(n, &last.test, last.axis)? {
+            return Ok(false);
+        }
+        let Some(parent) = self.axis(n, Axis::Parent).into_iter().next() else {
+            return Ok(false);
+        };
+        if !last.predicates.is_empty() {
+            let mut candidates = Vec::new();
+            for m in self.axis(parent, last.axis) {
+                if self.matches(m, &last.test, last.axis)? {
+                    candidates.push(m);
+                }
+            }
+            if !self
+                .filter(candidates, &last.predicates, Some(env))?
+                .contains(&n)
+            {
+                return Ok(false);
+            }
+        }
+        self.match_steps(parent, start, rest, env)
     }
 }
 
@@ -392,6 +804,13 @@ enum Test {
     Text,
     Comment,
     Pi(Option<String>),
+    /// A name whose prefix was resolved when compiling (`None`: no namespace).
+    Resolved {
+        uri: Option<String>,
+        local: String,
+    },
+    /// `prefix:*` with the prefix resolved when compiling.
+    AnyInUri(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -434,10 +853,12 @@ enum Expr {
     Call(String, Vec<Expr>),
 }
 
-struct Parser {
+struct Parser<'f> {
     toks: Vec<(Tok, usize)>,
     i: usize,
     len: usize,
+    /// Function names allowed besides the core library.
+    extra: &'f [&'f str],
 }
 
 fn descendant_or_self() -> Step {
@@ -448,8 +869,12 @@ fn descendant_or_self() -> Step {
     }
 }
 
-impl Parser {
+impl<'f> Parser<'f> {
     fn new(src: &str) -> Result<Self, ToolError> {
+        Self::with_functions(src, &[])
+    }
+
+    fn with_functions(src: &str, extra: &'f [&'f str]) -> Result<Self, ToolError> {
         if src.trim().is_empty() {
             return Err(ToolError::new(
                 "Type an XPath expression, like //item[@id='1'].",
@@ -459,6 +884,7 @@ impl Parser {
             toks: lex(src)?,
             i: 0,
             len: src.len(),
+            extra,
         })
     }
 
@@ -761,7 +1187,7 @@ impl Parser {
             }
             Some(Tok::Function(name)) => {
                 let offset = self.toks[self.i - 1].1;
-                if !FUNCTIONS.contains(&name.as_str()) {
+                if !FUNCTIONS.contains(&name.as_str()) && !self.extra.contains(&name.as_str()) {
                     return Err(ToolError::at(format!("Unknown function {name}()."), offset));
                 }
                 self.eat(&Tok::LParen);
@@ -785,6 +1211,11 @@ impl Parser {
             }
         })
     }
+}
+
+/// True for the XPath core functions (and the few extras this evaluator adds).
+pub fn is_core_function(name: &str) -> bool {
+    FUNCTIONS.contains(&name)
 }
 
 const FUNCTIONS: &[&str] = &[
@@ -826,14 +1257,14 @@ const FUNCTIONS: &[&str] = &[
 /// A node in the XPath data model: a tree node, or an element's attribute
 /// (by index).
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum XNode<'a, 'i> {
+pub enum XNode<'a, 'i> {
     Node(Node<'a, 'i>),
     Attr(Node<'a, 'i>, usize),
 }
 
-impl XNode<'_, '_> {
+impl<'a, 'i> XNode<'a, 'i> {
     /// Sorts in document order: an element, then its attributes, then its children.
-    fn order(&self) -> (u32, usize) {
+    pub fn order(&self) -> (u32, usize) {
         match self {
             XNode::Node(n) => (n.id().get(), 0),
             XNode::Attr(n, i) => (n.id().get(), i + 1),
@@ -841,27 +1272,32 @@ impl XNode<'_, '_> {
     }
 }
 
+/// A value an expression produces. `Frag` is an XSLT result tree fragment.
 #[derive(Clone, Debug)]
-enum Value<'a, 'i> {
+pub enum Value<'a, 'i> {
     Nodes(Vec<XNode<'a, 'i>>),
     Num(f64),
     Str(String),
     Bool(bool),
+    Frag(Rc<Fragment>),
 }
 
-struct Ctx<'a, 'i> {
+struct Ctx<'c, 'a, 'i> {
     node: XNode<'a, 'i>,
     pos: usize,
     size: usize,
+    env: Option<&'c dyn Env<'a, 'i>>,
 }
 
 struct Evaluator<'a, 'i> {
     doc: &'a Document<'i>,
     prefixes: HashMap<&'a str, &'a str>,
     defaults: HashSet<&'a str>,
+    /// Text nodes treated as absent (whitespace stripped by XSLT).
+    skip: HashSet<u32>,
 }
 
-fn sort_nodes(nodes: &mut Vec<XNode>) {
+pub fn sort_nodes(nodes: &mut Vec<XNode>) {
     nodes.sort_by_key(XNode::order);
     nodes.dedup_by_key(|n| n.order());
 }
@@ -901,6 +1337,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
             doc,
             prefixes,
             defaults,
+            skip: HashSet::new(),
         }
     }
 
@@ -939,7 +1376,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
             XNode::Node(x) => match x.node_type() {
                 NodeType::Root | NodeType::Element => x
                     .descendants()
-                    .filter(Node::is_text)
+                    .filter(|t| t.is_text() && !self.skip.contains(&t.id().get()))
                     .filter_map(|t| t.text())
                     .collect(),
                 NodeType::Text | NodeType::Comment => x.text().unwrap_or_default().to_owned(),
@@ -979,6 +1416,17 @@ impl<'a, 'i> Evaluator<'a, 'i> {
     }
 
     fn axis(&self, n: XNode<'a, 'i>, axis: Axis) -> Vec<XNode<'a, 'i>> {
+        let mut out = self.axis_all(n, axis);
+        if !self.skip.is_empty() {
+            out.retain(|m| match m {
+                XNode::Node(x) => !self.skip.contains(&x.id().get()),
+                XNode::Attr(..) => true,
+            });
+        }
+        out
+    }
+
+    fn axis_all(&self, n: XNode<'a, 'i>, axis: Axis) -> Vec<XNode<'a, 'i>> {
         let node = XNode::Node;
         match (axis, n) {
             (Axis::Itself, _) => vec![n],
@@ -1062,6 +1510,10 @@ impl<'a, 'i> Evaluator<'a, 'i> {
                 _ => false,
             },
             Test::Any => principal,
+            Test::AnyInUri(uri) => principal && self.namespace(n) == Some(uri.as_str()),
+            Test::Resolved { uri, local } => {
+                principal && self.local_name(n) == local && self.namespace(n) == uri.as_deref()
+            }
             Test::AnyIn(prefix) => {
                 let uri = self.resolve(prefix)?;
                 principal && self.namespace(n) == Some(uri)
@@ -1088,6 +1540,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
         &self,
         nodes: Vec<XNode<'a, 'i>>,
         predicates: &[Expr],
+        env: Option<&dyn Env<'a, 'i>>,
     ) -> Result<Vec<XNode<'a, 'i>>, String> {
         let mut nodes = nodes;
         for pred in predicates {
@@ -1098,6 +1551,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
                     node: n,
                     pos: i + 1,
                     size,
+                    env,
                 };
                 let keep = match self.eval(pred, &ctx)? {
                     Value::Num(num) => num == (i + 1) as f64,
@@ -1112,7 +1566,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
         Ok(nodes)
     }
 
-    fn eval(&self, e: &Expr, c: &Ctx<'a, 'i>) -> Result<Value<'a, 'i>, String> {
+    fn eval(&self, e: &Expr, c: &Ctx<'_, 'a, 'i>) -> Result<Value<'a, 'i>, String> {
         Ok(match e {
             Expr::Or(a, b) => Value::Bool(self.to_bool(a, c)? || self.to_bool(b, c)?),
             Expr::And(a, b) => Value::Bool(self.to_bool(a, c)? && self.to_bool(b, c)?),
@@ -1150,6 +1604,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
                     Start::Context => vec![c.node],
                     Start::Expr(e) => match self.eval(e, c)? {
                         Value::Nodes(n) => n,
+                        Value::Frag(_) => return Err(FRAG_PATH.into()),
                         _ => return Err("Only a node-set can be followed by '/'.".into()),
                     },
                 };
@@ -1162,7 +1617,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
                                 candidates.push(m);
                             }
                         }
-                        next.extend(self.filter(candidates, &step.predicates)?);
+                        next.extend(self.filter(candidates, &step.predicates, c.env)?);
                     }
                     sort_nodes(&mut next);
                     nodes = next;
@@ -1170,25 +1625,29 @@ impl<'a, 'i> Evaluator<'a, 'i> {
                 Value::Nodes(nodes)
             }
             Expr::Filter(primary, predicates) => match self.eval(primary, c)? {
-                Value::Nodes(n) => Value::Nodes(self.filter(n, predicates)?),
+                Value::Nodes(n) => Value::Nodes(self.filter(n, predicates, c.env)?),
+                Value::Frag(_) => return Err(FRAG_PATH.into()),
                 _ => return Err("Only a node-set can have a [predicate].".into()),
             },
             Expr::Literal(s) => Value::Str(s.clone()),
             Expr::Number(n) => Value::Num(*n),
-            Expr::Var(name) => return Err(format!("Variables aren't supported (${name}).")),
+            Expr::Var(name) => match c.env {
+                Some(env) => env.variable(name)?,
+                None => return Err(format!("Variables aren't supported (${name}).")),
+            },
             Expr::Call(name, args) => self.call(name, args, c)?,
         })
     }
 
-    fn to_bool(&self, e: &Expr, c: &Ctx<'a, 'i>) -> Result<bool, String> {
+    fn to_bool(&self, e: &Expr, c: &Ctx<'_, 'a, 'i>) -> Result<bool, String> {
         Ok(self.boolean(&self.eval(e, c)?))
     }
 
-    fn to_num(&self, e: &Expr, c: &Ctx<'a, 'i>) -> Result<f64, String> {
+    fn to_num(&self, e: &Expr, c: &Ctx<'_, 'a, 'i>) -> Result<f64, String> {
         Ok(self.number(&self.eval(e, c)?))
     }
 
-    fn to_str(&self, e: &Expr, c: &Ctx<'a, 'i>) -> Result<String, String> {
+    fn to_str(&self, e: &Expr, c: &Ctx<'_, 'a, 'i>) -> Result<String, String> {
         Ok(self.string(&self.eval(e, c)?))
     }
 
@@ -1198,6 +1657,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
             Value::Num(n) => *n != 0.0 && !n.is_nan(),
             Value::Str(s) => !s.is_empty(),
             Value::Bool(b) => *b,
+            Value::Frag(_) => true,
         }
     }
 
@@ -1215,6 +1675,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
             Value::Num(n) => number_to_string(*n),
             Value::Str(s) => s.clone(),
             Value::Bool(b) => b.to_string(),
+            Value::Frag(f) => f.string_value(),
         }
     }
 
@@ -1288,7 +1749,23 @@ impl<'a, 'i> Evaluator<'a, 'i> {
         }
     }
 
-    fn call(&self, name: &str, args: &[Expr], c: &Ctx<'a, 'i>) -> Result<Value<'a, 'i>, String> {
+    fn call(
+        &self,
+        name: &str,
+        args: &[Expr],
+        c: &Ctx<'_, 'a, 'i>,
+    ) -> Result<Value<'a, 'i>, String> {
+        if !FUNCTIONS.contains(&name)
+            && let Some(env) = c.env
+        {
+            let mut values = Vec::with_capacity(args.len());
+            for a in args {
+                values.push(self.eval(a, c)?);
+            }
+            return env
+                .function(name, &values, c.node)
+                .unwrap_or_else(|| Err(format!("Unknown function {name}().")));
+        }
         let arity = |min: usize, max: usize| -> Result<(), String> {
             if args.len() < min || args.len() > max {
                 let expected = if min == max {
@@ -1310,6 +1787,7 @@ impl<'a, 'i> Evaluator<'a, 'i> {
         let nodes_arg = |i: usize| -> Result<Vec<XNode<'a, 'i>>, String> {
             match self.eval(&args[i], c)? {
                 Value::Nodes(n) => Ok(n),
+                Value::Frag(_) => Err(format!("{name}() needs a node-set. {FRAG_PATH}")),
                 _ => Err(format!("{name}() needs a node-set.")),
             }
         };

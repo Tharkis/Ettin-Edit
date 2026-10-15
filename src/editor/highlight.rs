@@ -85,6 +85,11 @@ impl LineHighlighter {
         }
     }
 
+    /// True for plain text, which has no colours.
+    pub fn is_plain(&self) -> bool {
+        self.plain
+    }
+
     fn syntax_ref<'s>(&self, syntaxes: &'s SyntaxSet) -> &'s SyntaxReference {
         syntaxes
             .find_syntax_by_name(&self.key.0)

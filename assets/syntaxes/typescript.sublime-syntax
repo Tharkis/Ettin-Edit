@@ -1,0 +1,200 @@
+%YAML 1.2
+---
+# TypeScript grammar for Ettin Edit, written from the TypeScript handbook and
+# the ECMAScript specification. src/highlight.rs builds the TSX grammar from
+# this file by swapping the empty `jsx` context for JSX tag rules.
+name: TypeScript
+file_extensions: [ts, mts, cts]
+scope: source.ts
+
+variables:
+  ident: '[A-Za-z_$][\w$]*'
+  not_after_dot: '(?<![.$])'
+  params: '\([^()]*(?:\([^()]*\)[^()]*)*\)'
+  regexp_body: '/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n\[])+/[dgimsuyv]*'
+
+contexts:
+  main:
+    - include: statements
+
+  statements:
+    - include: comments
+    - include: jsx
+    - include: strings
+    - include: regexp
+    - include: declarations
+    - include: keywords
+    - include: numbers
+    - include: decorators
+    - include: identifiers
+    - include: operators
+
+  # Filled in by the TSX grammar.
+  jsx: []
+
+  comments:
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.ts
+      push: block-comment
+    - match: '//.*'
+      scope: comment.line.double-slash.ts
+
+  block-comment:
+    - meta_scope: comment.block.ts
+    - match: '\*/'
+      scope: punctuation.definition.comment.end.ts
+      pop: true
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.ts
+      push: double-string
+    - match: "'"
+      scope: punctuation.definition.string.begin.ts
+      push: single-string
+    - match: '`'
+      scope: punctuation.definition.string.begin.ts
+      push: template-string
+
+  escapes:
+    - match: '\\(?:x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|u\{[0-9A-Fa-f]+\}|\n|.)'
+      scope: constant.character.escape.ts
+
+  double-string:
+    - meta_scope: string.quoted.double.ts
+    - include: escapes
+    - match: '"'
+      scope: punctuation.definition.string.end.ts
+      pop: true
+    - match: '\n'
+      scope: invalid.illegal.newline.ts
+      pop: true
+
+  single-string:
+    - meta_scope: string.quoted.single.ts
+    - include: escapes
+    - match: "'"
+      scope: punctuation.definition.string.end.ts
+      pop: true
+    - match: '\n'
+      scope: invalid.illegal.newline.ts
+      pop: true
+
+  template-string:
+    - meta_scope: string.quoted.template.ts
+    - include: escapes
+    - match: '`'
+      scope: punctuation.definition.string.end.ts
+      pop: true
+    - match: '\$\{'
+      scope: punctuation.section.interpolation.begin.ts
+      push: interpolation
+
+  interpolation:
+    - clear_scopes: 1
+    - meta_scope: meta.interpolation.ts
+    - match: '\}'
+      scope: punctuation.section.interpolation.end.ts
+      pop: true
+    - include: braces-or-statements
+
+  braces-or-statements:
+    - match: '\{'
+      scope: punctuation.section.block.begin.ts
+      push: braces
+    - include: statements
+
+  braces:
+    - match: '\}'
+      scope: punctuation.section.block.end.ts
+      pop: true
+    - include: braces-or-statements
+
+  regexp:
+    - match: '(?<=[=(,:;!&|?{}\[])\s*({{regexp_body}})'
+      captures:
+        1: string.regexp.ts
+    - match: '(?<=\breturn)\s+({{regexp_body}})'
+      captures:
+        1: string.regexp.ts
+    - match: '^\s*({{regexp_body}})'
+      captures:
+        1: string.regexp.ts
+
+  declarations:
+    - match: '{{not_after_dot}}\b(function)\b(?:\s*(\*))?(?:\s*({{ident}}))?'
+      captures:
+        1: storage.type.function.ts
+        2: keyword.generator.asterisk.ts
+        3: entity.name.function.ts
+    - match: '{{not_after_dot}}\b(class)\s+({{ident}})'
+      captures:
+        1: storage.type.class.ts
+        2: entity.name.class.ts
+    - match: '{{not_after_dot}}\b(interface|enum|namespace)\s+({{ident}})'
+      captures:
+        1: storage.type.ts
+        2: entity.name.class.ts
+    - match: '{{not_after_dot}}\b(type)\s+({{ident}})(?=\s*[<=])'
+      captures:
+        1: storage.type.ts
+        2: entity.name.class.ts
+    - match: '{{not_after_dot}}\b(module)\s+({{ident}})(?=\s*\{)'
+      captures:
+        1: storage.type.ts
+        2: entity.name.class.ts
+    # const add = (a, b) => a + b;  /  const f = async x => x;
+    - match: '{{not_after_dot}}\b(const|let|var)\s+({{ident}})(?=\s*(?::[^=]+)?=\s*(?:async\s+)?(?:<[^<>]*>\s*)?(?:{{params}}|{{ident}})\s*(?::[^=]+?)?\s*=>)'
+      captures:
+        1: storage.type.ts
+        2: entity.name.function.ts
+    # Method definitions: name(params) { ... on one line.
+    - match: '(?<![.\w$])(?!(?:if|for|while|switch|catch|function|return|with|await|typeof|new|super|this)\b)({{ident}})(?=\s*(?:<[^<>()]*>)?\s*{{params}}\s*(?::[^;{=]*)?\{)'
+      captures:
+        1: entity.name.function.ts
+
+  keywords:
+    - match: '{{not_after_dot}}\b(?:if|else|for|while|do|switch|case|default|break|continue|return|throw|try|catch|finally|await|yield|with|debugger)\b'
+      scope: keyword.control.ts
+    - match: '{{not_after_dot}}\b(?:import|export|from|as|require)\b'
+      scope: keyword.control.import.ts
+    - match: '{{not_after_dot}}\b(?:const|let|var|function|class|interface|enum|namespace|declare|get|set)\b(?!\s*[:(=])'
+      scope: storage.type.ts
+    - match: '{{not_after_dot}}\b(?:public|private|protected|readonly|static|async|abstract|override|implements|extends|accessor|out)\b(?!\s*[:=]|\()'
+      scope: storage.modifier.ts
+    - match: '{{not_after_dot}}\b(?:new|delete|in|of|instanceof|typeof|keyof|infer|is|satisfies|asserts|unique)\b'
+      scope: keyword.operator.word.ts
+    - match: '{{not_after_dot}}\b(?:true|false|null|undefined|NaN|Infinity)\b'
+      scope: constant.language.ts
+    - match: '{{not_after_dot}}\b(?:this|super|arguments|globalThis)\b'
+      scope: variable.language.ts
+    - match: '{{not_after_dot}}\b(?:string|number|boolean|any|unknown|never|object|symbol|bigint|void)\b(?!\s*[:(])'
+      scope: support.type.primitive.ts
+
+  numbers:
+    - match: '(?<![\w$.])(?:0[xX][0-9A-Fa-f_]+n?|0[bB][01_]+n?|0[oO][0-7_]+n?|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][+-]?\d[\d_]*)?n?)(?![\w$])'
+      scope: constant.numeric.ts
+
+  decorators:
+    - match: '@{{ident}}(?:\.{{ident}})*'
+      scope: storage.modifier.decorator.ts
+
+  identifiers:
+    - match: '({{ident}})(?=\s*(?:<[\w$\s,.<>\[\]|&]*>)?\s*\()'
+      captures:
+        1: variable.function.ts
+    - match: '\b[A-Z][\w$]*'
+      scope: support.class.ts
+    - match: '{{ident}}'
+
+  operators:
+    - match: '=>'
+      scope: storage.type.function.arrow.ts
+    - match: '\.\.\.|\?\.'
+      scope: keyword.operator.ts
+    - match: '[-+*/%=!<>&|^~?:]+'
+      scope: keyword.operator.ts
+    - match: '[;,]'
+      scope: punctuation.separator.ts
+    - match: '\.'
+      scope: punctuation.accessor.ts

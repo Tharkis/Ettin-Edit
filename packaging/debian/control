@@ -1,0 +1,14 @@
+Package: ettin-edit
+Version: @VERSION@
+Section: editors
+Priority: optional
+Architecture: amd64
+Installed-Size: @SIZE@
+Depends: libc6, libgcc-s1, libxkbcommon0, libxkbcommon-x11-0, libgl1, libegl1
+Recommends: xdg-desktop-portal, xdg-utils
+Maintainer: Tharkis <noreply@github.com>
+Homepage: https://github.com/Tharkis/Ettin-Edit
+Description: Modern, cross-platform text editor inspired by Notepad++
+ Ettin Edit is a fast text and code editor with tabs, split view, syntax
+ highlighting, multiple carets, compare, CsvQuery (SQL over CSV), JSON and
+ XML tools, and plugins written in Python or JavaScript.

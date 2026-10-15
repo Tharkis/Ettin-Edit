@@ -708,535 +708,527 @@ impl Editor {
         let mut budget = HIGHLIGHT_BUDGET;
         let mut needs_repaint = false;
         let mut popup_at: Option<Pos2> = None;
-        let scroll = ScrollArea::both()
+        let mut scroll = ScrollArea::both()
             .id_salt(id.with("scroll"))
-            .auto_shrink(false)
-            .show_viewport(ui, |ui, viewport| {
-                let size = Vec2::new(
-                    content_w.max(viewport.width()),
-                    content_h.max(viewport.height()),
-                );
-                let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-                let response = ui.interact(rect, id, Sense::click_and_drag());
-                let origin = rect.min;
-                // An arrow over the gutter (fold markers, bookmarks, line numbers),
-                // a text cursor over the text.
-                let gutter_right = origin.x + viewport.min.x + gutter_w;
-                if let Some(p) = response.hover_pos() {
-                    ui.ctx()
-                        .set_cursor_icon(if p.x < gutter_right && !response.dragged() {
-                            CursorIcon::Default
-                        } else {
-                            CursorIcon::Text
-                        });
-                }
-                let text_x = origin.x + gutter_w + TEXT_PAD;
-                let visible_cols = (viewport.min.x - gutter_w, viewport.max.x - gutter_w);
-                self.page_rows = ((viewport.height() / metrics.row_h) as usize)
-                    .saturating_sub(1)
-                    .max(1);
-
-                if cfg.request_focus {
-                    response.request_focus();
-                }
-
-                // Mouse.
-                changed |= self.handle_mouse(
-                    ui,
-                    &response,
-                    &mut cache,
-                    cfg,
-                    metrics,
-                    origin,
-                    text_x,
-                    gutter_right,
-                    visible_cols,
-                    &mut budget,
-                );
-                if changed {
-                    self.sync_caches();
-                    cache = FrameCache::default();
-                }
-
-                // Rows on screen.
-                let total_rows = self.rows.total_rows();
-                let first =
-                    ((viewport.min.y / metrics.row_h).floor().max(0.0) as usize).min(total_rows);
-                let last = ((viewport.max.y / metrics.row_h).ceil() as usize + 1).min(total_rows);
-                let rows: Vec<(usize, Arc<RowLayout>)> = (first..last)
-                    .map(|r| {
-                        (
-                            r,
-                            self.build_row(
-                                &mut cache,
-                                ui,
-                                r,
-                                cfg,
-                                metrics,
-                                visible_cols,
-                                &mut budget,
-                            ),
-                        )
-                    })
-                    .collect();
-                if budget == 0 {
-                    needs_repaint = true;
-                }
-
-                let painter = ui.painter();
-                let row_y = |r: usize| origin.y + r as f32 * metrics.row_h;
-                let caret_lines: Vec<usize> = self
-                    .selections
-                    .iter()
-                    .map(|s| self.buffer.char_to_line(s.head))
-                    .collect();
-
-                // Current-line band.
-                if cfg.highlight_current_line {
-                    for (r, row) in &rows {
-                        if caret_lines.contains(&row.line) {
-                            let band = Rect::from_min_max(
-                                Pos2::new(origin.x + viewport.min.x, row_y(*r)),
-                                Pos2::new(origin.x + viewport.max.x, row_y(*r) + metrics.row_h),
-                            );
-                            painter.rect_filled(band, 0.0, palette.line_highlight);
-                        }
-                    }
-                }
-
-                // Long-line edge.
-                if let Some(edge) = cfg.edge_column {
-                    let x = text_x + edge as f32 * metrics.char_w;
-                    painter.line_segment(
-                        [
-                            Pos2::new(x, origin.y + viewport.min.y),
-                            Pos2::new(x, origin.y + viewport.max.y),
-                        ],
-                        Stroke::new(1.0, palette.guide.gamma_multiply(0.7)),
-                    );
-                }
-
-                // Indent guides, one per indentation level.
-                if cfg.indent_guides {
-                    for (r, row) in &rows {
-                        let indent = self.guide_indent(&mut cache, row.line);
-                        let mut col = 0;
-                        while col < indent {
-                            let x = text_x + col as f32 * metrics.char_w;
-                            painter.line_segment(
-                                [
-                                    Pos2::new(x + 0.5, row_y(*r)),
-                                    Pos2::new(x + 0.5, row_y(*r) + metrics.row_h),
-                                ],
-                                Stroke::new(1.0, palette.guide.gamma_multiply(0.55)),
-                            );
-                            col += super::layout::TAB_WIDTH;
-                        }
-                    }
-                }
-
-                // Marks, find matches and other occurrences of the selected word.
-                paint_ranges(
-                    painter,
-                    &rows,
-                    &self.marks,
-                    palette.mark,
-                    text_x,
-                    origin.y,
-                    metrics.row_h,
-                );
-                paint_ranges(
-                    painter,
-                    &rows,
-                    &self.search_hits,
-                    palette.find_hit,
-                    text_x,
-                    origin.y,
-                    metrics.row_h,
-                );
-                if let Some(word) = self.selected_word() {
-                    let hits = self.word_hits(&mut cache, &rows, &word);
-                    paint_ranges(
-                        painter,
-                        &rows,
-                        &hits,
-                        palette.word_hit,
-                        text_x,
-                        origin.y,
-                        metrics.row_h,
-                    );
-                }
-
-                // Selections.
-                for s in self.selections.iter().filter(|s| !s.is_empty()) {
-                    for (r, row) in &rows {
-                        let row_start = row.line_start + row.start;
-                        let row_end = row.line_start + row.end;
-                        let sel_reaches_newline = row.last_in_line && s.end() > row_end;
-                        if s.end() < row_start
-                            || s.start() > row_end
-                            || (s.end() == row_start && row.start != row.end)
-                        {
-                            continue;
-                        }
-                        let x0 = row.x_of(s.start().max(row_start) - row.line_start);
-                        let mut x1 = row.x_of(s.end().min(row_end) - row.line_start);
-                        if sel_reaches_newline {
-                            x1 += metrics.char_w * 0.6;
-                        }
-                        if x1 > x0 {
-                            let sel_rect = Rect::from_min_max(
-                                Pos2::new(text_x + x0, row_y(*r)),
-                                Pos2::new(text_x + x1, row_y(*r) + metrics.row_h),
-                            );
-                            painter.rect_filled(sel_rect, 2.0, palette.selection);
-                        }
-                    }
-                }
-
-                // The bracket at the caret and its partner.
-                if let Some(m) = self.brace_match() {
-                    let color = if m.matched {
-                        palette.brace_match
+            .auto_shrink(false);
+        if let Some(row) = self.map_scroll.take() {
+            scroll = scroll.vertical_scroll_offset(row * metrics.row_h);
+        }
+        let scroll = scroll.show_viewport(ui, |ui, viewport| {
+            self.map_view = (
+                viewport.min.y / metrics.row_h,
+                viewport.height() / metrics.row_h,
+            );
+            let size = Vec2::new(
+                content_w.max(viewport.width()),
+                content_h.max(viewport.height()),
+            );
+            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            let response = ui.interact(rect, id, Sense::click_and_drag());
+            let origin = rect.min;
+            // An arrow over the gutter (fold markers, bookmarks, line numbers),
+            // a text cursor over the text.
+            let gutter_right = origin.x + viewport.min.x + gutter_w;
+            if let Some(p) = response.hover_pos() {
+                ui.ctx()
+                    .set_cursor_icon(if p.x < gutter_right && !response.dragged() {
+                        CursorIcon::Default
                     } else {
-                        palette.brace_bad
-                    };
-                    paint_ranges(
-                        painter,
-                        &rows,
-                        &m.ranges,
-                        color,
-                        text_x,
-                        origin.y,
-                        metrics.row_h,
-                    );
-                }
+                        CursorIcon::Text
+                    });
+            }
+            let text_x = origin.x + gutter_w + TEXT_PAD;
+            let visible_cols = (viewport.min.x - gutter_w, viewport.max.x - gutter_w);
+            self.page_rows = ((viewport.height() / metrics.row_h) as usize)
+                .saturating_sub(1)
+                .max(1);
 
-                // Text.
-                for (r, row) in &rows {
-                    painter.galley(
-                        Pos2::new(text_x + row.x_offset, row_y(*r)),
-                        row.galley.clone(),
-                        palette.editor_fg,
-                    );
-                }
+            if cfg.request_focus {
+                response.request_focus();
+            }
 
-                // Tabs: an arrow from one side of the tab to the other.
-                let tab_stroke = Stroke::new(1.0, palette.whitespace);
+            // Mouse.
+            changed |= self.handle_mouse(
+                ui,
+                &response,
+                &mut cache,
+                cfg,
+                metrics,
+                origin,
+                text_x,
+                gutter_right,
+                visible_cols,
+                &mut budget,
+            );
+            if changed {
+                self.sync_caches();
+                cache = FrameCache::default();
+            }
+
+            // Rows on screen.
+            let total_rows = self.rows.total_rows();
+            let first =
+                ((viewport.min.y / metrics.row_h).floor().max(0.0) as usize).min(total_rows);
+            let last = ((viewport.max.y / metrics.row_h).ceil() as usize + 1).min(total_rows);
+            let rows: Vec<(usize, Arc<RowLayout>)> = (first..last)
+                .map(|r| {
+                    (
+                        r,
+                        self.build_row(&mut cache, ui, r, cfg, metrics, visible_cols, &mut budget),
+                    )
+                })
+                .collect();
+            if budget == 0 {
+                needs_repaint = true;
+            }
+
+            let painter = ui.painter();
+            let row_y = |r: usize| origin.y + r as f32 * metrics.row_h;
+            let caret_lines: Vec<usize> = self
+                .selections
+                .iter()
+                .map(|s| self.buffer.char_to_line(s.head))
+                .collect();
+
+            // Current-line band.
+            if cfg.highlight_current_line {
                 for (r, row) in &rows {
-                    for &t in &row.tabs {
-                        let x0 = text_x + row.x_of(t) + metrics.char_w * 0.2;
-                        let x1 = text_x + row.x_of(t + 1) - metrics.char_w * 0.2;
-                        let y = (row_y(*r) + metrics.row_h / 2.0).round() + 0.5;
-                        let head = (metrics.row_h * 0.18).clamp(2.5, 4.5).min(x1 - x0);
-                        painter.line_segment([Pos2::new(x0, y), Pos2::new(x1, y)], tab_stroke);
-                        painter.line_segment(
-                            [Pos2::new(x1 - head, y - head), Pos2::new(x1, y)],
-                            tab_stroke,
+                    if caret_lines.contains(&row.line) {
+                        let band = Rect::from_min_max(
+                            Pos2::new(origin.x + viewport.min.x, row_y(*r)),
+                            Pos2::new(origin.x + viewport.max.x, row_y(*r) + metrics.row_h),
                         );
-                        painter.line_segment(
-                            [Pos2::new(x1 - head, y + head), Pos2::new(x1, y)],
-                            tab_stroke,
-                        );
+                        painter.rect_filled(band, 0.0, palette.line_highlight);
                     }
                 }
+            }
 
-                // End-of-line symbols and folded-region markers after the text.
-                let last_line = self.buffer.len_lines() - 1;
-                let small = FontId::monospace(cfg.font.size * 0.62);
+            // Long-line edge.
+            if let Some(edge) = cfg.edge_column {
+                let x = text_x + edge as f32 * metrics.char_w;
+                painter.line_segment(
+                    [
+                        Pos2::new(x, origin.y + viewport.min.y),
+                        Pos2::new(x, origin.y + viewport.max.y),
+                    ],
+                    Stroke::new(1.0, palette.guide.gamma_multiply(0.7)),
+                );
+            }
+
+            // Indent guides, one per indentation level.
+            if cfg.indent_guides {
                 for (r, row) in &rows {
-                    if !row.last_in_line {
-                        continue;
-                    }
-                    let mut x = text_x + row.x_of(row.end) + metrics.char_w * 0.4;
-                    let folded = self.is_folded(row.line);
-                    if cfg.show_eol && row.line < last_line {
-                        let g = painter.layout_no_wrap(
-                            cfg.eol_label.to_owned(),
-                            small.clone(),
-                            palette.whitespace,
-                        );
-                        let rect = Rect::from_min_size(
-                            Pos2::new(x, row_y(*r) + (metrics.row_h - g.size().y - 2.0) / 2.0),
-                            g.size() + Vec2::new(6.0, 2.0),
-                        );
-                        painter.rect_stroke(
-                            rect,
-                            2.0,
-                            Stroke::new(1.0, palette.whitespace),
-                            egui::StrokeKind::Inside,
-                        );
-                        painter.galley(rect.min + Vec2::new(3.0, 1.0), g, palette.whitespace);
-                        x = rect.right() + metrics.char_w * 0.4;
-                    }
-                    if folded {
-                        let g = painter.layout_no_wrap(
-                            "...".to_owned(),
-                            cfg.font.clone(),
-                            palette.text_dim,
-                        );
-                        let rect = Rect::from_min_size(
-                            Pos2::new(x, row_y(*r) + 1.0),
-                            Vec2::new(g.size().x + 8.0, metrics.row_h - 2.0),
-                        );
-                        painter.rect_filled(rect, 3.0, palette.line_highlight);
-                        painter.rect_stroke(
-                            rect,
-                            3.0,
-                            Stroke::new(1.0, palette.guide),
-                            egui::StrokeKind::Inside,
-                        );
-                        painter.galley(
-                            Pos2::new(
-                                rect.left() + 4.0,
-                                row_y(*r) + (metrics.row_h - g.size().y) / 2.0,
-                            ),
-                            g,
-                            palette.text_dim,
-                        );
-                        let y = row_y(*r) + metrics.row_h - 0.5;
+                    let indent = self.guide_indent(&mut cache, row.line);
+                    let mut col = 0;
+                    while col < indent {
+                        let x = text_x + col as f32 * metrics.char_w;
                         painter.line_segment(
                             [
-                                Pos2::new(origin.x + viewport.min.x + gutter_w, y),
-                                Pos2::new(origin.x + viewport.max.x, y),
+                                Pos2::new(x + 0.5, row_y(*r)),
+                                Pos2::new(x + 0.5, row_y(*r) + metrics.row_h),
                             ],
-                            Stroke::new(1.0, palette.guide.gamma_multiply(0.6)),
+                            Stroke::new(1.0, palette.guide.gamma_multiply(0.55)),
                         );
+                        col += super::layout::tab_width();
                     }
                 }
+            }
 
-                // Carets and IME composition.
-                let focused = response.has_focus();
-                let mut primary_caret_rect = None;
-                for (i, s) in self.selections.iter().enumerate() {
-                    let line = self.buffer.char_to_line(s.head);
-                    let offset = s.head - self.buffer.line_start(line);
-                    for (r, row) in &rows {
-                        if row.line != line || offset < row.start || offset > row.end {
-                            continue;
-                        }
-                        // At a wrap point the caret belongs to the next row.
-                        if offset == row.end && !row.last_in_line {
-                            continue;
-                        }
-                        let x = text_x + row.x_of(offset);
-                        let caret = Rect::from_min_size(
-                            Pos2::new(x - 1.0, row_y(*r)),
-                            Vec2::new(2.0, metrics.row_h),
-                        );
-                        if focused {
-                            painter.rect_filled(caret, 1.0, palette.accent);
-                        }
-                        if i == self.selections.primary_index() {
-                            primary_caret_rect = Some(caret);
-                            if let Some(pre) = self.preedit.as_ref().filter(|p| !p.is_empty()) {
-                                let g = painter.layout_no_wrap(
-                                    pre.clone(),
-                                    cfg.font.clone(),
-                                    palette.editor_fg,
-                                );
-                                let bg = Rect::from_min_size(caret.min, g.size());
-                                painter.rect_filled(bg, 0.0, palette.editor_bg);
-                                painter.galley(caret.min, g, palette.editor_fg);
-                                painter.line_segment(
-                                    [bg.left_bottom(), bg.right_bottom()],
-                                    Stroke::new(1.0, palette.accent),
-                                );
-                            }
-                        }
-                        break;
-                    }
-                }
-
-                // Gutter, drawn last so it stays put over horizontally scrolled text.
-                let gutter = Rect::from_min_max(
-                    Pos2::new(origin.x + viewport.min.x, origin.y + viewport.min.y),
-                    Pos2::new(
-                        origin.x + viewport.min.x + gutter_w,
-                        origin.y + viewport.max.y,
-                    ),
+            // Marks, find matches and other occurrences of the selected word.
+            paint_ranges(
+                painter,
+                &rows,
+                &self.marks,
+                palette.mark,
+                text_x,
+                origin.y,
+                metrics.row_h,
+            );
+            paint_ranges(
+                painter,
+                &rows,
+                &self.search_hits,
+                palette.find_hit,
+                text_x,
+                origin.y,
+                metrics.row_h,
+            );
+            if let Some(word) = self.selected_word() {
+                let hits = self.word_hits(&mut cache, &rows, &word);
+                paint_ranges(
+                    painter,
+                    &rows,
+                    &hits,
+                    palette.word_hit,
+                    text_x,
+                    origin.y,
+                    metrics.row_h,
                 );
-                painter.rect_filled(gutter, 0.0, palette.editor_bg);
-                if cfg.highlight_current_line {
-                    for (r, row) in &rows {
-                        if caret_lines.contains(&row.line) {
-                            let band = Rect::from_min_max(
-                                Pos2::new(gutter.left(), row_y(*r)),
-                                Pos2::new(gutter.right(), row_y(*r) + metrics.row_h),
-                            );
-                            painter.rect_filled(band, 0.0, palette.line_highlight);
-                        }
+            }
+
+            // Selections.
+            for s in self.selections.iter().filter(|s| !s.is_empty()) {
+                for (r, row) in &rows {
+                    let row_start = row.line_start + row.start;
+                    let row_end = row.line_start + row.end;
+                    let sel_reaches_newline = row.last_in_line && s.end() > row_end;
+                    if s.end() < row_start
+                        || s.start() > row_end
+                        || (s.end() == row_start && row.start != row.end)
+                    {
+                        continue;
+                    }
+                    let x0 = row.x_of(s.start().max(row_start) - row.line_start);
+                    let mut x1 = row.x_of(s.end().min(row_end) - row.line_start);
+                    if sel_reaches_newline {
+                        x1 += metrics.char_w * 0.6;
+                    }
+                    if x1 > x0 {
+                        let sel_rect = Rect::from_min_max(
+                            Pos2::new(text_x + x0, row_y(*r)),
+                            Pos2::new(text_x + x1, row_y(*r) + metrics.row_h),
+                        );
+                        painter.rect_filled(sel_rect, 2.0, palette.selection);
                     }
                 }
-                if cfg.show_line_numbers {
-                    for (r, row) in &rows {
-                        if !row.first_in_line {
-                            continue;
+            }
+
+            // The bracket at the caret and its partner.
+            if let Some(m) = self.brace_match() {
+                let color = if m.matched {
+                    palette.brace_match
+                } else {
+                    palette.brace_bad
+                };
+                paint_ranges(
+                    painter,
+                    &rows,
+                    &m.ranges,
+                    color,
+                    text_x,
+                    origin.y,
+                    metrics.row_h,
+                );
+            }
+
+            // Text.
+            for (r, row) in &rows {
+                painter.galley(
+                    Pos2::new(text_x + row.x_offset, row_y(*r)),
+                    row.galley.clone(),
+                    palette.editor_fg,
+                );
+            }
+
+            // Tabs: an arrow from one side of the tab to the other.
+            let tab_stroke = Stroke::new(1.0, palette.whitespace);
+            for (r, row) in &rows {
+                for &t in &row.tabs {
+                    let x0 = text_x + row.x_of(t) + metrics.char_w * 0.2;
+                    let x1 = text_x + row.x_of(t + 1) - metrics.char_w * 0.2;
+                    let y = (row_y(*r) + metrics.row_h / 2.0).round() + 0.5;
+                    let head = (metrics.row_h * 0.18).clamp(2.5, 4.5).min(x1 - x0);
+                    painter.line_segment([Pos2::new(x0, y), Pos2::new(x1, y)], tab_stroke);
+                    painter.line_segment(
+                        [Pos2::new(x1 - head, y - head), Pos2::new(x1, y)],
+                        tab_stroke,
+                    );
+                    painter.line_segment(
+                        [Pos2::new(x1 - head, y + head), Pos2::new(x1, y)],
+                        tab_stroke,
+                    );
+                }
+            }
+
+            // End-of-line symbols and folded-region markers after the text.
+            let last_line = self.buffer.len_lines() - 1;
+            let small = FontId::monospace(cfg.font.size * 0.62);
+            for (r, row) in &rows {
+                if !row.last_in_line {
+                    continue;
+                }
+                let mut x = text_x + row.x_of(row.end) + metrics.char_w * 0.4;
+                let folded = self.is_folded(row.line);
+                if cfg.show_eol && row.line < last_line {
+                    let g = painter.layout_no_wrap(
+                        cfg.eol_label.to_owned(),
+                        small.clone(),
+                        palette.whitespace,
+                    );
+                    let rect = Rect::from_min_size(
+                        Pos2::new(x, row_y(*r) + (metrics.row_h - g.size().y - 2.0) / 2.0),
+                        g.size() + Vec2::new(6.0, 2.0),
+                    );
+                    painter.rect_stroke(
+                        rect,
+                        2.0,
+                        Stroke::new(1.0, palette.whitespace),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.galley(rect.min + Vec2::new(3.0, 1.0), g, palette.whitespace);
+                    x = rect.right() + metrics.char_w * 0.4;
+                }
+                if folded {
+                    let g = painter.layout_no_wrap(
+                        "...".to_owned(),
+                        cfg.font.clone(),
+                        palette.text_dim,
+                    );
+                    let rect = Rect::from_min_size(
+                        Pos2::new(x, row_y(*r) + 1.0),
+                        Vec2::new(g.size().x + 8.0, metrics.row_h - 2.0),
+                    );
+                    painter.rect_filled(rect, 3.0, palette.line_highlight);
+                    painter.rect_stroke(
+                        rect,
+                        3.0,
+                        Stroke::new(1.0, palette.guide),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.galley(
+                        Pos2::new(
+                            rect.left() + 4.0,
+                            row_y(*r) + (metrics.row_h - g.size().y) / 2.0,
+                        ),
+                        g,
+                        palette.text_dim,
+                    );
+                    let y = row_y(*r) + metrics.row_h - 0.5;
+                    painter.line_segment(
+                        [
+                            Pos2::new(origin.x + viewport.min.x + gutter_w, y),
+                            Pos2::new(origin.x + viewport.max.x, y),
+                        ],
+                        Stroke::new(1.0, palette.guide.gamma_multiply(0.6)),
+                    );
+                }
+            }
+
+            // Carets and IME composition.
+            let focused = response.has_focus();
+            let mut primary_caret_rect = None;
+            for (i, s) in self.selections.iter().enumerate() {
+                let line = self.buffer.char_to_line(s.head);
+                let offset = s.head - self.buffer.line_start(line);
+                for (r, row) in &rows {
+                    if row.line != line || offset < row.start || offset > row.end {
+                        continue;
+                    }
+                    // At a wrap point the caret belongs to the next row.
+                    if offset == row.end && !row.last_in_line {
+                        continue;
+                    }
+                    let x = text_x + row.x_of(offset);
+                    let caret = Rect::from_min_size(
+                        Pos2::new(x - 1.0, row_y(*r)),
+                        Vec2::new(2.0, metrics.row_h),
+                    );
+                    if focused {
+                        painter.rect_filled(caret, 1.0, palette.accent);
+                    }
+                    if i == self.selections.primary_index() {
+                        primary_caret_rect = Some(caret);
+                        if let Some(pre) = self.preedit.as_ref().filter(|p| !p.is_empty()) {
+                            let g = painter.layout_no_wrap(
+                                pre.clone(),
+                                cfg.font.clone(),
+                                palette.editor_fg,
+                            );
+                            let bg = Rect::from_min_size(caret.min, g.size());
+                            painter.rect_filled(bg, 0.0, palette.editor_bg);
+                            painter.galley(caret.min, g, palette.editor_fg);
+                            painter.line_segment(
+                                [bg.left_bottom(), bg.right_bottom()],
+                                Stroke::new(1.0, palette.accent),
+                            );
                         }
-                        let current = caret_lines.contains(&row.line);
-                        painter.text(
+                    }
+                    break;
+                }
+            }
+
+            // Gutter, drawn last so it stays put over horizontally scrolled text.
+            let gutter = Rect::from_min_max(
+                Pos2::new(origin.x + viewport.min.x, origin.y + viewport.min.y),
+                Pos2::new(
+                    origin.x + viewport.min.x + gutter_w,
+                    origin.y + viewport.max.y,
+                ),
+            );
+            painter.rect_filled(gutter, 0.0, palette.editor_bg);
+            if cfg.highlight_current_line {
+                for (r, row) in &rows {
+                    if caret_lines.contains(&row.line) {
+                        let band = Rect::from_min_max(
+                            Pos2::new(gutter.left(), row_y(*r)),
+                            Pos2::new(gutter.right(), row_y(*r) + metrics.row_h),
+                        );
+                        painter.rect_filled(band, 0.0, palette.line_highlight);
+                    }
+                }
+            }
+            if cfg.show_line_numbers {
+                for (r, row) in &rows {
+                    if !row.first_in_line {
+                        continue;
+                    }
+                    let current = caret_lines.contains(&row.line);
+                    painter.text(
+                        Pos2::new(
+                            gutter.right() - FOLD_MARGIN,
+                            row_y(*r) + metrics.row_h / 2.0,
+                        ),
+                        Align2::RIGHT_CENTER,
+                        (row.line + 1).to_string(),
+                        number_font.clone(),
+                        if current {
+                            palette.gutter_active_fg
+                        } else {
+                            palette.gutter_fg
+                        },
+                    );
+                }
+            }
+
+            // Fold markers: a box with − where a region can fold and + where
+            // one is folded, joined by a line down to where the region ends.
+            let fold_x = (gutter.right() - FOLD_MARGIN / 2.0).round() + 0.5;
+            let lines: Vec<usize> = rows
+                .iter()
+                .filter(|(_, row)| row.first_in_line)
+                .map(|(_, row)| row.line)
+                .collect();
+            let marks: HashMap<usize, FoldMark> =
+                lines.iter().copied().zip(self.fold_marks(&lines)).collect();
+            let line_stroke = Stroke::new(1.0, palette.gutter_fg);
+            let box_size = (metrics.row_h * 0.62).clamp(9.0, 13.0).round();
+            let half = box_size / 2.0;
+            for (r, row) in &rows {
+                let Some(mark) = marks.get(&row.line) else {
+                    continue;
+                };
+                let top = row_y(*r);
+                let bottom = top + metrics.row_h;
+                if !row.first_in_line {
+                    if mark.below {
+                        painter.vline(fold_x, top..=bottom, line_stroke);
+                    }
+                    continue;
+                }
+                let mid = (top + metrics.row_h / 2.0).round() + 0.5;
+                if mark.header {
+                    let folded = self.is_folded(row.line);
+                    let rect =
+                        Rect::from_center_size(Pos2::new(fold_x, mid), Vec2::splat(box_size));
+                    if mark.above {
+                        painter.vline(fold_x, top..=rect.top(), line_stroke);
+                    }
+                    if mark.below {
+                        painter.vline(fold_x, rect.bottom()..=bottom, line_stroke);
+                    }
+                    let color = if folded {
+                        palette.accent
+                    } else {
+                        palette.gutter_active_fg
+                    };
+                    painter.rect(
+                        rect,
+                        2.5,
+                        palette.editor_bg,
+                        Stroke::new(1.0, color),
+                        egui::StrokeKind::Inside,
+                    );
+                    let arm = half - 2.5;
+                    let sign = Stroke::new(1.0, color);
+                    painter.hline(fold_x - arm..=fold_x + arm, mid, sign);
+                    if folded {
+                        painter.vline(fold_x, mid - arm..=mid + arm, sign);
+                    }
+                } else {
+                    if mark.above {
+                        let to = if mark.end && !mark.below { mid } else { bottom };
+                        painter.vline(fold_x, top..=to, line_stroke);
+                    } else if mark.below {
+                        painter.vline(fold_x, mid..=bottom, line_stroke);
+                    }
+                    if mark.end {
+                        painter.hline(fold_x..=fold_x + half, mid, line_stroke);
+                    }
+                }
+            }
+
+            if !self.bookmarks.is_empty() {
+                let radius = (metrics.row_h * 0.26).clamp(3.0, 6.0);
+                for (r, row) in &rows {
+                    if row.first_in_line && self.bookmarks.contains(&row.line) {
+                        painter.circle_filled(
                             Pos2::new(
-                                gutter.right() - FOLD_MARGIN,
+                                gutter.left() + BOOKMARK_MARGIN / 2.0 + 1.0,
                                 row_y(*r) + metrics.row_h / 2.0,
                             ),
-                            Align2::RIGHT_CENTER,
-                            (row.line + 1).to_string(),
-                            number_font.clone(),
-                            if current {
-                                palette.gutter_active_fg
-                            } else {
-                                palette.gutter_fg
-                            },
+                            radius,
+                            palette.accent,
                         );
                     }
                 }
+            }
 
-                // Fold markers: a box with − where a region can fold and + where
-                // one is folded, joined by a line down to where the region ends.
-                let fold_x = (gutter.right() - FOLD_MARGIN / 2.0).round() + 0.5;
-                let lines: Vec<usize> = rows
-                    .iter()
-                    .filter(|(_, row)| row.first_in_line)
-                    .map(|(_, row)| row.line)
-                    .collect();
-                let marks: HashMap<usize, FoldMark> =
-                    lines.iter().copied().zip(self.fold_marks(&lines)).collect();
-                let line_stroke = Stroke::new(1.0, palette.gutter_fg);
-                let box_size = (metrics.row_h * 0.62).clamp(9.0, 13.0).round();
-                let half = box_size / 2.0;
-                for (r, row) in &rows {
-                    let Some(mark) = marks.get(&row.line) else {
-                        continue;
-                    };
-                    let top = row_y(*r);
-                    let bottom = top + metrics.row_h;
-                    if !row.first_in_line {
-                        if mark.below {
-                            painter.vline(fold_x, top..=bottom, line_stroke);
-                        }
-                        continue;
-                    }
-                    let mid = (top + metrics.row_h / 2.0).round() + 0.5;
-                    if mark.header {
-                        let folded = self.is_folded(row.line);
-                        let rect =
-                            Rect::from_center_size(Pos2::new(fold_x, mid), Vec2::splat(box_size));
-                        if mark.above {
-                            painter.vline(fold_x, top..=rect.top(), line_stroke);
-                        }
-                        if mark.below {
-                            painter.vline(fold_x, rect.bottom()..=bottom, line_stroke);
-                        }
-                        let color = if folded {
-                            palette.accent
-                        } else {
-                            palette.gutter_active_fg
-                        };
-                        painter.rect(
-                            rect,
-                            2.5,
-                            palette.editor_bg,
-                            Stroke::new(1.0, color),
-                            egui::StrokeKind::Inside,
-                        );
-                        let arm = half - 2.5;
-                        let sign = Stroke::new(1.0, color);
-                        painter.hline(fold_x - arm..=fold_x + arm, mid, sign);
-                        if folded {
-                            painter.vline(fold_x, mid - arm..=mid + arm, sign);
-                        }
-                    } else {
-                        if mark.above {
-                            let to = if mark.end && !mark.below { mid } else { bottom };
-                            painter.vline(fold_x, top..=to, line_stroke);
-                        } else if mark.below {
-                            painter.vline(fold_x, mid..=bottom, line_stroke);
-                        }
-                        if mark.end {
-                            painter.hline(fold_x..=fold_x + half, mid, line_stroke);
-                        }
-                    }
-                }
+            // Page Up / Page Down scroll the view along with the caret.
+            let page_scroll = std::mem::take(&mut self.pending_scroll_rows);
+            if page_scroll != 0 {
+                ui.scroll_with_delta_animation(
+                    Vec2::new(0.0, -(page_scroll as f32) * metrics.row_h),
+                    egui::style::ScrollAnimation::none(),
+                );
+                self.scroll_to_caret = false;
+            }
 
-                if !self.bookmarks.is_empty() {
-                    let radius = (metrics.row_h * 0.26).clamp(3.0, 6.0);
-                    for (r, row) in &rows {
-                        if row.first_in_line && self.bookmarks.contains(&row.line) {
-                            painter.circle_filled(
-                                Pos2::new(
-                                    gutter.left() + BOOKMARK_MARGIN / 2.0 + 1.0,
-                                    row_y(*r) + metrics.row_h / 2.0,
-                                ),
-                                radius,
-                                palette.accent,
-                            );
-                        }
-                    }
-                }
+            // Keep the caret on screen after it moves.
+            if std::mem::take(&mut self.scroll_to_caret) {
+                let head = self.selections.primary().head;
+                let (row, _) = self.visual_pos(&mut cache, head);
+                let layout =
+                    self.build_row(&mut cache, ui, row, cfg, metrics, visible_cols, &mut budget);
+                let line_offset = head - layout.line_start;
+                let x = text_x + layout.x_of(line_offset);
+                let target = Rect::from_min_size(
+                    Pos2::new(x - metrics.char_w * 4.0 - gutter_w, row_y(row)),
+                    Vec2::new(metrics.char_w * 8.0 + gutter_w, metrics.row_h),
+                );
+                ui.scroll_to_rect_animation(
+                    target.expand2(Vec2::new(0.0, metrics.row_h)),
+                    None,
+                    egui::style::ScrollAnimation::none(),
+                );
+            }
 
-                // Page Up / Page Down scroll the view along with the caret.
-                let page_scroll = std::mem::take(&mut self.pending_scroll_rows);
-                if page_scroll != 0 {
-                    ui.scroll_with_delta_animation(
-                        Vec2::new(0.0, -(page_scroll as f32) * metrics.row_h),
-                        egui::style::ScrollAnimation::none(),
-                    );
-                    self.scroll_to_caret = false;
-                }
+            if self.completion.is_some()
+                && let Some(caret) = primary_caret_rect
+            {
+                let to_global = ui
+                    .ctx()
+                    .layer_transform_to_global(ui.layer_id())
+                    .unwrap_or_default();
+                popup_at = Some(to_global * caret.left_bottom());
+            }
 
-                // Keep the caret on screen after it moves.
-                if std::mem::take(&mut self.scroll_to_caret) {
-                    let head = self.selections.primary().head;
-                    let (row, _) = self.visual_pos(&mut cache, head);
-                    let layout = self.build_row(
-                        &mut cache,
-                        ui,
-                        row,
-                        cfg,
-                        metrics,
-                        visible_cols,
-                        &mut budget,
-                    );
-                    let line_offset = head - layout.line_start;
-                    let x = text_x + layout.x_of(line_offset);
-                    let target = Rect::from_min_size(
-                        Pos2::new(x - metrics.char_w * 4.0 - gutter_w, row_y(row)),
-                        Vec2::new(metrics.char_w * 8.0 + gutter_w, metrics.row_h),
-                    );
-                    ui.scroll_to_rect_animation(
-                        target.expand2(Vec2::new(0.0, metrics.row_h)),
-                        None,
-                        egui::style::ScrollAnimation::none(),
-                    );
-                }
-
-                if self.completion.is_some()
-                    && let Some(caret) = primary_caret_rect
-                {
-                    let to_global = ui
-                        .ctx()
-                        .layer_transform_to_global(ui.layer_id())
-                        .unwrap_or_default();
-                    popup_at = Some(to_global * caret.left_bottom());
-                }
-
-                if focused && let Some(caret) = primary_caret_rect {
-                    let to_global = ui
-                        .ctx()
-                        .layer_transform_to_global(ui.layer_id())
-                        .unwrap_or_default();
-                    ui.output_mut(|o| {
-                        o.ime = Some(egui::output::IMEOutput {
-                            purpose: egui::IMEPurpose::Normal,
-                            rect: to_global * viewport.translate(origin.to_vec2()),
-                            cursor_rect: to_global * caret,
-                            should_interrupt_composition: false,
-                        });
+            if focused && let Some(caret) = primary_caret_rect {
+                let to_global = ui
+                    .ctx()
+                    .layer_transform_to_global(ui.layer_id())
+                    .unwrap_or_default();
+                ui.output_mut(|o| {
+                    o.ime = Some(egui::output::IMEOutput {
+                        purpose: egui::IMEPurpose::Normal,
+                        rect: to_global * viewport.translate(origin.to_vec2()),
+                        cursor_rect: to_global * caret,
+                        should_interrupt_composition: false,
                     });
-                }
+                });
+            }
 
-                menu_clicked = self.context_menu(&response, cfg.context_menu);
-            });
+            menu_clicked = self.context_menu(&response, cfg.context_menu);
+        });
         let _ = scroll;
         if let Some(at) = popup_at {
             self.completion_popup(ui, id, at, cfg);

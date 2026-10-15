@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::Editor;
 use super::buffer::Replacement;
-use super::layout::{TAB_WIDTH, char_cols};
+use super::layout::{char_cols, tab_width};
 use super::selection::{Selection, Selections};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,7 +244,7 @@ fn compress_spaces(line: &str, all: bool) -> String {
         if c == ' ' && (all || in_indent) {
             pending += 1;
             col += 1;
-            if col.is_multiple_of(TAB_WIDTH) {
+            if col.is_multiple_of(tab_width()) {
                 out.push(if pending > 1 { '\t' } else { ' ' });
                 pending = 0;
             }
@@ -253,7 +253,7 @@ fn compress_spaces(line: &str, all: bool) -> String {
         out.extend(std::iter::repeat_n(' ', pending));
         pending = 0;
         if c == '\t' {
-            col += TAB_WIDTH - col % TAB_WIDTH;
+            col += tab_width() - col % tab_width();
         } else {
             col += char_cols(c, col);
             in_indent = false;

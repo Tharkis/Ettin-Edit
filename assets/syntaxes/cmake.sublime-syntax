@@ -1,0 +1,99 @@
+%YAML 1.2
+---
+# CMake grammar for Ettin Edit, written from the cmake-language(7) manual.
+name: CMake
+file_extensions: [cmake, CMakeLists.txt, CMakeCache.txt]
+scope: source.cmake
+
+variables:
+  control: '(?i:if|elseif|else|endif|foreach|endforeach|while|endwhile|break|continue|return|block|endblock|endfunction|endmacro)'
+  var_ref: '\$(?:ENV|CACHE)?\{(?:[^{}$\n]|\$\{[^{}\n]*\})*\}'
+
+contexts:
+  main:
+    - include: comments
+    - match: '\b(?i:(function|macro))\s*(\()\s*([\w.+-]+)'
+      captures:
+        1: storage.type.function.cmake
+        2: punctuation.section.arguments.begin.cmake
+        3: entity.name.function.cmake
+      push: arguments
+    - match: '\b({{control}})\s*(\()'
+      captures:
+        1: keyword.control.cmake
+        2: punctuation.section.arguments.begin.cmake
+      push: arguments
+    - match: '\b([A-Za-z_]\w*)\s*(\()'
+      captures:
+        1: support.function.cmake
+        2: punctuation.section.arguments.begin.cmake
+      push: arguments
+
+  comments:
+    - match: '#\[(=*)\['
+      scope: punctuation.definition.comment.begin.cmake
+      push: bracket-comment
+    - match: '#.*'
+      scope: comment.line.number-sign.cmake
+
+  bracket-comment:
+    - meta_scope: comment.block.cmake
+    - match: '\]\1\]'
+      scope: punctuation.definition.comment.end.cmake
+      pop: true
+
+  arguments:
+    - match: '\)'
+      scope: punctuation.section.arguments.end.cmake
+      pop: true
+    - match: '\('
+      push: arguments
+    - include: comments
+    - match: '\[(=*)\['
+      scope: punctuation.definition.string.begin.cmake
+      push: bracket-argument
+    - match: '"'
+      scope: punctuation.definition.string.begin.cmake
+      push: quoted-argument
+    - include: references
+    - match: '\b(?:AND|OR|NOT|COMMAND|POLICY|TARGET|TEST|DEFINED|EXISTS|IS_NEWER_THAN|IS_DIRECTORY|IS_SYMLINK|IS_ABSOLUTE|IN_LIST|MATCHES|LESS|GREATER|EQUAL|LESS_EQUAL|GREATER_EQUAL|STRLESS|STRGREATER|STREQUAL|STRLESS_EQUAL|STRGREATER_EQUAL|VERSION_LESS|VERSION_GREATER|VERSION_EQUAL|VERSION_LESS_EQUAL|VERSION_GREATER_EQUAL|PATH_EQUAL)\b'
+      scope: keyword.operator.word.cmake
+    - match: '\b(?i:ON|OFF|TRUE|FALSE|YES|NO|Y|N|IGNORE|NOTFOUND)\b'
+      scope: constant.language.cmake
+    - match: '(?<![\w.-])\d+(?:\.\d+)*(?![\w.-])'
+      scope: constant.numeric.cmake
+    - match: '\b[A-Z][A-Z0-9_]*\b'
+      scope: constant.other.cmake
+
+  references:
+    - match: '{{var_ref}}'
+      scope: variable.other.readwrite.cmake
+    - match: '\$<'
+      scope: punctuation.section.generator.begin.cmake
+      push: generator-expression
+
+  generator-expression:
+    - meta_scope: meta.generator-expression.cmake
+    - match: '>'
+      scope: punctuation.section.generator.end.cmake
+      pop: true
+    - match: '\$<'
+      push: generator-expression
+    - include: references
+    - match: '[A-Z_][A-Z0-9_]*(?=[:>])'
+      scope: support.function.generator.cmake
+
+  quoted-argument:
+    - meta_scope: string.quoted.double.cmake
+    - match: '\\(?:[trn;"\\$@^()#]|\n)'
+      scope: constant.character.escape.cmake
+    - include: references
+    - match: '"'
+      scope: punctuation.definition.string.end.cmake
+      pop: true
+
+  bracket-argument:
+    - meta_scope: string.quoted.other.bracket.cmake
+    - match: '\]\1\]'
+      scope: punctuation.definition.string.end.cmake
+      pop: true

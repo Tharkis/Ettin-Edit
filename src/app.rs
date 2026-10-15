@@ -1,11 +1,16 @@
 //! The Ettin Edit window: menu bar, tab strip, editor and status bar.
 
+mod commands;
 mod compare;
 mod csv_query;
+mod languages;
 mod menus;
+mod panels;
 mod plugins;
+mod printing;
 mod text_tools;
 mod views;
+mod xml_schema;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -38,7 +43,6 @@ use crate::tools_ui::{ColumnDialog, RunMacroDialog, RunTimes, SaveMacroDialog};
 
 const MIN_FONT: f32 = 8.0;
 const MAX_FONT: f32 = 48.0;
-const DEFAULT_FONT: f32 = 14.0;
 
 /// Tabs waiting to be closed, one unsaved-changes prompt at a time.
 struct CloseQueue {
@@ -103,6 +107,16 @@ pub struct EttinApp {
     clipboard_compare: Option<f64>,
     plugins: crate::plugins::PluginHost,
     plugin_ui: plugins::PluginUi,
+    prefs: crate::prefs_ui::PrefsDialog,
+    shortcut_mapper: crate::shortcut_ui::ShortcutMapper,
+    command_palette: crate::palette_ui::Picker,
+    style_editor: crate::style_ui::StyleEditor,
+    tab_picker: crate::palette_ui::Picker,
+    folders: crate::folder_ui::FolderPanel,
+    updates: crate::update::UpdateCheck,
+    function_list: crate::function_list_ui::FunctionList,
+    /// Full screen with only the text showing.
+    distraction_free: bool,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -121,15 +135,74 @@ impl EttinApp {
         self.applied_theme = None;
     }
 
+    /// A theme's `.tmTheme` text: its file in the themes folder, or the built-in copy.
+    fn theme_source(&self, name: &str) -> String {
+        settings::themes_dir()
+            .and_then(|dir| std::fs::read_to_string(theme::theme_path(&dir, name)).ok())
+            .or_else(|| {
+                theme::BUILTIN
+                    .iter()
+                    .find(|(n, _)| *n == name)
+                    .map(|(_, s)| (*s).to_owned())
+            })
+            .unwrap_or_default()
+    }
+
+    /// Acts on what the theme colour editor did.
+    fn style_events(&mut self, ctx: &egui::Context, events: Vec<crate::style_ui::StyleEvent>) {
+        use crate::style_ui::StyleEvent;
+        for event in events {
+            match event {
+                StyleEvent::Preview { name, source } => {
+                    if let Some(i) = self.themes.iter().position(|t| t.name == name) {
+                        match theme::from_source(&name, &source, self.themes[i].custom) {
+                            Ok(def) => {
+                                self.themes[i] = def;
+                                self.applied_theme = None;
+                            }
+                            Err(e) => self.errors.push(format!("The theme has a problem: {e}")),
+                        }
+                    }
+                }
+                StyleEvent::Save { name, source } => {
+                    let Some(dir) = settings::themes_dir() else {
+                        continue;
+                    };
+                    let path = theme::theme_path(&dir, &name);
+                    match std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, source))
+                    {
+                        Ok(()) => {
+                            self.reload_themes();
+                            self.run(ctx, Action::SetTheme(name));
+                        }
+                        Err(e) => self.errors.push(format!(
+                            "Couldn't save the theme to {}: {e}",
+                            path.display()
+                        )),
+                    }
+                }
+                StyleEvent::Discard => self.reload_themes(),
+                StyleEvent::Switch(name) => {
+                    self.run(ctx, Action::SetTheme(name.clone()));
+                    let source = self.theme_source(&name);
+                    self.style_editor.load(&name, &source);
+                }
+            }
+        }
+        self.apply_style(ctx);
+    }
+
     /// `owner` is false when another Ettin Edit window already runs and owns the session.
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, owner: bool) -> Self {
         let settings = Settings::load();
-        let (themes, theme_errors) = theme::load_themes(settings::themes_dir().as_deref());
+        let (themes, mut theme_errors) = theme::load_themes(settings::themes_dir().as_deref());
         let theme_idx = themes
             .iter()
             .position(|t| t.name == settings.theme)
             .unwrap_or(0);
-        let highlighter = Highlighter::new();
+        let (highlighter, language_errors) =
+            Highlighter::new(crate::highlight::languages_dir().as_deref());
+        theme_errors.extend(language_errors);
         let languages = highlighter.language_names();
 
         let mut app = Self {
@@ -184,13 +257,38 @@ impl EttinApp {
                 std::sync::Arc::new(move || ctx.request_repaint())
             }),
             plugin_ui: plugins::PluginUi::default(),
+            prefs: crate::prefs_ui::PrefsDialog::default(),
+            shortcut_mapper: crate::shortcut_ui::ShortcutMapper::default(),
+            command_palette: crate::palette_ui::Picker::default(),
+            style_editor: crate::style_ui::StyleEditor::default(),
+            tab_picker: crate::palette_ui::Picker::default(),
+            folders: crate::folder_ui::FolderPanel::default(),
+            updates: Default::default(),
+            function_list: Default::default(),
+            distraction_free: false,
         };
+        if let Some(dir) = app.settings.workspace.clone() {
+            app.folders.set_root(&dir);
+        }
         app.fif.dir = app.settings.fif_dir.clone();
         app.fif.filters = app.settings.fif_filters.clone();
         app.fif.subfolders = app.settings.fif_subfolders;
         app.fif.hidden = app.settings.fif_hidden;
-        crate::fonts::install_fallbacks(&cc.egui_ctx);
+        if let Err(e) = crate::fonts::install(&cc.egui_ctx, &app.settings.editor_font) {
+            app.errors.push(e);
+        }
+        crate::editor::layout::set_tab_width(app.settings.tab_width);
+        let shortcut_errors = actions::set_overrides(&app.settings.shortcuts);
+        app.errors.extend(shortcut_errors);
         app.apply_style(&cc.egui_ctx);
+        let now = chrono::Utc::now().timestamp();
+        if app.settings.check_updates
+            && now - app.settings.last_update_check
+                >= crate::update::CHECK_EVERY_DAYS * 24 * 60 * 60
+        {
+            app.settings.last_update_check = now;
+            app.updates.start(&cc.egui_ctx, false);
+        }
 
         if owner && let Some(dir) = settings::config_dir() {
             let ctx = cc.egui_ctx.clone();
@@ -245,7 +343,17 @@ impl EttinApp {
     fn new_tab(&mut self) {
         self.untitled_counter += 1;
         let id = self.alloc_id();
-        let doc = Document::new_untitled(id, self.untitled_counter);
+        let mut doc = Document::new_untitled(id, self.untitled_counter);
+        let s = &self.settings;
+        if let Some(le) = s.new_line_ending {
+            doc.line_ending = le;
+        }
+        if let Some(enc) = TextEncoding::from_name(&s.new_encoding) {
+            doc.encoding = enc;
+        }
+        if self.languages.contains(&s.new_language) {
+            doc.syntax = s.new_language.clone();
+        }
         self.add_doc(doc);
     }
 
@@ -874,7 +982,7 @@ impl EttinApp {
             Action::ZoomOut => {
                 self.settings.font_size = (self.settings.font_size - 1.0).max(MIN_FONT)
             }
-            Action::ZoomReset => self.settings.font_size = DEFAULT_FONT,
+            Action::ZoomReset => self.settings.font_size = self.settings.default_font_size,
             Action::ToggleWordWrap => self.settings.word_wrap = !self.settings.word_wrap,
             Action::ToggleLineNumbers => {
                 self.settings.show_line_numbers = !self.settings.show_line_numbers
@@ -990,6 +1098,38 @@ impl EttinApp {
                 }
             }
             Action::About => self.show_about = true,
+            Action::CheckForUpdates => self.updates.start(ctx, true),
+            Action::Print => self.print(false),
+            Action::NewLanguage => self.new_language(),
+            Action::OpenLanguagesFolder => self.open_languages_folder(),
+            Action::ReloadLanguages => self.reload_languages(),
+            Action::LanguageGuide => self.language_guide(),
+            Action::ExportHtml => self.print(true),
+            Action::ToggleUpdateCheck => self.settings.check_updates = !self.settings.check_updates,
+            Action::Preferences => {
+                self.prefs.show();
+                drop_focus(ctx);
+            }
+            Action::ShortcutMapper => {
+                self.shortcut_mapper.show();
+                drop_focus(ctx);
+            }
+            Action::StyleConfigurator => {
+                let name = self.themes[self.theme_idx].name.clone();
+                let source = self.theme_source(&name);
+                self.style_editor.show(&name, &source);
+                drop_focus(ctx);
+            }
+            Action::CommandPalette => {
+                self.tab_picker.open = false;
+                self.command_palette
+                    .show("Command palette", "Type part of a command's name");
+            }
+            Action::TabList => {
+                self.command_palette.open = false;
+                self.tab_picker
+                    .show("Open tabs", "Type part of a tab's name");
+            }
             Action::Find | Action::Replace => {
                 let (seed, multi_line) = self.selection_seed();
                 self.find_bar
@@ -1179,6 +1319,50 @@ impl EttinApp {
                 self.settings.indent_guides = !self.settings.indent_guides
             }
             Action::ToggleEdge => self.settings.show_edge = !self.settings.show_edge,
+            Action::ToggleDocMap => self.settings.doc_map = !self.settings.doc_map,
+            Action::ToggleFunctionList => {
+                self.settings.function_list = !self.settings.function_list
+            }
+            Action::ToggleFolderPanel => {
+                if self.settings.workspace.is_none() && !self.settings.folder_panel {
+                    self.pending.push(Action::OpenFolderAsWorkspace);
+                } else {
+                    self.settings.folder_panel = !self.settings.folder_panel;
+                }
+            }
+            Action::OpenFolderAsWorkspace => {
+                let start = self.settings.workspace.clone().or_else(|| {
+                    self.docs
+                        .get(self.active)
+                        .and_then(|d| d.path.as_ref()?.parent().map(Path::to_path_buf))
+                });
+                let mut dialog = rfd::FileDialog::new().set_title("Open Folder as Workspace");
+                if let Some(dir) = start {
+                    dialog = dialog.set_directory(dir);
+                }
+                if let Some(dir) = dialog.pick_folder() {
+                    self.folders.set_root(&dir);
+                    self.settings.workspace = Some(dir);
+                    self.settings.folder_panel = true;
+                }
+            }
+            Action::CloseWorkspace => {
+                self.settings.workspace = None;
+                self.settings.folder_panel = false;
+                self.folders = crate::folder_ui::FolderPanel::default();
+            }
+            Action::ToggleDistractionFree => {
+                self.distraction_free = !self.distraction_free;
+                ctx.send_viewport_cmd(ViewportCommand::Fullscreen(self.distraction_free));
+                if self.distraction_free {
+                    self.notice = Some(Notice {
+                        text: "Distraction-free mode. Press F11 to leave it.".to_owned(),
+                        error: false,
+                        since: None,
+                        jump: None,
+                    });
+                }
+            }
             Action::ToggleAutoClose => self.settings.auto_close = !self.settings.auto_close,
             Action::ToggleSmartIndent => self.settings.smart_indent = !self.settings.smart_indent,
             Action::ToggleUseSpaces => self.settings.use_spaces = !self.settings.use_spaces,
@@ -1223,6 +1407,19 @@ impl EttinApp {
             }
             Action::DeleteSavedMacro(i) if i < self.settings.macros.len() => {
                 self.settings.macros.remove(i);
+                // Shortcuts follow their macro: drop the deleted one's, move the later ones up.
+                let shortcuts = std::mem::take(&mut self.settings.shortcuts);
+                for (key, texts) in shortcuts {
+                    let key = match serde_json::from_str::<Action>(&key) {
+                        Ok(Action::PlaySavedMacro(j)) if j == i => continue,
+                        Ok(Action::PlaySavedMacro(j)) if j > i => {
+                            actions::command_key(&Action::PlaySavedMacro(j - 1))
+                        }
+                        _ => key,
+                    };
+                    self.settings.shortcuts.insert(key, texts);
+                }
+                actions::set_overrides(&self.settings.shortcuts);
             }
             _ => {}
         }
@@ -1323,6 +1520,7 @@ impl EttinApp {
     fn any_dialog_open(&self) -> bool {
         self.close_queue.is_some()
             || self.show_about
+            || self.updates.is_open()
             || self.goto.open
             || self.fif.open
             || self.column.open
@@ -1332,6 +1530,10 @@ impl EttinApp {
             || self.trash_confirm.is_some()
             || self.summary.is_some()
             || self.plugin_modal_open()
+            || self.prefs.open
+            || self.shortcut_mapper.open
+            || self.command_palette.open
+            || self.tab_picker.open
     }
 
     // ---------------------------------------------------------------------
@@ -1591,18 +1793,17 @@ impl EttinApp {
     }
 
     fn handle_input(&mut self, ctx: &egui::Context) {
+        self.shortcut_mapper.grab_keys(ctx);
         if !self.any_dialog_open() {
             let mut fired = Vec::new();
-            let mut shortcuts = actions::shortcuts();
-            let extra = self.plugins.shortcuts();
-            if !extra.is_empty() {
-                // Shift and Alt may be held for a shortcut without them, so
-                // the ones with more modifiers must be tried first.
-                shortcuts.extend(extra);
-                shortcuts.sort_by_key(|(s, _)| {
-                    std::cmp::Reverse(crate::plugins::shortcut::modifier_count(s))
-                });
-            }
+            let mut shortcuts = actions::default_shortcuts();
+            // Shift and Alt may be held for a shortcut without them, so
+            // the ones with more modifiers must be tried first; this sorts too.
+            shortcuts.extend(self.plugins.shortcuts());
+            actions::apply_overrides(&mut shortcuts);
+            shortcuts.sort_by_key(|(s, _)| {
+                std::cmp::Reverse(crate::plugins::shortcut::modifier_count(s))
+            });
             ctx.input_mut(|i| {
                 for (shortcut, action) in shortcuts {
                     // A key can repeat more than once in a frame.
@@ -1689,6 +1890,18 @@ impl EttinApp {
                 });
                 self.menu_item(ui, "Open Terminal Here", Action::OpenTerminalHere);
                 ui.separator();
+                self.menu_item(ui, "Print…", Action::Print);
+                self.menu_item(ui, "Export as HTML…", Action::ExportHtml);
+                ui.separator();
+                self.menu_item(
+                    ui,
+                    "Open Folder as Workspace…",
+                    Action::OpenFolderAsWorkspace,
+                );
+                if self.settings.workspace.is_some() {
+                    self.menu_item(ui, "Close Workspace", Action::CloseWorkspace);
+                }
+                ui.separator();
                 self.menu_item(ui, "Close", Action::CloseTab);
                 self.menu_item(ui, "Close All", Action::CloseAll);
                 self.menu_item(ui, "Close Others", Action::CloseOthers);
@@ -1767,6 +1980,28 @@ impl EttinApp {
                     Action::ToggleEdge,
                 );
                 ui.separator();
+                self.toggle_item(
+                    ui,
+                    "Function List",
+                    s.function_list,
+                    Action::ToggleFunctionList,
+                );
+                self.toggle_item(ui, "Document Map", s.doc_map, Action::ToggleDocMap);
+                self.toggle_item(
+                    ui,
+                    "Folder as Workspace",
+                    s.folder_panel,
+                    Action::ToggleFolderPanel,
+                );
+                self.toggle_item(
+                    ui,
+                    "Distraction-Free Mode",
+                    self.distraction_free,
+                    Action::ToggleDistractionFree,
+                );
+                self.menu_item(ui, "Tab List…", Action::TabList);
+                self.menu_item(ui, "Command Palette…", Action::CommandPalette);
+                ui.separator();
                 self.menu_item(ui, "Move to Other View", Action::MoveActiveToOtherView);
                 self.menu_item(ui, "Clone to Other View", Action::CloneActiveToOtherView);
                 if self.is_split() {
@@ -1819,12 +2054,16 @@ impl EttinApp {
                     }
                 }
                 ui.separator();
+                self.menu_item(ui, "Edit Theme Colours…", Action::StyleConfigurator);
                 self.menu_item(ui, "Open Themes Folder", Action::OpenThemesFolder);
                 self.menu_item(ui, "Reload Themes", Action::ReloadThemes);
                 self.menu_item(ui, "Restore Built-in Themes", Action::RestoreThemes);
             });
             ui.menu_button("Language", |ui| self.language_menu(ui));
             ui.menu_button("Settings", |ui| {
+                self.menu_item(ui, "Preferences…", Action::Preferences);
+                self.menu_item(ui, "Shortcut Mapper…", Action::ShortcutMapper);
+                ui.separator();
                 let s = self.settings.clone();
                 self.toggle_item(
                     ui,
@@ -1879,6 +2118,14 @@ impl EttinApp {
             ui.menu_button("Plugins", |ui| self.plugins_menu(ui));
             ui.menu_button("Macro", |ui| self.macro_menu(ui));
             ui.menu_button("Help", |ui| {
+                self.menu_item(ui, "Check for Updates…", Action::CheckForUpdates);
+                self.toggle_item(
+                    ui,
+                    "Check for Updates Automatically",
+                    self.settings.check_updates,
+                    Action::ToggleUpdateCheck,
+                );
+                ui.separator();
                 self.menu_item(ui, "About Ettin Edit", Action::About);
             });
         });
@@ -1976,6 +2223,11 @@ impl EttinApp {
                 }
             });
         }
+        ui.separator();
+        self.menu_item(ui, "New Language…", Action::NewLanguage);
+        self.menu_item(ui, "Open Languages Folder", Action::OpenLanguagesFolder);
+        self.menu_item(ui, "Reload Languages", Action::ReloadLanguages);
+        self.menu_item(ui, "Language Guide", Action::LanguageGuide);
     }
 
     /// The tabs of one view.
@@ -1983,6 +2235,31 @@ impl EttinApp {
         let palette = self.palette();
         let tab_height = 32.0;
         let tabs = self.tabs_in(view);
+        // The tab list button stays at the right; the tabs scroll beside it.
+        let full = ui.available_rect_before_wrap();
+        let list_w = 26.0;
+        let strip = Rect::from_min_max(
+            full.min,
+            Pos2::new(full.right() - list_w, full.top() + tab_height),
+        );
+        let list_rect = Rect::from_min_max(
+            Pos2::new(full.right() - list_w, full.top()),
+            Pos2::new(full.right(), full.top() + tab_height - 2.0),
+        );
+        let list = ui.put(
+            list_rect,
+            egui::Button::new(RichText::new("⏷").size(12.0).color(palette.text_dim)).frame(false),
+        );
+        if list.on_hover_text("All open tabs").clicked() {
+            self.pending.push(Action::TabList);
+        }
+        ui.allocate_rect(
+            Rect::from_min_max(full.min, Pos2::new(full.right(), full.top() + tab_height)),
+            Sense::hover(),
+        );
+        let mut strip_ui = ui.new_child(egui::UiBuilder::new().max_rect(strip));
+        strip_ui.set_clip_rect(strip.intersect(ui.clip_rect()));
+        let ui = &mut strip_ui;
         ScrollArea::horizontal()
             .id_salt(("tab-strip", view))
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
@@ -2312,7 +2589,8 @@ impl EttinApp {
         let encoding = doc.encoding.name();
         let length = doc.editor.buffer.len_chars();
         let lines = doc.line_count();
-        let zoom = (self.settings.font_size / DEFAULT_FONT * 100.0).round();
+        let zoom =
+            (self.settings.font_size / self.settings.default_font_size.max(1.0) * 100.0).round();
         let read_only = doc.editor.buffer.read_only;
         let recording = self.recorder.is_recording();
         let dim = |s: String| RichText::new(s).size(12.0).color(palette.text_dim);
@@ -2477,6 +2755,100 @@ impl EttinApp {
 
     fn dialogs(&mut self, ctx: &egui::Context) {
         let palette = self.palette();
+        for event in self.updates.ui(ctx, &palette) {
+            match event {
+                crate::update::UpdateEvent::OpenPage(url) => {
+                    if let Err(e) = system::open_url(&url) {
+                        self.errors.push(e);
+                    }
+                }
+                crate::update::UpdateEvent::StopChecking => self.settings.check_updates = false,
+            }
+        }
+        let languages = self.languages.clone();
+        for event in self.prefs.ui(ctx, &mut self.settings, &languages, &palette) {
+            match event {
+                crate::prefs_ui::PrefsEvent::Font(font) => {
+                    match crate::fonts::install(ctx, &font) {
+                        Ok(()) => self.settings.editor_font = font,
+                        Err(e) => {
+                            self.errors.push(e);
+                            let _ = crate::fonts::install(ctx, &self.settings.editor_font);
+                        }
+                    }
+                }
+                crate::prefs_ui::PrefsEvent::Shortcuts => self.pending.push(Action::ShortcutMapper),
+                crate::prefs_ui::PrefsEvent::Styles => self.pending.push(Action::StyleConfigurator),
+            }
+        }
+        crate::editor::layout::set_tab_width(self.settings.tab_width);
+        if self.style_editor.open {
+            let names: Vec<(String, bool)> = self
+                .themes
+                .iter()
+                .map(|t| (t.name.clone(), t.custom))
+                .collect();
+            let events = self.style_editor.ui(ctx, &names, &palette);
+            self.style_events(ctx, events);
+        }
+        if self.command_palette.open {
+            let items: Vec<crate::palette_ui::Item<Action>> = self
+                .command_catalog(ctx)
+                .into_iter()
+                .map(|c| crate::palette_ui::Item {
+                    detail: actions::effective_shortcut(&c.action, c.plugin_shortcut)
+                        .or_else(|| {
+                            actions::all_shortcuts()
+                                .into_iter()
+                                .find(|(_, a)| *a == c.action)
+                                .map(|(s, _)| s)
+                        })
+                        .map(|s| ctx.format_shortcut(&s))
+                        .unwrap_or_default(),
+                    label: c.path,
+                    value: c.action,
+                })
+                .collect();
+            if let Some(action) = self.command_palette.ui(ctx, &items, &palette) {
+                self.pending.push(action);
+                self.focus_editor = true;
+            } else if !self.command_palette.open {
+                self.focus_editor = true;
+            }
+        }
+        if self.tab_picker.open {
+            let items: Vec<crate::palette_ui::Item<usize>> = self
+                .docs
+                .iter()
+                .enumerate()
+                .map(|(i, d)| crate::palette_ui::Item {
+                    label: format!("{}{}", if d.is_dirty() { "● " } else { "" }, d.title()),
+                    detail: d
+                        .path
+                        .as_ref()
+                        .and_then(|p| p.parent())
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default(),
+                    value: i,
+                })
+                .collect();
+            if let Some(i) = self.tab_picker.ui(ctx, &items, &palette) {
+                self.pending.push(Action::SelectTab(i));
+                self.focus_editor = true;
+            } else if !self.tab_picker.open {
+                self.focus_editor = true;
+            }
+        }
+        if self.shortcut_mapper.open {
+            let rows = self.shortcut_rows(ctx);
+            if self
+                .shortcut_mapper
+                .ui(ctx, &rows, &mut self.settings.shortcuts, &palette)
+            {
+                let errors = actions::set_overrides(&self.settings.shortcuts);
+                self.errors.extend(errors);
+            }
+        }
         if let Some(doc) = self.docs.get(self.active) {
             let lines = doc.line_count();
             if let Some((line, col)) = self.goto.ui(ctx, lines, &palette) {
@@ -2649,33 +3021,38 @@ impl eframe::App for EttinApp {
         self.plugins_frame(&ctx);
         let palette = self.palette();
 
-        egui::Panel::top("menu-bar")
-            .frame(
-                Frame::new()
-                    .fill(palette.chrome_bg)
-                    .inner_margin(Margin::symmetric(6, 4)),
-            )
-            .show_separator_line(false)
-            .show(ui, |ui| self.menu_bar(ui));
-        egui::Panel::top("tab-bar")
-            .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
-                left: 6,
-                right: 6,
-                top: 2,
-                bottom: 0,
-            }))
-            .show_separator_line(false)
-            .show(ui, |ui| self.tab_bars(ui));
-        egui::Panel::bottom("status-bar")
-            .frame(
-                Frame::new()
-                    .fill(palette.chrome_bg)
-                    .inner_margin(Margin::symmetric(10, 3)),
-            )
-            .show_separator_line(false)
-            .show(ui, |ui| self.status_bar(ui));
-        self.xpath_panel(ui, &ctx);
-        if self.results.open {
+        if !self.distraction_free {
+            egui::Panel::top("menu-bar")
+                .frame(
+                    Frame::new()
+                        .fill(palette.chrome_bg)
+                        .inner_margin(Margin::symmetric(6, 4)),
+                )
+                .show_separator_line(false)
+                .show(ui, |ui| self.menu_bar(ui));
+            egui::Panel::top("tab-bar")
+                .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
+                    left: 6,
+                    right: 6,
+                    top: 2,
+                    bottom: 0,
+                }))
+                .show_separator_line(false)
+                .show(ui, |ui| self.tab_bars(ui));
+            egui::Panel::bottom("status-bar")
+                .frame(
+                    Frame::new()
+                        .fill(palette.chrome_bg)
+                        .inner_margin(Margin::symmetric(10, 3)),
+                )
+                .show_separator_line(false)
+                .show(ui, |ui| self.status_bar(ui));
+        }
+        let panels = !self.distraction_free;
+        if panels {
+            self.xpath_panel(ui, &ctx);
+        }
+        if panels && self.results.open {
             if self.results.poll() {
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
@@ -2732,13 +3109,34 @@ impl eframe::App for EttinApp {
                 });
             self.pending.extend(picked);
         }
-        self.plugin_panels(ui);
-        self.json_tree_panel(ui, &ctx);
-        self.csv_query_panel(ui, &ctx);
+        if panels {
+            self.plugin_panels(ui);
+            self.json_tree_panel(ui, &ctx);
+            self.csv_query_panel(ui, &ctx);
+            self.folder_panel(ui);
+            // The map sits next to the text, inside the function list.
+            self.function_list_panel(ui);
+            self.doc_map_panel(ui);
+        }
         self.record_editor_input(&ctx);
         egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
-            .show(ui, |ui| self.editor_area(ui));
+            .show(ui, |ui| {
+                if self.distraction_free {
+                    // A centred column about 100 characters wide.
+                    let font = FontId::monospace(self.settings.font_size);
+                    let char_w = ui.fonts_mut(|f| f.glyph_width(&font, 'M'));
+                    let rect = ui.max_rect();
+                    let width = (char_w * 100.0 + 80.0).min(rect.width());
+                    let column =
+                        Rect::from_center_size(rect.center(), Vec2::new(width, rect.height()));
+                    ui.scope_builder(egui::UiBuilder::new().max_rect(column), |ui| {
+                        self.editor_area(ui)
+                    });
+                } else {
+                    self.editor_area(ui)
+                }
+            });
 
         self.close_queue_ui(&ctx);
         self.dialogs(&ctx);
@@ -2761,6 +3159,15 @@ impl eframe::App for EttinApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.plugins.shutdown();
     }
+}
+
+/// Takes keyboard focus from the editor, so a window that just opened gets the keys.
+fn drop_focus(ctx: &egui::Context) {
+    ctx.memory_mut(|m| {
+        if let Some(id) = m.focused() {
+            m.surrender_focus(id);
+        }
+    });
 }
 
 /// A small push-pin, drawn where a pinned tab's close button would be.
