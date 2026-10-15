@@ -3,6 +3,7 @@ name = "ettin-edit"
 version = "1.0.0"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
+license = "MIT"
 
 [dependencies]
 eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "persistence"] }
