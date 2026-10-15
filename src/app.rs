@@ -8,6 +8,7 @@ mod panels;
 mod plugins;
 mod text_tools;
 mod views;
+mod xml_schema;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

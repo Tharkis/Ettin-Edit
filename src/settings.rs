@@ -55,6 +55,10 @@ pub struct Settings {
     pub close_tags: bool,
     /// Check that XML is well-formed each time it's saved.
     pub xml_check_on_save: bool,
+    /// The schema (XSD or DTD) each XML file was last validated against.
+    pub xml_schemas: BTreeMap<String, PathBuf>,
+    /// The last XSL stylesheet run, where the next one is picked from.
+    pub last_xsl: Option<PathBuf>,
     /// How Compare matches lines.
     pub compare: crate::compare::CompareOptions,
     /// Per plugin (by folder name): turned off, and which version was allowed to run.
@@ -128,6 +132,8 @@ impl Default for Settings {
             auto_reload: false,
             close_tags: true,
             xml_check_on_save: false,
+            xml_schemas: BTreeMap::new(),
+            last_xsl: None,
             compare: crate::compare::CompareOptions::default(),
             plugins: BTreeMap::new(),
             python_path: String::new(),

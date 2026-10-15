@@ -335,6 +335,8 @@ pub struct Results {
     /// Shown after the counts, e.g. "searched 120 files" or "stopped".
     pub note: String,
     pub truncated: bool,
+    /// What the rows are called, when they aren't search hits (e.g. "problem").
+    pub unit: Option<&'static str>,
     pub job: Option<FileJob>,
     /// Flattened (group, hit) rows; rebuilt when groups change or collapse.
     rows: Vec<(usize, Option<usize>)>,
@@ -357,6 +359,7 @@ impl Results {
         self.groups.clear();
         self.note.clear();
         self.truncated = false;
+        self.unit = None;
         self.rows_dirty = true;
     }
 
@@ -431,8 +434,9 @@ impl Results {
         ui.horizontal(|ui| {
             let hits = self.total_hits();
             let groups = self.groups.len();
+            let unit = self.unit.unwrap_or("hit");
             let mut summary = format!(
-                "{hits}{} hit{} in {groups} {}",
+                "{hits}{} {unit}{} in {groups} {}",
                 if self.truncated { "+" } else { "" },
                 if hits == 1 { "" } else { "s" },
                 if self

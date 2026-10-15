@@ -63,7 +63,7 @@ impl EttinApp {
 
     /// Reports a tool error, with the line and column when it has a place,
     /// and (with `move_caret`) puts the caret there.
-    fn tool_error(
+    pub(super) fn tool_error(
         &mut self,
         ctx: &egui::Context,
         what: &str,
@@ -233,6 +233,9 @@ impl EttinApp {
                 XmlOp::CheckSyntax => {
                     self.validate(ctx, "XML", "The XML is well-formed", xml::check)
                 }
+                XmlOp::ValidateSchema => self.validate_schema(ctx, false),
+                XmlOp::ChooseSchema => self.validate_schema(ctx, true),
+                XmlOp::XslTransform => self.xsl_transform(ctx),
                 XmlOp::Escape => {
                     self.transform(ctx, "Escape", |t| Ok(xml::escape(t)));
                 }
