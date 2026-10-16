@@ -99,6 +99,10 @@ pub struct Settings {
     pub folder_panel: bool,
     /// The folder shown in the folder panel.
     pub workspace: Option<PathBuf>,
+    /// The toolbar under the menu bar (its layout is in `toolbar.json`).
+    pub show_toolbar: bool,
+    /// Only the toolbar's tab names show.
+    pub toolbar_collapsed: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -171,6 +175,8 @@ impl Default for Settings {
             doc_map: false,
             folder_panel: false,
             workspace: None,
+            show_toolbar: true,
+            toolbar_collapsed: false,
         }
     }
 }

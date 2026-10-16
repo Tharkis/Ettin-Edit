@@ -12,6 +12,7 @@ Ettin Edit keeps everything it remembers in one folder:
 | In it | What it holds |
 | --- | --- |
 | `settings.json` | Your preferences, recent files, saved macros, changed shortcuts, and the schemas picked for XML files |
+| `toolbar.json` | Your [toolbar](toolbar.md) layout, once you've changed it |
 | `session.json` | The tabs that were open, with their carets, encodings and split view |
 | `backup/` | Backups of unsaved changes, so they survive a crash |
 | `themes/` | Every theme as a `.tmTheme` file ([Themes](themes.md)). `.builtin-themes.json` tracks which built-in themes you haven't edited. |

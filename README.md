@@ -57,9 +57,10 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
 | 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
 | 🌍 **Text in any shape** | About 80 languages, plus your own with a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
-| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts and panels, and install them from Plugins > Manage Plugins. |
+| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels, and install them from Plugins > Manage Plugins. |
 | 🧭 **Panels** | Function list, document map, a folder workspace, and a command palette on F1. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
+| 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, or collapse it out of the way. |
 | ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
 | 🗣️ **Speaks your language** | English, plus Deutsch, Français and Español (machine-translated for now, corrections welcome), following your system's language. Add your own with one text file. |
 
@@ -101,7 +102,7 @@ shouts the selection back at you:
 ```python
 import ettin
 
-@ettin.command("Shout", shortcut="Ctrl+Alt+H")
+@ettin.command("Shout", shortcut="Ctrl+Alt+H", icon="megaphone")
 def shout():
     doc = ettin.active()
     doc.replace_selections(doc.selected_text().upper())
@@ -110,7 +111,8 @@ ettin.run()
 ```
 
 Plugins can read and change text, open and save files, react to events and show
-panels with trees, tables and forms. Plugins > Install Sample Plugins gives you
+panels with trees, tables and forms. Their commands can go on the toolbar, with the
+icon you give them. Plugins > Install Sample Plugins gives you
 three to poke at, including the HL7 Viewer, and the
 [plugin guide](https://tharkis.github.io/Ettin-Edit/plugin-guide.html) covers the rest.
 
@@ -160,7 +162,8 @@ Linux. Ottar won't say.
 
 **Can I use it at work, fork it or ship it?** Yes. Ettin Edit is MIT licensed, so
 you can use, change and share it freely as long as you keep the copyright notice.
-See [LICENSE](LICENSE).
+See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.com/)
+(MIT licence, © Phosphor Icons).
 
 **Who gets the spoon?** Still being decided. Please don't open an issue about it.
 

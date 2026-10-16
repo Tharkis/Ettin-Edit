@@ -48,6 +48,8 @@ pub enum PrefsEvent {
     Shortcuts,
     /// Open the theme colour editor.
     Styles,
+    /// Open Customise Toolbar.
+    Toolbar,
     /// Show the interface in the language now in the settings.
     Language,
     /// Open the folder of the user's translations.
@@ -138,6 +140,9 @@ impl PrefsDialog {
                         }
                         if ui.button(t!("theme-colours-dots")).clicked() {
                             events.push(PrefsEvent::Styles);
+                        }
+                        if ui.button(t!("customise-toolbar-dots")).clicked() {
+                            events.push(PrefsEvent::Toolbar);
                         }
                     });
                     ui.separator();

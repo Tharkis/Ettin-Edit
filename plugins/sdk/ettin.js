@@ -158,12 +158,14 @@ function log(...args) { notify('log', { text: args.map(String).join(' ') }); }
 // ----------------------------------------------------------------------
 // Commands, events and panels
 
-/** Adds a command to the Plugins menu. options: {shortcut: 'Ctrl+Alt+U', id}. */
+/** Adds a command to the Plugins menu. options: {shortcut: 'Ctrl+Alt+U', id,
+ *  icon}. icon is shown when the user puts the command on the toolbar: a
+ *  Phosphor icon name like 'star', or a .png file in the plugin's folder. */
 async function command(title, fn, options = {}) {
   const id = options.id || title;
   commands.set(id, fn);
   // A shortcut that can't be added is reported in the plugin log.
-  return call('commands.register', { id, title, shortcut: options.shortcut });
+  return call('commands.register', { id, title, shortcut: options.shortcut, icon: options.icon });
 }
 
 const EVENTS = ['opened', 'saved', 'closed', 'activated', 'changed', 'caret', 'shutdown'];

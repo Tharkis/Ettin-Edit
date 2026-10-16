@@ -279,15 +279,17 @@ def log(*args):
 # Commands, events and panels
 
 
-def command(title, shortcut=None, id=None):
+def command(title, shortcut=None, id=None, icon=None):
     """Decorator: adds a command to the Plugins menu, with an optional
-    shortcut like "Ctrl+Alt+U". The function takes no arguments."""
+    shortcut like "Ctrl+Alt+U". icon is shown when the user puts the command
+    on the toolbar: a Phosphor icon name like "star", or a .png file in the
+    plugin's folder. The function takes no arguments."""
 
     def decorate(fn):
         cid = id or fn.__name__
         _commands[cid] = fn
         # A shortcut that can't be added is reported in the plugin log.
-        call("commands.register", id=cid, title=title, shortcut=shortcut)
+        call("commands.register", id=cid, title=title, shortcut=shortcut, icon=icon)
         return fn
 
     return decorate
