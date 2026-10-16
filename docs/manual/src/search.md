@@ -12,6 +12,7 @@ type, highlights every match, and shows *3 of 17* so you know where you are.
 | **↓** / **↑** | Next / previous match (also <kbd>F3</kbd> / <kbd>Shift+F3</kbd> from anywhere) |
 | **Aa** | Match case |
 | **W** | Whole words only |
+| **\\n** | [Extended](#extended-mode-n-t-xnn): `\n`, `\t`, `\xNN` and the like mean those characters |
 | **.\*** | [Regular expression](#regular-expressions) |
 | **…** | More: Wrap around, Find All, Select All Matches, Mark All |
 | <kbd>Esc</kbd> or **×** | Close the find bar |
@@ -34,6 +35,33 @@ the find bar, adds a second row:
   files: 282,000 replacements in a 50 MB file take about a second.
 - **In selection** limits Replace All to the selected text. It's turned on
   for you when you open the bar with several lines selected.
+
+## Extended mode (\n, \t, \xNN)
+
+Turn on **\\n** to search for characters you can't type in the find box,
+without writing a regular expression. Everything else in the box is plain
+text, so `.` and `*` still mean themselves. Extended mode and regular
+expressions are two ways of reading the box, so turning one on turns the
+other off. The same escapes work in the replacement.
+
+| Write | To mean |
+| --- | --- |
+| `\n` | A line break |
+| `\r` | A line break too: Ettin Edit keeps every line break as one character and writes the tab's own line ending when it saves, so `\r\n`, `\r` and `\n` all mean a line break |
+| `\t` | A tab |
+| `\0` | The NUL character |
+| `\\` | A backslash |
+| `\xNN` | The character with hex code `NN`, such as `\x41` for `A` |
+| `\uNNNN` or `\u{N…}` | Any Unicode character, such as `\u00E9` for `é` or `\u{1F600}` for 😀 |
+| `\dNNN` | The character with decimal code `NNN` (up to 255), such as `\d065` |
+| `\oNNN` | The character with octal code `NNN` (up to 377), such as `\o101` |
+| `\bNNNNNNNN` | The character with binary code `NNNNNNNN`, such as `\b01000001` |
+
+A backslash followed by anything else is searched for as it is.
+
+For example, find `,\t` and replace with `;\n` to turn every comma followed
+by a tab into a semicolon and a new line. Find in Files has an **Extended**
+box that works the same way.
 
 ## Regular expressions
 

@@ -5,10 +5,12 @@ Python or JavaScript, whichever you prefer.
 
 ## Quick start
 
-1. Choose **Plugins > Install Sample Plugins**. Ettin Edit copies three working
+1. Choose **Plugins > Install Sample Plugins**. Ettin Edit copies four working
    plugins into your plugins folder and starts them:
    - **Text Statistics** (Python)
    - **Markdown Outline** (JavaScript)
+   - **Markdown Preview** (Python): a small example of a `markdown` panel
+     that updates as you type
    - **HL7 Viewer** (Python): a bigger example, with a tree panel, an
      inspector panel and its own unit tests
 2. Try them from the **Plugins** menu.
@@ -377,10 +379,23 @@ Items:
 | `ui.tree(id, nodes, selected)` | `{"type": "tree", "id", "nodes", "selected"}` | Sends `select` with the node's id. `selected` (optional) is a node id to highlight; when it changes, the tree opens to it and scrolls it into view. In JavaScript: `ui.tree(id, nodes, { selected })`. |
 | `ui.node(label, id, detail, children, open)` | `{"label", "id", "detail", "children", "open"}` | A tree node. `detail` is dimmed text after the label. |
 | `ui.table(id, columns, rows)` | `{"type": "table", "id", "columns", "rows"}` | Click a header to sort. Sends `select` with the row's index in your `rows`. |
+| `ui.markdown(text, id)` | `{"type": "markdown", "id", "text"}` | Markdown, drawn like the user manual: headings, lists, tables, quotes, code blocks with a Copy button, links. Web links open in the browser and `#heading` links scroll to the heading; any other link sends `link` with the link as `value`. `id` is optional. In JavaScript: `ui.markdown(text, { id })`. Needs Ettin Edit 1.5. |
 
 The handler gets: `item` (the item's id), `event` (`click`, `change`,
-`submit`, `select` or `close`), `value`, and `values` (every input,
+`submit`, `select`, `link` or `close`), `value`, and `values` (every input,
 checkbox and select, by id). `close` means the user closed the panel.
+
+A Markdown panel that follows the text, as the **Markdown Preview** sample
+does it, needs only a few lines:
+
+```python
+@ettin.on("changed")
+def changed(doc):
+    ettin.show_panel("preview", "Preview", [ui.markdown(doc.get_text())])
+```
+
+Sending the same id again updates the panel and keeps its scroll position,
+so the preview doesn't jump while you type.
 
 Updating a panel keeps what the user typed in a field, unless you send a
 different `value` for it.

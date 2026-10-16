@@ -13,6 +13,7 @@ mod text_tools;
 mod views;
 mod xml_schema;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -122,6 +123,11 @@ pub struct EttinApp {
     function_list: crate::function_list_ui::FunctionList,
     /// Full screen with only the text showing.
     distraction_free: bool,
+    /// Edit > Column Mode: plain drags and Shift+arrows select rectangles.
+    column_mode: bool,
+    /// Tabs shown as hex, by document id.
+    hex_views: HashMap<u64, crate::hex::HexView>,
+    char_panel: crate::char_panel::CharPanel,
     /// The tabbed toolbar under the menu bar.
     toolbar: ribbon::Toolbar,
 }
@@ -285,6 +291,9 @@ impl EttinApp {
             updates: Default::default(),
             function_list: Default::default(),
             distraction_free: false,
+            column_mode: false,
+            hex_views: HashMap::new(),
+            char_panel: Default::default(),
             toolbar,
         };
         if let Some(dir) = app.settings.workspace.clone() {
@@ -528,6 +537,7 @@ impl EttinApp {
                 self.split.other_active = self.neighbour_in(1 - focused, i);
             }
             let doc = self.docs.remove(i);
+            self.hex_views.remove(&doc.id);
             if let Some(backup) = doc.backup {
                 let _ = std::fs::remove_file(backup);
             }
@@ -1303,6 +1313,7 @@ impl EttinApp {
     fn run_edit(&mut self, ctx: &egui::Context, action: Action) {
         let edge = self.settings.edge_column;
         let syntax = self.docs[self.active].syntax.clone();
+        let doc_id = self.docs[self.active].id;
         let editor = &mut self.docs[self.active].editor;
         match action {
             Action::Undo => editor.undo(),
@@ -1367,6 +1378,21 @@ impl EttinApp {
                 self.settings.show_whitespace = !self.settings.show_whitespace
             }
             Action::ToggleEol => self.settings.show_eol = !self.settings.show_eol,
+            Action::ToggleInvisible => self.settings.show_invisible = !self.settings.show_invisible,
+            Action::ToggleAllChars => {
+                let s = &mut self.settings;
+                let on = !(s.show_whitespace && s.show_eol && s.show_invisible);
+                s.show_whitespace = on;
+                s.show_eol = on;
+                s.show_invisible = on;
+            }
+            Action::ToggleColumnMode => self.column_mode = !self.column_mode,
+            Action::ToggleCharPanel => self.settings.char_panel = !self.settings.char_panel,
+            Action::ToggleHexView => {
+                if self.hex_views.remove(&doc_id).is_none() {
+                    self.hex_views.insert(doc_id, Default::default());
+                }
+            }
             Action::ToggleIndentGuides => {
                 self.settings.indent_guides = !self.settings.indent_guides
             }
@@ -2070,6 +2096,18 @@ impl EttinApp {
                     self.toggle_item(ui, &t!("show-end-of-line"), s.show_eol, Action::ToggleEol);
                     self.toggle_item(
                         ui,
+                        &t!("show-invisible"),
+                        s.show_invisible,
+                        Action::ToggleInvisible,
+                    );
+                    self.toggle_item(
+                        ui,
+                        &t!("show-all-characters"),
+                        self.all_chars_shown(),
+                        Action::ToggleAllChars,
+                    );
+                    self.toggle_item(
+                        ui,
                         &t!("indent-guides"),
                         s.indent_guides,
                         Action::ToggleIndentGuides,
@@ -2089,6 +2127,13 @@ impl EttinApp {
                     Action::ToggleFunctionList,
                 );
                 self.toggle_item(ui, &t!("document-map"), s.doc_map, Action::ToggleDocMap);
+                self.toggle_item(
+                    ui,
+                    &t!("character-panel"),
+                    s.char_panel,
+                    Action::ToggleCharPanel,
+                );
+                self.toggle_item(ui, &t!("hex-view"), self.hex_shown(), Action::ToggleHexView);
                 self.toggle_item(
                     ui,
                     &t!("folder-as-workspace"),
@@ -2666,6 +2711,9 @@ impl EttinApp {
         let Some(language) = self.docs.get(index).map(|d| d.syntax.clone()) else {
             return false;
         };
+        if self.hex_views.contains_key(&self.docs[index].id) {
+            return self.hex_pane(ui, view, index, request_focus);
+        }
         let api = self.apis.get(&language);
         let Some(doc) = self.docs.get_mut(index) else {
             return false;
@@ -2706,6 +2754,8 @@ impl EttinApp {
             request_focus,
             show_whitespace: s.show_whitespace,
             show_eol: s.show_eol,
+            show_invisible: s.show_invisible,
+            column_mode: self.column_mode,
             eol_label,
             indent_guides: s.indent_guides,
             edge_column: s.show_edge.then_some(s.edge_column),
@@ -2727,6 +2777,80 @@ impl EttinApp {
                 self.focus_view(view, index);
             }
             self.pending.push(action);
+        }
+        ui.memory(|m| m.has_focus(id))
+    }
+
+    /// Whether Show All Characters is on: whitespace, line ends and invisible characters.
+    fn all_chars_shown(&self) -> bool {
+        let s = &self.settings;
+        s.show_whitespace && s.show_eol && s.show_invisible
+    }
+
+    /// Whether the active tab is shown as hex.
+    fn hex_shown(&self) -> bool {
+        self.docs
+            .get(self.active)
+            .is_some_and(|d| self.hex_views.contains_key(&d.id))
+    }
+
+    /// Draws tab `index` in `view` as hex. Returns true when it has keyboard focus.
+    fn hex_pane(&mut self, ui: &mut Ui, view: usize, index: usize, request_focus: bool) -> bool {
+        use crate::hex::{self, HexError};
+        use crate::hex_ui::HexOutcome;
+        let palette = self.palette();
+        let ctx = ui.ctx().clone();
+        let font_size = self.settings.font_size;
+        let doc = &mut self.docs[index];
+        let Some(hex) = self.hex_views.get_mut(&doc.id) else {
+            return false;
+        };
+        let id = Id::new(("hex", doc.id, view));
+        let (encoding, line_ending) = (doc.encoding, doc.line_ending);
+        let version = doc.editor.buffer.version();
+        let editor = &mut doc.editor;
+        if let Err(c) = hex.sync(version, encoding, line_ending, || editor.text_snapshot()) {
+            hex.message = Some(t!(
+                "hex-cant-encode",
+                char = c.to_string(),
+                encoding = encoding.name()
+            ));
+        }
+        let read_only = doc.editor.buffer.read_only;
+        let outcome = hex.ui(
+            ui,
+            id,
+            font_size,
+            &palette,
+            encoding,
+            read_only,
+            request_focus,
+        );
+        match outcome {
+            Some(HexOutcome::Bytes(bytes)) => {
+                match hex::bytes_to_text(&bytes, encoding, line_ending) {
+                    Ok(text) => {
+                        let old = doc.editor.text_snapshot();
+                        let (range, replacement) = hex::diff(&old, &text);
+                        doc.editor.edit_ranges(&ctx, vec![(range, replacement)]);
+                    }
+                    Err(e) => {
+                        hex.message = Some(match e {
+                            HexError::Invalid => t!("hex-invalid", encoding = encoding.name()),
+                            HexError::RoundTrip => t!("hex-round-trip"),
+                            HexError::Unencodable(c) => t!(
+                                "hex-cant-encode",
+                                char = c.to_string(),
+                                encoding = encoding.name()
+                            ),
+                        });
+                        hex.refresh();
+                    }
+                }
+            }
+            Some(HexOutcome::Undo) => doc.editor.undo(),
+            Some(HexOutcome::Redo) => doc.editor.redo(),
+            None => {}
         }
         ui.memory(|m| m.has_focus(id))
     }
@@ -2784,6 +2908,14 @@ impl EttinApp {
                 {
                     self.pending.push(Action::CopyXPath);
                 }
+            }
+            if self.column_mode
+                && ui
+                    .add(egui::Label::new(dim(t!("column-mode-status"))).sense(Sense::click()))
+                    .on_hover_text(t!("column-mode-status-hover"))
+                    .clicked()
+            {
+                self.pending.push(Action::ToggleColumnMode);
             }
             if recording {
                 ui.label(
@@ -3278,6 +3410,7 @@ impl eframe::App for EttinApp {
             self.json_tree_panel(ui, &ctx);
             self.csv_query_panel(ui, &ctx);
             self.folder_panel(ui);
+            self.char_panel(ui);
             // The map sits next to the text, inside the function list.
             self.function_list_panel(ui);
             self.doc_map_panel(ui);

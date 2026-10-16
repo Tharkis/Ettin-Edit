@@ -1,0 +1,7 @@
+{
+  "name": "Markdown Preview",
+  "version": "1.0.0",
+  "description": "A live preview of the Markdown tab you are editing, in a side panel that updates as you type. A sample plugin in Python.",
+  "author": "Ettin Edit",
+  "main": "main.py"
+}

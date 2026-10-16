@@ -261,6 +261,11 @@ impl EttinApp {
                 ],
             ),
             m.item(&t!("column-editor"), Action::ColumnEditor),
+            m.toggle(
+                &t!("column-mode"),
+                self.column_mode,
+                Action::ToggleColumnMode,
+            ),
             MenuEntry::Separator,
             m.toggle(&t!("read-only"), read_only, Action::ToggleReadOnly),
         ]

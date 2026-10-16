@@ -64,6 +64,38 @@ impl EttinApp {
 }
 
 impl EttinApp {
+    pub(super) fn char_panel(&mut self, ui: &mut Ui) {
+        if !self.settings.char_panel || self.distraction_free {
+            return;
+        }
+        let palette = self.palette();
+        let mut action = None;
+        egui::Panel::right("char-panel")
+            .resizable(true)
+            .default_size(420.0)
+            .min_size(240.0)
+            .frame(
+                Frame::new()
+                    .fill(palette.chrome_bg)
+                    .inner_margin(Margin::symmetric(8, 4)),
+            )
+            .show(ui, |ui| action = self.char_panel.ui(ui, &palette));
+        match action {
+            Some(crate::char_panel::CharAction::Insert(text)) => {
+                if let Some(doc) = self.docs.get_mut(self.active) {
+                    if doc.editor.buffer.read_only {
+                        self.errors.push(t!("read-only-status"));
+                    } else {
+                        doc.editor.insert_text(ui.ctx(), &text);
+                        self.focus_editor = true;
+                    }
+                }
+            }
+            Some(crate::char_panel::CharAction::Close) => self.settings.char_panel = false,
+            None => {}
+        }
+    }
+
     pub(super) fn function_list_panel(&mut self, ui: &mut Ui) {
         if !self.settings.function_list || self.distraction_free || self.docs.is_empty() {
             return;

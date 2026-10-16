@@ -52,6 +52,10 @@ pub struct ViewConfig<'a> {
     pub request_focus: bool,
     pub show_whitespace: bool,
     pub show_eol: bool,
+    /// Label control characters, unusual spaces and zero-width characters.
+    pub show_invisible: bool,
+    /// Column mode: a plain drag or Shift+arrows select a rectangle.
+    pub column_mode: bool,
     /// Shown at line ends when `show_eol` is on, such as "LF".
     pub eol_label: &'a str,
     pub indent_guides: bool,
@@ -594,6 +598,12 @@ impl Editor {
         let mut run_format: Option<TextFormat> = None;
         let base = TextFormat::simple(cfg.font.clone(), cfg.palette.editor_fg);
         let ws_format = TextFormat::simple(cfg.font.clone(), cfg.palette.whitespace);
+        let mut label_format = TextFormat::simple(
+            FontId::monospace(cfg.font.size * 0.7),
+            cfg.palette.editor_fg,
+        );
+        label_format.background = cfg.palette.whitespace.gamma_multiply(0.7);
+        label_format.valign = egui::Align::Center;
         let mut tabs = Vec::new();
         let flush = |job: &mut LayoutJob, text: &mut String, fmt: &Option<TextFormat>| {
             if !text.is_empty() {
@@ -622,7 +632,14 @@ impl Editor {
                 }
                 None => base.clone(),
             };
-            let format = if cfg.show_whitespace && (c == ' ' || c == '\t') {
+            let label = if cfg.show_invisible {
+                super::invisible::label(c)
+            } else {
+                None
+            };
+            let format = if label.is_some() {
+                label_format.clone()
+            } else if cfg.show_whitespace && (c == ' ' || c == '\t') {
                 ws_format.clone()
             } else {
                 format
@@ -633,6 +650,11 @@ impl Editor {
             }
             let w = char_cols(c, col);
             match c {
+                _ if label.is_some() => {
+                    let label = label.unwrap_or_default();
+                    text.push_str(label);
+                    disp_len += label.len();
+                }
                 '\t' => {
                     // Shown as an arrow across the whole tab, drawn later.
                     if cfg.show_whitespace {
@@ -717,6 +739,7 @@ impl Editor {
         let mut cache = FrameCache::default();
         let mut changed = false;
         let has_focus = ui.memory(|m| m.has_focus(id));
+        self.column_mode = cfg.column_mode;
         if has_focus {
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(
@@ -1551,8 +1574,9 @@ impl Editor {
                 _ => self.completion = None,
             }
         }
-        // Alt+Shift+arrows grow a rectangular selection.
-        if m.alt && m.shift && !m.command {
+        // Alt+Shift+arrows grow a rectangular selection; in column mode
+        // Shift+arrows do.
+        if m.shift && !m.command && (m.alt || self.column_mode) {
             let step = match key {
                 Key::ArrowUp => Some((-1, 0)),
                 Key::ArrowDown => Some((1, 0)),
@@ -1734,8 +1758,11 @@ impl Editor {
             };
             self.drag_origin = Some(target);
             self.completion = None;
-            // Alt+drag makes a rectangular selection from here.
-            self.column_drag = (modifiers.alt && clicks == 1 && row >= 0.0).then(|| {
+            // Alt+drag (or any drag in column mode) makes a rectangular
+            // selection from here.
+            let column =
+                modifiers.alt || (self.column_mode && !modifiers.command && !modifiers.shift);
+            self.column_drag = (column && clicks == 1 && row >= 0.0).then(|| {
                 let col = ((pointer.x - text_x) / metrics.char_w).round().max(0.0) as usize;
                 (row as usize, col)
             });
@@ -1755,7 +1782,7 @@ impl Editor {
         }
 
         if response.dragged_by(egui::PointerButton::Primary)
-            && modifiers.alt
+            && (modifiers.alt || self.column_mode)
             && let Some(anchor) = self.column_drag
         {
             let row = ((pointer.y - origin.y) / metrics.row_h).floor().max(0.0) as usize;

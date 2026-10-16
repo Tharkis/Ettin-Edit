@@ -150,6 +150,8 @@ pub enum Action {
     CompleteWord,
     ShowParameterHint,
     ColumnEditor,
+    /// Column mode: a plain drag or Shift+arrows select a rectangle.
+    ToggleColumnMode,
     ToggleReadOnly,
     // Folding
     FoldAll,
@@ -160,6 +162,10 @@ pub enum Action {
     // View
     ToggleWhitespace,
     ToggleEol,
+    /// Labels for control characters, unusual spaces and zero-width characters.
+    ToggleInvisible,
+    /// Whitespace, line ends and invisible characters together.
+    ToggleAllChars,
     ToggleIndentGuides,
     ToggleEdge,
     // Settings
@@ -234,6 +240,9 @@ pub enum Action {
     CloseWorkspace,
     ToggleDistractionFree,
     TabList,
+    /// Show the active tab's bytes in hex, or its text again.
+    ToggleHexView,
+    ToggleCharPanel,
     // Toolbar
     CustomiseToolbar,
     /// Show or hide the whole toolbar.
@@ -439,6 +448,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD_ALT_SHIFT, Key::M), Action::Xml(XmlOp::CheckSyntax)),
         (s(CMD_ALT_SHIFT, Key::P), Action::CopyXPath),
         (s(CMD_ALT_SHIFT, Key::E), Action::ToggleXPathPanel),
+        (s(CMD_ALT_SHIFT, Key::H), Action::ToggleHexView),
         (s(CMD_ALT, Key::M), Action::Json(JsonOp::Format)),
         (s(CMD_ALT, Key::N), Action::Json(JsonOp::Minify)),
         (s(CMD_ALT, Key::J), Action::ToggleJsonTree),
@@ -504,6 +514,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD, Key::Q), Action::ToggleLineComment),
         (s(SHIFT, Key::F5), Action::InsertDateTime { long: true }),
         (s(NONE, Key::F5), Action::InsertDateTime { long: false }),
+        (s(ALT_SHIFT, Key::C), Action::ToggleColumnMode),
         (s(ALT, Key::C), Action::ColumnEditor),
         // Folding
         (s(ALT_SHIFT, Key::Num0), Action::UnfoldAll),

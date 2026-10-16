@@ -86,6 +86,7 @@ runs on Linux and Windows only.
 | Auto-Completion > Complete Word | <kbd>Ctrl+Space</kbd> |
 | Auto-Completion > Show Parameter Hint | <kbd>Ctrl+Shift+Space</kbd> |
 | Column Editor… | <kbd>Alt+C</kbd> |
+| Column Mode | <kbd>Alt+Shift+C</kbd> |
 
 ### Search
 
@@ -114,6 +115,7 @@ runs on Linux and Windows only.
 | Next Tab | <kbd>Ctrl+Tab</kbd> or <kbd>Ctrl+PageDown</kbd> |
 | Previous Tab | <kbd>Ctrl+Shift+Tab</kbd> or <kbd>Ctrl+PageUp</kbd> |
 | Focus Other View | <kbd>F8</kbd> |
+| Hex View | <kbd>Ctrl+Alt+Shift+H</kbd> |
 | Folding > Fold All | <kbd>Alt+0</kbd> |
 | Folding > Unfold All | <kbd>Alt+Shift+0</kbd> |
 | Folding > Fold Current Level | <kbd>Ctrl+Alt+F</kbd> |
@@ -168,7 +170,7 @@ These aren't commands, so they're not in the Shortcut Mapper:
 | --- | --- |
 | <kbd>Ctrl</kbd>+click, <kbd>Alt</kbd>+click | Add a caret |
 | <kbd>Ctrl</kbd>+drag | Add a selection |
-| <kbd>Alt</kbd>+drag, <kbd>Alt+Shift+arrows</kbd> | Column selection |
+| <kbd>Alt</kbd>+drag, <kbd>Alt+Shift+arrows</kbd> | Column selection (a plain drag and <kbd>Shift+arrows</kbd> in [Column Mode](editing.md#column-mode)) |
 | <kbd>Ctrl+Alt+Up</kbd>, <kbd>Ctrl+Alt+Down</kbd> | Add a caret above or below |
 | <kbd>Esc</kbd> | Back to one caret; close the completion list, a parameter hint or the find bar |
 | <kbd>Home</kbd> | First non-blank character, then the start of the line |

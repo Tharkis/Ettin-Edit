@@ -1,6 +1,6 @@
 [package]
 name = "ettin-edit"
-version = "1.4.0"
+version = "1.5.0"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 license = "MIT"
@@ -37,6 +37,7 @@ fluent-bundle = "0.16.0"
 unic-langid = "0.9.6"
 sys-locale = "0.3.2"
 egui-phosphor = "0.14.0"
+unicode_names2 = "4"
 
 [profile.release]
 opt-level = 3

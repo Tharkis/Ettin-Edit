@@ -16,6 +16,9 @@ pub struct SearchOptions {
     pub match_case: bool,
     pub whole_word: bool,
     pub regex: bool,
+    /// "Extended" mode: `\n`, `\t`, `\xNN` and the like in a plain search
+    /// mean the characters they stand for (see [`unescape`]).
+    pub extended: bool,
     pub wrap: bool,
 }
 
@@ -25,6 +28,7 @@ pub struct Query {
     re: Regex,
     whole_word: bool,
     is_regex: bool,
+    extended: bool,
 }
 
 fn is_word_char(c: char) -> bool {
@@ -40,6 +44,8 @@ impl Query {
         }
         let source = if opts.regex {
             pattern.to_owned()
+        } else if opts.extended {
+            regex::escape(&unescape(pattern))
         } else {
             regex::escape(pattern)
         };
@@ -56,6 +62,7 @@ impl Query {
             re,
             whole_word: opts.whole_word,
             is_regex: opts.regex,
+            extended: opts.extended && !opts.regex,
         }))
     }
 
@@ -116,9 +123,12 @@ impl Query {
     }
 
     /// The replacement text for match `m`. Regex templates understand `$1`,
-    /// `${name}`, `\1`..`\9`, `\n`, `\t` and `\\`; plain searches insert
-    /// `template` as typed.
+    /// `${name}`, `\1`..`\9`, `\n`, `\t` and `\\`; extended searches
+    /// [`unescape`] it; plain searches insert `template` as typed.
     pub fn expand(&self, text: &str, m: &Range<usize>, template: &str) -> String {
+        if self.extended {
+            return unescape(template);
+        }
         if !self.is_regex {
             return template.to_owned();
         }
@@ -181,6 +191,64 @@ impl Query {
         }
         out
     }
+}
+
+/// Turns the escapes of the "Extended" search mode into the characters they
+/// stand for: `\n`, `\r`, `\t`, `\0`, `\\`, `\xNN` (hex), `\uNNNN` or
+/// `\u{N..}` (Unicode), `\dNNN` (decimal), `\oNNN` (octal) and `\bNNNNNNNN`
+/// (binary). Anything else after a backslash is kept as typed. The text has
+/// `\n` line breaks only, so `\r\n` and a lone `\r` both mean a line break.
+pub fn unescape(s: &str) -> String {
+    fn digits(rest: &str, n: usize, radix: u32) -> Option<u32> {
+        let d = rest.get(..n)?;
+        if d.chars().all(|c| c.is_digit(radix)) {
+            u32::from_str_radix(d, radix).ok()
+        } else {
+            None
+        }
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find('\\') {
+        out.push_str(&rest[..i]);
+        rest = &rest[i + 1..];
+        let code = |len: usize, value: Option<u32>, out: &mut String| -> Option<usize> {
+            let c = char::from_u32(value?)?;
+            out.push(c);
+            Some(len)
+        };
+        let used = match rest.chars().next() {
+            Some('n') => code(1, Some(0x0A), &mut out),
+            Some('r') => code(1, Some(0x0D), &mut out),
+            Some('t') => code(1, Some(0x09), &mut out),
+            Some('0') => code(1, Some(0), &mut out),
+            Some('\\') => code(1, Some('\\' as u32), &mut out),
+            Some('x') => code(3, digits(&rest[1..], 2, 16), &mut out),
+            Some('d') => code(4, digits(&rest[1..], 3, 10).filter(|v| *v < 256), &mut out),
+            Some('o') => code(4, digits(&rest[1..], 3, 8).filter(|v| *v < 256), &mut out),
+            Some('b') => code(9, digits(&rest[1..], 8, 2), &mut out),
+            Some('u') if rest[1..].starts_with('{') => rest[2..].find('}').and_then(|end| {
+                let hex = &rest[2..2 + end];
+                let ok = (1..=6).contains(&hex.len());
+                code(
+                    end + 3,
+                    ok.then(|| digits(hex, hex.len(), 16)).flatten(),
+                    &mut out,
+                )
+            }),
+            Some('u') => code(5, digits(&rest[1..], 4, 16), &mut out),
+            _ => None,
+        };
+        match used {
+            Some(n) => rest = &rest[n..],
+            None => out.push('\\'),
+        }
+    }
+    out.push_str(rest);
+    if out.contains('\r') {
+        out = out.replace("\r\n", "\n").replace('\r', "\n");
+    }
+    out
 }
 
 // -------------------------------------------------------------------------
@@ -543,6 +611,33 @@ mod tests {
         };
         assert!(Query::new("(", &opts).is_err());
         assert!(Query::new("", &opts).unwrap().is_none());
+    }
+
+    #[test]
+    fn extended_escapes() {
+        assert_eq!(unescape(r"a\tb\nc"), "a\tb\nc");
+        assert_eq!(unescape(r"\r\n|\r|\0|\\n"), "\n|\n|\0|\\n");
+        assert_eq!(
+            unescape(r"\x41\u00e9\u{1F600}\d065\o101\b01000001"),
+            "Aé😀AAA"
+        );
+        // Escapes that aren't complete are kept as typed.
+        assert_eq!(unescape(r"\x4 \q \u12 \d999 \"), r"\x4 \q \u12 \d999 \");
+    }
+
+    #[test]
+    fn extended_search_and_replace() {
+        let opts = SearchOptions {
+            extended: true,
+            ..Default::default()
+        };
+        let query = q(r"a\nb", opts);
+        let text = "xa\nb a.b";
+        assert_eq!(all(&query, text), vec![1..4]);
+        // Regex characters are still plain text.
+        assert_eq!(all(&q(r".\tx", opts), ".\tx a\tx"), vec![0..3]);
+        let m = query.find_at(text, 0).unwrap();
+        assert_eq!(query.expand(text, &m, r"\t$1"), "\t$1");
     }
 
     #[test]

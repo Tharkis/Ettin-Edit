@@ -76,6 +76,13 @@ pub enum Item {
         columns: Vec<String>,
         rows: Vec<Vec<Value>>,
     },
+    /// Markdown, drawn like the user manual. Clicking a web link opens it;
+    /// other links are sent to the plugin as a `link` event.
+    Markdown {
+        #[serde(default)]
+        id: String,
+        text: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -132,6 +139,8 @@ pub struct Panel {
     reveal: HashMap<String, String>,
     /// Scroll back to the top next frame.
     to_top: bool,
+    /// Parsed Markdown items, by item id.
+    markdown: HashMap<String, crate::manual::MarkdownView>,
 }
 
 impl Panel {
@@ -148,6 +157,7 @@ impl Panel {
             sort: HashMap::new(),
             reveal: HashMap::new(),
             to_top: false,
+            markdown: HashMap::new(),
         }
     }
 
@@ -237,6 +247,20 @@ impl Panel {
             }
             Item::Separator => {
                 ui.separator();
+            }
+            Item::Markdown { id, text } => {
+                let view = self.markdown.entry(id.clone()).or_default();
+                if let Some(href) = view.ui(ui, text, palette) {
+                    let web = href.contains("://") || href.starts_with("mailto:");
+                    if web && crate::system::open_url(&href).is_ok() {
+                        return;
+                    }
+                    events.push(PanelEvent {
+                        item: id.clone(),
+                        kind: "link",
+                        value: json!(href),
+                    });
+                }
             }
             Item::Button { id, label } => {
                 if ui.button(label).clicked() {
@@ -672,9 +696,10 @@ mod tests {
             {"type": "select", "id": "s", "options": ["a", "b"], "value": "b"},
             {"type": "row", "items": [{"type": "button", "id": "x", "label": "X"}]},
             {"type": "tree", "id": "t", "nodes": [{"label": "root", "children": [{"id": "k", "label": "leaf"}]}]},
-            {"type": "table", "id": "g", "columns": ["a", "b"], "rows": [[1, "x"], [2, null]]}
+            {"type": "table", "id": "g", "columns": ["a", "b"], "rows": [[1, "x"], [2, null]]},
+            {"type": "markdown", "text": "# Title"}
         ]));
-        assert_eq!(parsed.len(), 10);
+        assert_eq!(parsed.len(), 11);
         assert!(serde_json::from_value::<Vec<Item>>(json!([{"type": "nope"}])).is_err());
     }
 

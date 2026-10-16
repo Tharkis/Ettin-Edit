@@ -34,7 +34,7 @@ impl LineEnding {
         }
     }
 
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             LineEnding::Lf => "\n",
             LineEnding::CrLf => "\r\n",

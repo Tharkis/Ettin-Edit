@@ -39,6 +39,8 @@ pub struct Settings {
     pub fif_hidden: bool,
     pub show_whitespace: bool,
     pub show_eol: bool,
+    /// Label control characters, unusual spaces and zero-width characters.
+    pub show_invisible: bool,
     pub indent_guides: bool,
     pub show_edge: bool,
     pub edge_column: usize,
@@ -95,6 +97,8 @@ pub struct Settings {
     /// (an empty list removes the default ones).
     pub shortcuts: BTreeMap<String, Vec<String>>,
     pub function_list: bool,
+    /// The character panel is open.
+    pub char_panel: bool,
     pub doc_map: bool,
     pub folder_panel: bool,
     /// The folder shown in the folder panel.
@@ -139,6 +143,7 @@ impl Default for Settings {
             fif_hidden: false,
             show_whitespace: false,
             show_eol: false,
+            show_invisible: false,
             indent_guides: true,
             show_edge: false,
             edge_column: 80,
@@ -172,6 +177,7 @@ impl Default for Settings {
             new_language: crate::highlight::PLAIN_TEXT.to_owned(),
             shortcuts: BTreeMap::new(),
             function_list: false,
+            char_panel: false,
             doc_map: false,
             folder_panel: false,
             workspace: None,

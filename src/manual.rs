@@ -756,7 +756,7 @@ impl Render<'_> {
                     let marker = match start {
                         Some(n) => format!("{}.", n + i as u64),
                         None if depth.is_multiple_of(2) => "•".to_owned(),
-                        None => "◦".to_owned(),
+                        None => "–".to_owned(),
                     };
                     // The item goes in a box exactly as wide as the room
                     // left after the marker, so it never pushes wider.
@@ -1015,6 +1015,50 @@ impl Render<'_> {
         if hit && self.nav.to_hit {
             ui.scroll_to_rect(rect, Some(Align::Center));
             self.nav.to_hit = false;
+        }
+    }
+}
+
+/// Markdown drawn the way the manual is, for plugin panels (the Markdown
+/// Preview plugin). The text is parsed again only when it changes.
+#[derive(Default)]
+pub struct MarkdownView {
+    key: u64,
+    blocks: Vec<Block>,
+    nav: Nav,
+}
+
+impl MarkdownView {
+    /// Draws `text`. Returns a link the reader clicked; links to a heading
+    /// on the page (`#anchor`) are followed here.
+    pub fn ui(&mut self, ui: &mut Ui, text: &str, palette: &Palette) -> Option<String> {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        text.hash(&mut hasher);
+        let key = hasher.finish();
+        if key != self.key || (self.blocks.is_empty() && !text.is_empty()) {
+            self.key = key;
+            self.blocks = parse(text);
+        }
+        let mut r = Render {
+            palette,
+            terms: &[],
+            link: None,
+            nav: &mut self.nav,
+            id: 0,
+        };
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.y = 8.0;
+            r.blocks(ui, &self.blocks, 0);
+        });
+        let link = r.link?;
+        match link.strip_prefix('#') {
+            Some(anchor) => {
+                self.nav.anchor = Some(anchor.to_owned());
+                ui.ctx().request_repaint();
+                None
+            }
+            None => Some(link),
         }
     }
 }
