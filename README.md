@@ -60,7 +60,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels (even live Markdown, as the Markdown Preview sample does), and install them from Plugins > Manage Plugins. |
 | 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits bytes, and a command palette on F1. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
-| 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, or collapse it out of the way. |
+| 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, or collapse it out of the way. Hide the toolbar, the menu bar or both for a cleaner window (tap Alt to reach the menus). |
 | ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
 | 🗣️ **Speaks your language** | English, plus Deutsch, Français and Español (machine-translated for now, corrections welcome), following your system's language. Add your own with one text file. |
 

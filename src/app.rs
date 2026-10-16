@@ -69,8 +69,14 @@ pub struct EttinApp {
     close_queue: Option<CloseQueue>,
     errors: Vec<String>,
     show_about: bool,
-    /// The app icon shown in the menu bar and About, loaded on first use.
+    /// The app icon shown in About, loaded on first use.
     app_icon: Option<egui::TextureHandle>,
+    /// The menu bar is hidden but showing for now, after a tap of Alt.
+    menu_peek: bool,
+    /// Alt is down: true while nothing else has been pressed with it.
+    alt_tap: Option<bool>,
+    /// Where the menu bar was last drawn.
+    menu_rect: Option<egui::Rect>,
     quitting: bool,
     focus_editor: bool,
     scroll_to_active_tab: bool,
@@ -245,6 +251,9 @@ impl EttinApp {
             errors: theme_errors,
             show_about: false,
             app_icon: None,
+            menu_peek: false,
+            alt_tap: None,
+            menu_rect: None,
             quitting: false,
             focus_editor: true,
             scroll_to_active_tab: true,
@@ -1441,6 +1450,21 @@ impl EttinApp {
                     });
                 }
             }
+            Action::ToggleMenuBar => {
+                self.settings.show_menu_bar = !self.settings.show_menu_bar;
+                if !self.settings.show_menu_bar {
+                    let text = match actions::shortcut_label(ctx, &Action::ToggleMenuBar) {
+                        Some(shortcut) => t!("menu-bar-hidden-notice", shortcut = shortcut),
+                        None => t!("menu-bar-hidden-notice-alt"),
+                    };
+                    self.notice = Some(Notice {
+                        text,
+                        error: false,
+                        since: None,
+                        jump: None,
+                    });
+                }
+            }
             Action::ToggleAutoClose => self.settings.auto_close = !self.settings.auto_close,
             Action::ToggleSmartIndent => self.settings.smart_indent = !self.settings.smart_indent,
             Action::ToggleUseSpaces => self.settings.use_spaces = !self.settings.use_spaces,
@@ -1882,6 +1906,7 @@ impl EttinApp {
 
     fn handle_input(&mut self, ctx: &egui::Context) {
         self.shortcut_mapper.grab_keys(ctx);
+        self.watch_alt(ctx);
         if !self.any_dialog_open() {
             let mut fired = Vec::new();
             let mut shortcuts = actions::default_shortcuts();
@@ -1921,6 +1946,61 @@ impl EttinApp {
         if ctx.input(|i| i.viewport().close_requested()) && !self.quitting {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
             self.pending.push(Action::Quit);
+        }
+    }
+
+    /// While the menu bar is hidden, a tap of Alt on its own shows it until a
+    /// command runs, Escape or Alt is pressed, or the user clicks elsewhere.
+    fn watch_alt(&mut self, ctx: &egui::Context) {
+        if self.settings.show_menu_bar || self.distraction_free {
+            self.menu_peek = false;
+            self.alt_tap = None;
+            return;
+        }
+        let is_alt = |k: &egui::Key| matches!(k, egui::Key::AltLeft | egui::Key::AltRight);
+        let mut toggle = false;
+        let (escape, click) = ctx.input(|i| {
+            for event in &i.events {
+                match event {
+                    egui::Event::Key {
+                        key,
+                        pressed,
+                        repeat: false,
+                        ..
+                    } if is_alt(key) => {
+                        if *pressed {
+                            // Only a press of Alt with nothing else held counts.
+                            let m = i.modifiers;
+                            self.alt_tap = Some(!(m.ctrl || m.shift || m.mac_cmd));
+                        } else if self.alt_tap.take() == Some(true) {
+                            toggle = true;
+                        }
+                    }
+                    egui::Event::Key { key, .. } if is_alt(key) => {}
+                    // Anything else pressed with Alt makes it a shortcut, not a tap.
+                    egui::Event::Key { .. }
+                    | egui::Event::Text(_)
+                    | egui::Event::PointerButton { .. }
+                    | egui::Event::MouseWheel { .. } => self.alt_tap = None,
+                    _ => {}
+                }
+            }
+            let click = i
+                .pointer
+                .any_pressed()
+                .then(|| i.pointer.interact_pos())
+                .flatten();
+            (i.key_pressed(egui::Key::Escape), click)
+        });
+        if toggle && !self.any_dialog_open() {
+            self.menu_peek = !self.menu_peek;
+            return;
+        }
+        if self.menu_peek && !egui::Popup::is_any_open(ctx) {
+            let outside = click.is_some_and(|p| !self.menu_rect.is_some_and(|r| r.contains(p)));
+            if escape || outside {
+                self.menu_peek = false;
+            }
         }
     }
 
@@ -1964,19 +2044,7 @@ impl EttinApp {
     }
 
     fn menu_bar(&mut self, ui: &mut Ui) {
-        let icon = self.app_icon(ui.ctx());
         egui::MenuBar::new().ui(ui, |ui| {
-            let size = Vec2::splat(ui.spacing().interact_size.y);
-            let response = ui
-                .add(
-                    egui::Image::new(&icon)
-                        .fit_to_exact_size(size)
-                        .sense(Sense::click()),
-                )
-                .on_hover_text(t!("about-ettin-edit"));
-            if response.clicked() {
-                self.pending.push(Action::About);
-            }
             ui.menu_button(t!("menu-file"), |ui| {
                 self.menu_item(ui, &t!("new"), Action::NewTab);
                 self.menu_item(ui, &t!("open-dots"), Action::Open);
@@ -2149,6 +2217,12 @@ impl EttinApp {
                 self.menu_item(ui, &t!("tab-list"), Action::TabList);
                 self.menu_item(ui, &t!("command-palette"), Action::CommandPalette);
                 ui.separator();
+                self.toggle_item(
+                    ui,
+                    &t!("menu-bar-show"),
+                    s.show_menu_bar,
+                    Action::ToggleMenuBar,
+                );
                 self.toggle_item(
                     ui,
                     &t!("toolbar-show"),
@@ -3317,14 +3391,17 @@ impl eframe::App for EttinApp {
         let palette = self.palette();
 
         if !self.distraction_free {
-            egui::Panel::top("menu-bar")
-                .frame(
-                    Frame::new()
-                        .fill(palette.chrome_bg)
-                        .inner_margin(Margin::symmetric(6, 4)),
-                )
-                .show_separator_line(false)
-                .show(ui, |ui| self.menu_bar(ui));
+            if self.settings.show_menu_bar || self.menu_peek {
+                let panel = egui::Panel::top("menu-bar")
+                    .frame(
+                        Frame::new()
+                            .fill(palette.chrome_bg)
+                            .inner_margin(Margin::symmetric(6, 4)),
+                    )
+                    .show_separator_line(false)
+                    .show(ui, |ui| self.menu_bar(ui));
+                self.menu_rect = Some(panel.response.rect);
+            }
             self.toolbar_panel(ui);
             egui::Panel::top("tab-bar")
                 .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
@@ -3441,7 +3518,12 @@ impl eframe::App for EttinApp {
         self.plugin_dialogs(&ctx);
         self.notice_ui(&ctx);
 
-        for action in std::mem::take(&mut self.pending) {
+        let actions = std::mem::take(&mut self.pending);
+        if !actions.is_empty() {
+            // A command run from the menu puts away a menu bar shown by Alt.
+            self.menu_peek = false;
+        }
+        for action in actions {
             self.run(&ctx, action);
         }
         self.update_title(&ctx);

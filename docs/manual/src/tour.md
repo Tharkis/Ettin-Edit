@@ -9,12 +9,21 @@ From top to bottom:
 
 ## The menu bar
 
+You can hide the menu bar to give the window a cleaner look: choose
+**View > Menu Bar** or press <kbd>Ctrl+M</kbd>. While it's hidden, tap
+<kbd>Alt</kbd> on its own to show it for a moment; it goes away again when you
+run a command, press <kbd>Escape</kbd> or <kbd>Alt</kbd>, or click elsewhere.
+Press <kbd>Ctrl+M</kbd> (or use **View > Menu Bar** from the shown menu, or
+right-click the toolbar) to keep it showing again. The
+[toolbar](toolbar.md#collapsing-and-hiding) can be hidden too, and Ettin Edit
+remembers both choices.
+
 | Menu | What's in it |
 | --- | --- |
 | **File** | New, open, save, recent files, print, rename, workspace folders, close |
 | **Edit** | Undo, clipboard, line operations, case, comments, multi-select, completion, column editor, read-only |
 | **Search** | Find, replace, Find in Files, marks, Go to Line, bookmarks |
-| **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode, the toolbar |
+| **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode, the menu bar and toolbar |
 | **Encoding** | The encoding the file is saved in, or read it again in another one |
 | **Theme** | Pick a theme, edit its colours, open the themes folder |
 | **Language** | Pick the highlighting language, add your own languages |
@@ -28,8 +37,7 @@ Under the menu bar is the [toolbar](toolbar.md): tabs of buttons for the
 commands you use most. Right-click it to customise it, or press
 <kbd>Ctrl+F1</kbd> to collapse it to its tab names.
 
-The Ettin Edit icon at the far left opens **About Ettin Edit**, which shows
-the version you have.
+**Help > About Ettin Edit** shows the version you have.
 
 Right-clicking the text gives you the whole **Edit** menu, the **Tools**
 menu and your plugins' commands, so you rarely need to go up to the menu

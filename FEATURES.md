@@ -19,6 +19,15 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.6: A tidier window
+
+Requested on 2026-10-16.
+
+- [x] Hide the menu bar: View > Menu Bar, <kbd>Ctrl+M</kbd>, or the toolbar's right-click menu. While it's hidden, a tap of Alt shows it until you run a command, press Escape or click elsewhere, so you can't lose the menus ([A tour of the window](docs/manual/src/tour.md#the-menu-bar))
+- [x] The toolbar and the menu bar can each be hidden, and both choices are remembered
+- [x] The app icon is no longer in the menu bar (Help > About Ettin Edit shows the version)
+- [x] New text in all four interface languages
+
 ### 1.5: Hex View, Character Panel, Markdown Preview and more
 
 The six features requested on 2026-10-16.
