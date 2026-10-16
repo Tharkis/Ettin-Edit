@@ -204,13 +204,30 @@ Python names are shown first, JavaScript names second.
 
 | Python | JavaScript | What it does |
 |--------|------------|--------------|
-| `@command(title, shortcut=None, id=None)` | `command(title, fn, {shortcut, id})` | Adds a command to the Plugins menu, with an optional shortcut. |
+| `@command(title, shortcut=None, id=None, icon=None)` | `command(title, fn, {shortcut, id, icon})` | Adds a command to the Plugins menu, with an optional shortcut and toolbar icon. |
 | `@on(event)` | `on(event, fn)` | Calls the handler with a `Document` when the event happens. |
 | `run()` | (not needed) | Handles commands and events until Ettin Edit stops the plugin. |
 
 Shortcuts are written like `Ctrl+Alt+U`, `Ctrl+Shift+F9` or `F6`. They
 need Ctrl or Alt unless they use a function key. A shortcut Ettin Edit or
 another plugin already uses isn't added; the log says why.
+
+Users can put any plugin command on the [toolbar](toolbar.md). The `icon`
+is what its button shows there: a [Phosphor](https://phosphoricons.com/)
+icon name such as `"star"` or `"chart-bar"`, or a `.png` file inside your
+plugin's folder, given relative to it (`"icons/run.png"`; 32×32 pixels looks
+sharp). An icon that isn't a known name or points outside the folder is left
+out and the log says why; the button then shows a puzzle piece.
+
+```python
+@ettin.command("Count Words", shortcut="Ctrl+Alt+W", icon="hash")
+def count_words():
+    ...
+```
+
+```javascript
+ettin.command('Count Words', countWords, { shortcut: 'Ctrl+Alt+W', icon: 'hash' });
+```
 
 Events:
 
@@ -391,7 +408,7 @@ the active tab.
 
 | Method | Params | Result |
 |--------|--------|--------|
-| `commands.register` | `id, title, shortcut?` | `{shortcut, warning}` |
+| `commands.register` | `id, title, shortcut?, icon?` | `{shortcut, warning}` |
 | `events.subscribe` | `events: [names]` | |
 | `documents.list` / `documents.active` / `documents.info` | `doc?` | document info |
 | `documents.open` | `path` | document info |

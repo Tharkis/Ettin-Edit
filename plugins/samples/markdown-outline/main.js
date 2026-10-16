@@ -78,12 +78,12 @@ ettin.command('Show or Hide Markdown Outline', async () => {
   visible = !visible;
   if (visible) await refresh();
   else await ettin.closePanel('outline');
-}, { shortcut: 'Ctrl+Alt+O' });
+}, { shortcut: 'Ctrl+Alt+O', icon: 'list-bullets' });
 
 ettin.command('Insert UUID', async () => {
   const doc = await ettin.activeDocument();
   await doc.insert(crypto.randomUUID());
-}, { shortcut: 'Ctrl+Alt+I' });
+}, { shortcut: 'Ctrl+Alt+I', icon: 'fingerprint' });
 
 /** Wraps each paragraph at `width` columns. */
 function wrap(text, width) {

@@ -3,8 +3,8 @@
 **Settings > Preferences…** (<kbd>Ctrl+,</kbd>) holds every setting in one
 window. Changes take effect as you make them; there's no OK button to press.
 The sections are on the left, with buttons for the
-[Shortcut Mapper](shortcuts.md) and [Theme Colours](themes.md#edit-theme-colours)
-below them.
+[Shortcut Mapper](shortcuts.md), [Theme Colours](themes.md#edit-theme-colours)
+and [Customise Toolbar](toolbar.md#customising) below them.
 
 The most-used switches are also in the **Settings** menu, so you can flip them
 without opening Preferences.

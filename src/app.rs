@@ -8,6 +8,7 @@ mod menus;
 mod panels;
 mod plugins;
 mod printing;
+mod ribbon;
 mod text_tools;
 mod views;
 mod xml_schema;
@@ -121,6 +122,8 @@ pub struct EttinApp {
     function_list: crate::function_list_ui::FunctionList,
     /// Full screen with only the text showing.
     distraction_free: bool,
+    /// The tabbed toolbar under the menu bar.
+    toolbar: ribbon::Toolbar,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -216,6 +219,8 @@ impl EttinApp {
             highlighter.grammar_words.clone(),
         );
         theme_errors.extend(api_errors);
+        let (toolbar, toolbar_error) = ribbon::Toolbar::load();
+        theme_errors.extend(toolbar_error);
 
         let mut app = Self {
             docs: Vec::new(),
@@ -280,6 +285,7 @@ impl EttinApp {
             updates: Default::default(),
             function_list: Default::default(),
             distraction_free: false,
+            toolbar,
         };
         if let Some(dir) = app.settings.workspace.clone() {
             app.folders.set_root(&dir);
@@ -1166,6 +1172,9 @@ impl EttinApp {
                 self.command_palette
                     .show(&t!("command-palette-title"), &t!("command-palette-hint"));
             }
+            Action::CustomiseToolbar | Action::ToggleToolbar | Action::CollapseToolbar => {
+                self.run_toolbar(&action)
+            }
             Action::TabList => {
                 self.command_palette.open = false;
                 self.tab_picker
@@ -1583,6 +1592,7 @@ impl EttinApp {
             || self.shortcut_mapper.open
             || self.command_palette.open
             || self.tab_picker.open
+            || self.toolbar.dialog.open
     }
 
     // ---------------------------------------------------------------------
@@ -2094,6 +2104,20 @@ impl EttinApp {
                 self.menu_item(ui, &t!("tab-list"), Action::TabList);
                 self.menu_item(ui, &t!("command-palette"), Action::CommandPalette);
                 ui.separator();
+                self.toggle_item(
+                    ui,
+                    &t!("toolbar-show"),
+                    s.show_toolbar,
+                    Action::ToggleToolbar,
+                );
+                self.toggle_item(
+                    ui,
+                    &t!("toolbar-collapse-menu"),
+                    s.toolbar_collapsed,
+                    Action::CollapseToolbar,
+                );
+                self.menu_item(ui, &t!("customise-toolbar-dots"), Action::CustomiseToolbar);
+                ui.separator();
                 self.menu_item(ui, &t!("move-to-other-view"), Action::MoveActiveToOtherView);
                 self.menu_item(
                     ui,
@@ -2159,6 +2183,7 @@ impl EttinApp {
             ui.menu_button(t!("menu-settings"), |ui| {
                 self.menu_item(ui, &t!("preferences-dots"), Action::Preferences);
                 self.menu_item(ui, &t!("shortcut-mapper-dots"), Action::ShortcutMapper);
+                self.menu_item(ui, &t!("customise-toolbar-dots"), Action::CustomiseToolbar);
                 ui.separator();
                 let s = self.settings.clone();
                 self.toggle_item(
@@ -2917,6 +2942,7 @@ impl EttinApp {
                 }
                 crate::prefs_ui::PrefsEvent::Shortcuts => self.pending.push(Action::ShortcutMapper),
                 crate::prefs_ui::PrefsEvent::Styles => self.pending.push(Action::StyleConfigurator),
+                crate::prefs_ui::PrefsEvent::Toolbar => self.pending.push(Action::CustomiseToolbar),
                 crate::prefs_ui::PrefsEvent::Language => {
                     let errors = crate::i18n::set_language(&self.settings.ui_language);
                     self.errors.extend(errors);
@@ -3167,6 +3193,7 @@ impl eframe::App for EttinApp {
                 )
                 .show_separator_line(false)
                 .show(ui, |ui| self.menu_bar(ui));
+            self.toolbar_panel(ui);
             egui::Panel::top("tab-bar")
                 .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
                     left: 6,
@@ -3277,6 +3304,7 @@ impl eframe::App for EttinApp {
 
         self.close_queue_ui(&ctx);
         self.dialogs(&ctx);
+        self.toolbar_dialog(&ctx);
         self.plugin_dialogs(&ctx);
         self.notice_ui(&ctx);
 

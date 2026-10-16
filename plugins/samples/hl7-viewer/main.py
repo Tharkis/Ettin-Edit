@@ -493,7 +493,7 @@ def designation_for_caret():
     return hl7.designation(parsed, parsed.visible(path)) if path else None
 
 
-@ettin.command("Show or Hide HL7 Viewer", shortcut="Ctrl+Alt+H")
+@ettin.command("Show or Hide HL7 Viewer", shortcut="Ctrl+Alt+H", icon="heartbeat")
 def toggle():
     state["shown"] = not state["shown"]
     if state["shown"]:

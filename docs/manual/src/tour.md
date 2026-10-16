@@ -14,15 +14,19 @@ From top to bottom:
 | **File** | New, open, save, recent files, print, rename, workspace folders, close |
 | **Edit** | Undo, clipboard, line operations, case, comments, multi-select, completion, column editor, read-only |
 | **Search** | Find, replace, Find in Files, marks, Go to Line, bookmarks |
-| **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode |
+| **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode, the toolbar |
 | **Encoding** | The encoding the file is saved in, or read it again in another one |
 | **Theme** | Pick a theme, edit its colours, open the themes folder |
 | **Language** | Pick the highlighting language, add your own languages |
-| **Settings** | Preferences, the Shortcut Mapper and quick on/off switches |
+| **Settings** | Preferences, the Shortcut Mapper, Customise Toolbar and quick on/off switches |
 | **Tools** | Compare, CsvQuery, MIME Tools, JSON and JavaScript, XML Tools |
 | **Plugins** | Your plugins' commands, and managing plugins |
 | **Macro** | Record, play back and save macros |
 | **Help** | This manual, update checks and About |
+
+Under the menu bar is the [toolbar](toolbar.md): tabs of buttons for the
+commands you use most. Right-click it to customise it, or press
+<kbd>Ctrl+F1</kbd> to collapse it to its tab names.
 
 The Ettin Edit icon at the far left opens **About Ettin Edit**, which shows
 the version you have.

@@ -85,8 +85,22 @@ pub fn install(ctx: &egui::Context, editor: &EditorFont) -> Result<(), String> {
                 .push("cjk-fallback".to_owned());
         }
     }
+    // Toolbar icons; also a fallback so icons can sit inside ordinary labels.
+    egui_phosphor::add_font_bytes_to_fonts(
+        &mut fonts,
+        ICON_FONT,
+        egui_phosphor::Variant::Regular.font_bytes(),
+    );
     ctx.set_fonts(fonts);
     result
+}
+
+/// The font family of the toolbar icons (Phosphor, MIT licence).
+pub const ICON_FONT: &str = "phosphor";
+
+/// The icon font at `size` points.
+pub fn icon_font(size: f32) -> egui::FontId {
+    egui::FontId::new(size, FontFamily::Name(ICON_FONT.into()))
 }
 
 /// A regular-style font installed on the system.

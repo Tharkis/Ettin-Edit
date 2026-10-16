@@ -18,6 +18,17 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.3: The toolbar
+
+- [x] A tabbed toolbar under the menu bar, like the Office ribbon: Home, Edit, View and Tools tabs, each with groups of large and small buttons for common commands ([The toolbar](docs/manual/src/toolbar.md))
+- [x] Buttons show their command's menu path and shortcut on hover, are outlined while a setting they switch is on, and grey out when the command can't run
+- [x] Settings > Customise Toolbar… (also from the toolbar's right-click menu, View and Preferences): put any menu command on it, including themes, languages, encodings, saved macros and plugin commands, by dragging or with Add
+- [x] Add, rename, reorder, hide and remove tabs and groups; move buttons by dragging or with the arrow buttons; change a button's label, size and icon (1,500 Phosphor icons, MIT licence); Reset to Defaults
+- [x] Right-click a button to remove it; collapse the toolbar to its tab names (double-click a tab, the arrow button, View > Collapse Toolbar or Ctrl+F1), and click a tab to show its buttons over the text; View > Toolbar hides it
+- [x] The layout is kept in `toolbar.json` in the settings folder; there's no file until you change something, so you get new default buttons in later versions
+- [x] Plugins can give commands a toolbar icon: a Phosphor icon name or a PNG in the plugin's folder (`icon` in `@command` / `command`); the sample plugins have icons
+- [x] Toolbar text in all four interface languages
+
 ### 1.2: Translations and the user manual
 
 #### Translations
@@ -265,6 +276,7 @@ Plugins are folders in the plugins folder (`~/.config/EttinEdit/plugins/` on Lin
 JavaScript script. See [Writing plugins](docs/manual/src/plugin-guide.md), also under Plugins > Plugin Guide.
 
 - [x] Plugins menu: each running plugin's commands with their shortcuts, Manage Plugins, Plugin Log, Open Plugins Folder, Reload Plugins, Install Sample Plugins and Plugin Guide; the right-click menu has the plugin commands too
+- [x] Plugin commands can go on the toolbar, with an icon the plugin chooses (1.3)
 - [x] Plugins run as their own processes; Ettin Edit finds `python3`/`python` (`python`, `py -3` on Windows) and `node`, or the paths set in Manage Plugins
 - [x] A small SDK for each language (`import ettin-edit` / `require("ettin-edit")`) that Ettin Edit keeps up to date
 - [x] API: documents (list, open, new, save, close, activate, info), text (get, set, replace ranges, insert), selections, go to line, run any built-in command, messages, a text prompt, the clipboard and the plugin log

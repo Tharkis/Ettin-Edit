@@ -127,6 +127,8 @@ pub struct Command {
     pub id: String,
     pub title: String,
     pub shortcut: Option<KeyboardShortcut>,
+    /// A Phosphor icon name or a PNG file in the plugin's folder, for the toolbar.
+    pub icon: Option<String>,
 }
 
 pub struct Plugin {
@@ -711,6 +713,17 @@ impl PluginHost {
                 }
             },
         };
+        let icon = match str_param(&call.params, "icon").map(str::trim) {
+            None | Some("") => None,
+            Some(text) => match check_icon(text) {
+                Ok(()) => Some(text.to_owned()),
+                Err(e) => {
+                    let plugin = call.plugin.clone();
+                    self.log(&plugin, format!("Icon not used: {e}"), true);
+                    None
+                }
+            },
+        };
         let Some(index) = self.index_of(&call.plugin) else {
             return Err((FAILED, "unknown plugin".to_owned()));
         };
@@ -720,6 +733,7 @@ impl PluginHost {
             Some(c) => {
                 c.title = title;
                 c.shortcut = shortcut;
+                c.icon = icon;
             }
             None if count >= MAX_COMMANDS => {
                 return Err((
@@ -731,6 +745,7 @@ impl PluginHost {
                 id,
                 title,
                 shortcut,
+                icon,
             }),
         }
         if let Some(w) = &warning {
@@ -886,6 +901,30 @@ pub fn response(id: Value, result: Result<Value, CallError>) -> String {
     .to_string()
 }
 
+/// A command icon is a Phosphor icon name, or a PNG file inside the plugin's
+/// folder given relative to it.
+fn check_icon(icon: &str) -> Result<(), String> {
+    if !icon.to_ascii_lowercase().ends_with(".png") {
+        return match crate::ribbon::glyph(icon) {
+            Some(_) => Ok(()),
+            None => Err(format!(
+                "\"{icon}\" is not a Phosphor icon name or a .png file"
+            )),
+        };
+    }
+    let path = std::path::Path::new(icon);
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(format!(
+            "\"{icon}\" must be a path inside the plugin's folder"
+        ));
+    }
+    Ok(())
+}
+
 pub fn str_param<'a>(params: &'a Value, key: &str) -> Option<&'a str> {
     params.get(key).and_then(Value::as_str)
 }
@@ -942,6 +981,30 @@ mod tests {
             id: None,
             method: method.into(),
             params,
+        }
+    }
+
+    #[test]
+    fn command_icons_are_names_or_png_files_inside_the_plugin() {
+        let mut host = host_with("p");
+        for (id, icon, kept) in [
+            ("a", "star", true),
+            ("b", "icons/run.png", true),
+            ("c", "no-such-icon", false),
+            ("d", "../other/run.png", false),
+            ("e", "/tmp/run.png", false),
+        ] {
+            host.register_command(&call(
+                "commands.register",
+                json!({"id": id, "title": id, "icon": icon}),
+            ))
+            .unwrap();
+            let c = host.plugins[0]
+                .commands
+                .iter()
+                .find(|c| c.id == id)
+                .unwrap();
+            assert_eq!(c.icon.is_some(), kept, "{icon}");
         }
     }
 

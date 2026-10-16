@@ -28,6 +28,7 @@
 # Making it yours
 
 - [Preferences and settings](preferences.md)
+- [The toolbar](toolbar.md)
 - [Keyboard shortcuts](shortcuts.md)
 - [Themes and colours](themes.md)
 - [Languages](languages.md)

@@ -64,7 +64,7 @@ def render(doc=None):
     ])
 
 
-@ettin.command("Show or Hide Text Statistics", shortcut="Ctrl+Alt+T")
+@ettin.command("Show or Hide Text Statistics", shortcut="Ctrl+Alt+T", icon="chart-bar")
 def toggle():
     state["shown"] = not state["shown"]
     if state["shown"]:
@@ -73,7 +73,7 @@ def toggle():
         ettin.close_panel("stats")
 
 
-@ettin.command("Word Frequencies to New Tab")
+@ettin.command("Word Frequencies to New Tab", icon="ranking")
 def export():
     doc = ettin.active()
     counts = word_counts(doc.get_text(), state["skip_short"])

@@ -110,6 +110,7 @@ runs on Linux and Windows only.
 | Word Wrap | <kbd>Alt+Z</kbd> |
 | Distraction-Free Mode | <kbd>F11</kbd> |
 | Command Palette… | <kbd>F1</kbd> |
+| Collapse Toolbar | <kbd>Ctrl+F1</kbd> |
 | Next Tab | <kbd>Ctrl+Tab</kbd> or <kbd>Ctrl+PageDown</kbd> |
 | Previous Tab | <kbd>Ctrl+Shift+Tab</kbd> or <kbd>Ctrl+PageUp</kbd> |
 | Focus Other View | <kbd>F8</kbd> |
