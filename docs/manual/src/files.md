@@ -18,7 +18,8 @@ so you don't collect empty tabs.
 
 Ettin Edit works out each file's [encoding and line endings](encodings.md)
 and its [language](languages.md) as it opens it, and keeps them when you
-save. Very large files are fine: a 50 MB log opens in about a second.
+save. Very large files are fine: a 50 MB log opens in about a second, and word wrap
+keeps up when you resize the window.
 
 ### One window or several
 

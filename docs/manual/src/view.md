@@ -6,7 +6,7 @@ Everything in this chapter is in the **View** menu unless it says otherwise.
 
 | Command | Shortcut | What it does |
 | --- | --- | --- |
-| **Word Wrap** | <kbd>Alt+Z</kbd> | Wrap long lines at the window's edge instead of scrolling sideways. Line numbers stay with their lines. |
+| **Word Wrap** | <kbd>Alt+Z</kbd> | Wrap long lines at the window's edge instead of scrolling sideways. Line numbers stay with their lines, and the top line stays in place when you resize the window, even in very large files. |
 | **Line Numbers** | | The numbers in the gutter |
 | **Highlight Current Line** | | A band behind the caret's line |
 | **Show Symbol > Show Whitespace** | | A dot for each space and an arrow across each tab |

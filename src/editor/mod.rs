@@ -85,6 +85,21 @@ pub struct Editor {
     map_view: (f32, f32),
     /// A row the document map asked the view to scroll to.
     map_scroll: Option<f32>,
+    /// The text at the top of the view last frame, kept in place when the
+    /// wrap width changes.
+    top_anchor: Option<TopAnchor>,
+}
+
+/// Where the view's first visible row starts, and the row layout it was in.
+#[derive(Clone, Copy)]
+struct TopAnchor {
+    line: usize,
+    /// Char offset within the line where the row starts.
+    offset: usize,
+    /// How much of the row is scrolled off the top, in rows.
+    frac: f32,
+    wrap_cols: Option<usize>,
+    generation: u64,
 }
 
 /// What each view of a document keeps for itself: carets, scrolling and
@@ -102,6 +117,7 @@ struct ViewState {
     hint: Option<CallHint>,
     column: Option<(smart::ColumnSel, Selections)>,
     column_drag: Option<(usize, usize)>,
+    top_anchor: Option<TopAnchor>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -161,6 +177,7 @@ impl Editor {
             other_view: None,
             map_view: (0.0, 1.0),
             map_scroll: None,
+            top_anchor: None,
         }
     }
 
@@ -180,6 +197,7 @@ impl Editor {
             hint: None,
             column: None,
             column_drag: None,
+            top_anchor: self.top_anchor,
         }));
     }
 
@@ -219,6 +237,7 @@ impl Editor {
         std::mem::swap(&mut self.hint, &mut other.hint);
         std::mem::swap(&mut self.column, &mut other.column);
         std::mem::swap(&mut self.column_drag, &mut other.column_drag);
+        std::mem::swap(&mut self.top_anchor, &mut other.top_anchor);
         self.selections.clamp(self.buffer.len_chars());
     }
 

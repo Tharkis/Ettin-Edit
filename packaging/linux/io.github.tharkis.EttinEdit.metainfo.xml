@@ -68,6 +68,14 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.8.0" date="2026-10-16">
+      <description>
+        <p>Word wrap keeps up with window resizing on very large files: only
+        lines too long for the new width are wrapped again, the visible ones
+        first, and the line at the top of the view stays put.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.8.0</url>
+    </release>
     <release version="1.7.0" date="2026-10-16">
       <description>
         <p>Ettin Edit updates itself: Check for Updates downloads the new
