@@ -174,6 +174,9 @@ fn map_marks(marks: &[Range<usize>], edits: &[CharEdit]) -> Vec<Range<usize>> {
 }
 
 /// Fills the parts of `ranges` (sorted char ranges) that fall on the visible rows.
+/// A range that takes in a line break gets `eol_w` more at the line end, like a
+/// selection does, so a match on a line break alone shows.
+#[allow(clippy::too_many_arguments)]
 fn paint_ranges(
     painter: &egui::Painter,
     rows: &[(usize, Arc<RowLayout>)],
@@ -182,6 +185,7 @@ fn paint_ranges(
     text_x: f32,
     origin_y: f32,
     row_h: f32,
+    eol_w: f32,
 ) {
     let (Some((_, first)), Some((_, last))) = (rows.first(), rows.last()) else {
         return;
@@ -198,7 +202,10 @@ fn paint_ranges(
                 continue;
             }
             let x0 = row.x_of(r.start.max(row_start) - row.line_start);
-            let x1 = row.x_of(r.end.min(row_end) - row.line_start);
+            let mut x1 = row.x_of(r.end.min(row_end) - row.line_start);
+            if row.last_in_line && r.end > row_end {
+                x1 += eol_w;
+            }
             if x1 > x0 {
                 let y = origin_y + *row_idx as f32 * row_h;
                 painter.rect_filled(
@@ -912,6 +919,7 @@ impl Editor {
                 text_x,
                 origin.y,
                 metrics.row_h,
+                metrics.char_w * 0.6,
             );
             paint_ranges(
                 painter,
@@ -921,6 +929,7 @@ impl Editor {
                 text_x,
                 origin.y,
                 metrics.row_h,
+                metrics.char_w * 0.6,
             );
             if let Some(word) = self.selected_word() {
                 let hits = self.word_hits(&mut cache, &rows, &word);
@@ -932,6 +941,7 @@ impl Editor {
                     text_x,
                     origin.y,
                     metrics.row_h,
+                    metrics.char_w * 0.6,
                 );
             }
 
@@ -977,6 +987,7 @@ impl Editor {
                     text_x,
                     origin.y,
                     metrics.row_h,
+                    metrics.char_w * 0.6,
                 );
             }
 

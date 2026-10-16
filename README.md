@@ -52,7 +52,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | --- | --- |
 | ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing (with a Column Mode), code folding that follows the grammar, keyword completion, parameter hints, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second. |
 | 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with live preview. Drop in any `.tmTheme` you like. |
-| 🔎 **Finds things** | Find and replace with regex or extended escapes (`\n`, `\t`, `\x41`), Find All in open tabs, Find in Files in the background, marks and a results panel. |
+| 🔎 **Finds things** | Find and replace with regex or extended escapes (`\n`, `\r\n`, `\t`, `\x41`), Find All in open tabs, Find in Files in the background, marks and a results panel. |
 | 🧰 **Tools menu** | JSON and JavaScript formatting, minifying and a live JSON tree (JSTool). Base64, URL, HTML entities and SAML (MIME tools). XPath, pretty print, XSD/DTD validation and XSLT (XML Tools). |
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
 | 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |

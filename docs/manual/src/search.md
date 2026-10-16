@@ -36,6 +36,25 @@ the find bar, adds a second row:
 - **In selection** limits Replace All to the selected text. It's turned on
   for you when you open the bar with several lines selected.
 
+Leave the replace box empty to delete what you searched for: **Replace All**
+with an empty box removes every match. This works in all three modes, so
+Extended `\r\n` or the regular expression `\r\n` with an empty
+replacement joins every line into one.
+
+## Line breaks
+
+Ettin Edit keeps every line break as one character while you edit, and
+writes the tab's own line ending (shown in the status bar) when it saves. So
+in Extended mode and in regular expressions, `\r\n`, `\r` and `\n` all
+find a line break, whether the file uses Windows (CR LF), Unix (LF) or old
+Mac (CR) line endings. A match on a line break is highlighted just past the
+end of its line.
+
+In a regular expression, an optional `\r` (as in `\r?\n`) finds nothing on
+its own, so `\r?\n` still finds exactly one line break. To change the line
+endings a file is saved with, click the line ending in the status bar (see
+[Line endings](encodings.md#line-endings)).
+
 ## Extended mode (\n, \t, \xNN)
 
 Turn on **\\n** to search for characters you can't type in the find box,
@@ -86,7 +105,7 @@ In the replacement:
 | `$1` or `\1` | The first group (`$2`, `\2` and so on for the others) |
 | `${name}` | A named group |
 | `$0` | The whole match |
-| `\n`, `\t` | A line break, a tab |
+| `\n`, `\t` | A line break, a tab (`\r` and `\r\n` are a line break too) |
 | `$$` | A dollar sign |
 | `\\` | A backslash |
 

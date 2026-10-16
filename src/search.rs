@@ -43,7 +43,7 @@ impl Query {
             return Ok(None);
         }
         let source = if opts.regex {
-            pattern.to_owned()
+            regex_line_breaks(pattern)
         } else if opts.extended {
             regex::escape(&unescape(pattern))
         } else {
@@ -123,7 +123,7 @@ impl Query {
     }
 
     /// The replacement text for match `m`. Regex templates understand `$1`,
-    /// `${name}`, `\1`..`\9`, `\n`, `\t` and `\\`; extended searches
+    /// `${name}`, `\1`..`\9`, `\n`, `\r`, `\t` and `\\`; extended searches
     /// [`unescape`] it; plain searches insert `template` as typed.
     pub fn expand(&self, text: &str, m: &Range<usize>, template: &str) -> String {
         if self.extended {
@@ -142,7 +142,15 @@ impl Query {
                 '\\' => match chars.next() {
                     Some('n') => out.push('\n'),
                     Some('t') => out.push('\t'),
-                    Some('r') => out.push('\r'),
+                    // The text keeps line breaks as `\n`, so `\r\n` and `\r`
+                    // insert one line break.
+                    Some('r') => {
+                        if chars.clone().take(2).eq(['\\', 'n']) {
+                            chars.next();
+                            chars.next();
+                        }
+                        out.push('\n');
+                    }
                     Some('\\') => out.push('\\'),
                     Some(d @ '0'..='9') => {
                         let i = d as usize - '0' as usize;
@@ -191,6 +199,41 @@ impl Query {
         }
         out
     }
+}
+
+/// Rewrites `\r` in a regular expression for text whose line breaks are all
+/// `\n` (see [`unescape`]): `\r\n` and a lone `\r` both become `\n`, so they
+/// match a line break. An optional `\r` (`\r?\n`, `\r*`) is left alone: it
+/// never matches, so `\r?\n` still matches one line break.
+fn regex_line_breaks(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut chars = pattern.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('r') => {
+                let rest = chars.clone().take(2).collect::<String>();
+                if rest == "\\n" {
+                    chars.next();
+                    chars.next();
+                    out.push_str("\\n");
+                } else if matches!(chars.peek(), Some('?' | '*')) {
+                    out.push_str("\\r");
+                } else {
+                    out.push_str("\\n");
+                }
+            }
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
 }
 
 /// Turns the escapes of the "Extended" search mode into the characters they
@@ -641,6 +684,57 @@ mod tests {
     }
 
     #[test]
+    fn regex_line_breaks_match_crlf_and_cr() {
+        let opts = SearchOptions {
+            regex: true,
+            ..Default::default()
+        };
+        // Line breaks are `\n` in the text, whatever the file uses.
+        let text = "a\nb\nc";
+        assert_eq!(all(&q(r"\r\n", opts), text), vec![1..2, 3..4]);
+        assert_eq!(all(&q(r"\r", opts), text), vec![1..2, 3..4]);
+        assert_eq!(all(&q(r"\r?\n", opts), text), vec![1..2, 3..4]);
+        assert_eq!(all(&q(r"b\r\nc", opts), text), vec![2..5]);
+        assert_eq!(all(&q(r"[\r\n]+", opts), "a\n\nb"), vec![1..3]);
+        assert_eq!(all(&q(r"[^\r\n]+", opts), text), vec![0..1, 2..3, 4..5]);
+        // An escaped backslash before `r` is a backslash and an `r`.
+        assert_eq!(all(&q(r"\\r", opts), r"x\r"), vec![1..3]);
+        assert_eq!(
+            regex_line_breaks(r"\r\n|\r|\r?\n|\r*|\\r"),
+            r"\n|\n|\r?\n|\r*|\\r"
+        );
+    }
+
+    #[test]
+    fn replacing_with_nothing_deletes_the_match() {
+        let text = "a,\nb,\nc";
+        for (pattern, opts) in [
+            (",", SearchOptions::default()),
+            (
+                r",\r\n",
+                SearchOptions {
+                    extended: true,
+                    ..Default::default()
+                },
+            ),
+            (
+                r",\r\n",
+                SearchOptions {
+                    regex: true,
+                    ..Default::default()
+                },
+            ),
+        ] {
+            let query = q(pattern, opts);
+            let matches = all(&query, text);
+            assert_eq!(matches.len(), 2, "{pattern} {opts:?}");
+            for m in &matches {
+                assert_eq!(query.expand(text, m, ""), "");
+            }
+        }
+    }
+
+    #[test]
     fn replacement_templates() {
         let opts = SearchOptions {
             regex: true,
@@ -652,6 +746,8 @@ mod tests {
         assert_eq!(query.expand(text, &m, r"\2:\1"), "42:key");
         assert_eq!(query.expand(text, &m, "$2-${v}-$$"), "42-42-$");
         assert_eq!(query.expand(text, &m, r"a\nb\t\\"), "a\nb\t\\");
+        // `\r\n` and `\r` insert one line break, as the text keeps them.
+        assert_eq!(query.expand(text, &m, r"1\r\n2\r3"), "1\n2\n3");
         // Plain searches insert the text as typed.
         let plain = q("key", SearchOptions::default());
         let m = plain.find_at(text, 0).unwrap();
