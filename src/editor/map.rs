@@ -22,6 +22,20 @@ fn blend(bg: Color32, fg: Color32, t: f32) -> Color32 {
 }
 
 impl Editor {
+    /// The line (from 0, with how far down it the view starts as a
+    /// fraction) at the top of the view, and whether the view is scrolled
+    /// to the end of a document longer than it.
+    pub fn top_line(&mut self) -> (f32, bool) {
+        let (top, shown) = self.map_view;
+        let total = self.rows.total_rows();
+        let row = top.max(0.0);
+        let (line, sub) = self.rows.row_to_line(row.floor() as usize);
+        let rows = (self.rows.line_to_row(line + 1) - self.rows.line_to_row(line)).max(1);
+        let at = line as f32 + ((sub as f32 + row.fract()) / rows as f32).min(1.0);
+        let end = total as f32 > shown && top + shown >= total as f32 - 0.5;
+        (at, end)
+    }
+
     /// Draws the map into `ui`, which should be a narrow side panel.
     pub fn show_map(
         &mut self,

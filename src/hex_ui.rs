@@ -4,6 +4,7 @@ use egui::{
     Align2, Event, EventFilter, FontId, Id, Key, Pos2, Rect, ScrollArea, Sense, Stroke, Ui, Vec2,
 };
 
+use crate::bytes::ByteStore;
 use crate::encoding::TextEncoding;
 use crate::hex::{HexView, ROW, format_hex, parse_hex};
 use crate::theme::Palette;
@@ -13,12 +14,14 @@ use crate::theme::Palette;
 const HEX_COL: f32 = 10.0;
 const TEXT_COL: f32 = HEX_COL + ROW as f32 * 3.0 + 3.0;
 const WIDTH_COLS: f32 = TEXT_COL + ROW as f32 + 1.0;
+/// The most bytes Copy puts on the clipboard (as hex, three times as many characters).
+const MAX_COPY: usize = 16 << 20;
 
 /// What the user asked the hex view for.
 #[derive(Debug, PartialEq)]
 pub enum HexOutcome {
-    /// New bytes for the whole file, to turn back into text.
-    Bytes(Vec<u8>),
+    /// The bytes were changed.
+    Edited,
     Undo,
     Redo,
 }
@@ -32,11 +35,14 @@ fn printable(b: u8) -> Option<char> {
 }
 
 impl HexView {
-    /// Draws the view. `encoding` is the tab's, for typing in the text column.
+    /// Draws the view of `store`. `encoding` is the tab's, for typing in the
+    /// text column. `binary` says the tab is edited as bytes, for the bar.
     #[allow(clippy::too_many_arguments)]
     pub fn ui(
         &mut self,
         ui: &mut Ui,
+        store: &mut ByteStore,
+        binary: bool,
         id: Id,
         font_size: f32,
         palette: &Palette,
@@ -44,6 +50,7 @@ impl HexView {
         read_only: bool,
         request_focus: bool,
     ) -> Option<HexOutcome> {
+        self.clamp(store.len());
         let font = FontId::monospace(font_size);
         let small = FontId::proportional(12.0);
         let char_w = ui.fonts_mut(|f| f.glyph_width(&font, '0')).max(1.0);
@@ -98,11 +105,12 @@ impl HexView {
                 )
             });
             let page = ((body.height() / row_h) as usize).max(1) * ROW;
-            outcome = self.keys(ui, page, encoding, read_only);
+            outcome = self.keys(ui, store, page, encoding, read_only);
         }
 
         // Rows.
-        let rows = self.bytes.len() / ROW + 1;
+        let len = store.len();
+        let rows = len / ROW + 1;
         let mut area = ScrollArea::vertical()
             .id_salt(id.with("scroll"))
             .auto_shrink([false, false]);
@@ -130,6 +138,8 @@ impl HexView {
                         Sense::hover(),
                     );
                     let painter = ui.painter();
+                    let first = range.start * ROW;
+                    let shown = store.read(first..range.end * ROW);
                     for (n, row) in range.clone().enumerate() {
                         let y = rect.top() + n as f32 * row_h + 1.0;
                         let start = row * ROW;
@@ -142,7 +152,7 @@ impl HexView {
                         );
                         for i in 0..ROW {
                             let at = start + i;
-                            if at > self.bytes.len() {
+                            if at > len {
                                 break;
                             }
                             let hx = x0 + hex_x(i) * char_w;
@@ -183,7 +193,7 @@ impl HexView {
                                     egui::StrokeKind::Inside,
                                 );
                             }
-                            let Some(&b) = self.bytes.get(at) else {
+                            let Some(&b) = shown.get(at - first) else {
                                 continue;
                             };
                             let (hex, color) = match self.pending {
@@ -233,10 +243,10 @@ impl HexView {
             if response.drag_started() || response.clicked() {
                 let extend = ui.input(|i| i.modifiers.shift);
                 self.in_text = text;
-                self.move_to(at, extend);
+                self.move_to(at, extend, len);
                 self.scroll_to_cursor = false;
             } else if response.dragged() {
-                self.move_to(at, true);
+                self.move_to(at, true, len);
             }
         }
 
@@ -248,13 +258,16 @@ impl HexView {
             hex = format!("{:X}", self.cursor),
             dec = self.cursor
         )];
-        if let Some(&b) = self.bytes.get(self.cursor) {
+        if let Some(b) = store.get(self.cursor) {
             info.push(format!("0x{b:02X} = {b} = 0b{b:08b}"));
         }
         if !selection.is_empty() {
             info.push(t!("hex-selected", count = selection.len()));
         }
-        info.push(t!("hex-size", count = self.bytes.len()));
+        info.push(t!("hex-size", count = len));
+        if binary {
+            info.push(t!("hex-binary"));
+        }
         let text = info.join("    ");
         painter.text(
             Pos2::new(bar.left() + pad, bar.center().y),
@@ -279,15 +292,15 @@ impl HexView {
     fn keys(
         &mut self,
         ui: &Ui,
+        store: &mut ByteStore,
         page: usize,
         encoding: TextEncoding,
         read_only: bool,
     ) -> Option<HexOutcome> {
         let mut outcome = None;
-        self.before_edit = None;
         let events = ui.input(|i| i.events.clone());
         for event in events {
-            let len = self.bytes.len();
+            let len = store.len();
             match event {
                 Event::Key {
                     key,
@@ -311,7 +324,7 @@ impl HexView {
                         _ => None,
                     };
                     if let Some(to) = to {
-                        self.move_to(to, m.shift);
+                        self.move_to(to, m.shift, len);
                         continue;
                     }
                     match key {
@@ -339,11 +352,11 @@ impl HexView {
                                 c.saturating_sub(1)..c
                             };
                             if !range.is_empty() {
-                                outcome = Some(self.edit(range.clone(), &[], range.start));
+                                outcome = Some(self.edit(store, range.clone(), &[], range.start));
                             }
                         }
                         Key::Insert => {
-                            outcome = Some(self.edit(c..c, &[0], c));
+                            outcome = Some(self.edit(store, c..c, &[0], c));
                         }
                         _ => {}
                     }
@@ -360,8 +373,9 @@ impl HexView {
                                 Ok(bytes) => {
                                     let bytes = &bytes[bom..];
                                     let c = self.cursor;
-                                    let end = (c + bytes.len()).min(self.bytes.len());
-                                    outcome = Some(self.edit(c..end, bytes, c + bytes.len()));
+                                    let end = (c + bytes.len()).min(len);
+                                    outcome =
+                                        Some(self.edit(store, c..end, bytes, c + bytes.len()));
                                 }
                                 Err(_) => {
                                     self.message = Some(t!(
@@ -377,8 +391,9 @@ impl HexView {
                                 None => self.pending = Some(d),
                                 Some(high) => {
                                     let c = self.cursor;
-                                    let end = (c + 1).min(self.bytes.len());
-                                    outcome = Some(self.edit(c..end, &[high << 4 | d], c + 1));
+                                    let end = (c + 1).min(len);
+                                    outcome =
+                                        Some(self.edit(store, c..end, &[high << 4 | d], c + 1));
                                 }
                             }
                         }
@@ -391,7 +406,11 @@ impl HexView {
                     } else {
                         sel
                     };
-                    ui.ctx().copy_text(format_hex(&self.bytes[range]));
+                    if range.len() > MAX_COPY {
+                        self.message = Some(t!("hex-copy-too-big"));
+                    } else {
+                        ui.ctx().copy_text(format_hex(&store.read(range)));
+                    }
                 }
                 Event::Paste(text) if read_only => {
                     let _ = text;
@@ -407,7 +426,7 @@ impl HexView {
                             sel
                         };
                         let after = range.start + bytes.len();
-                        outcome = Some(self.edit(range, &bytes, after));
+                        outcome = Some(self.edit(store, range, &bytes, after));
                     }
                     None => self.message = Some(t!("hex-paste-hint")),
                 },
@@ -418,14 +437,16 @@ impl HexView {
     }
 
     /// Replaces `range` with `with` and puts the cursor at `cursor`.
-    fn edit(&mut self, range: std::ops::Range<usize>, with: &[u8], cursor: usize) -> HexOutcome {
-        let bytes = self.replaced(range, with);
-        if self.before_edit.is_none() {
-            self.before_edit = Some((self.cursor, self.anchor));
-        }
-        self.bytes = std::sync::Arc::new(bytes.clone());
+    fn edit(
+        &mut self,
+        store: &mut ByteStore,
+        range: std::ops::Range<usize>,
+        with: &[u8],
+        cursor: usize,
+    ) -> HexOutcome {
+        store.replace(range, with);
         self.message = None;
-        self.move_to(cursor, false);
-        HexOutcome::Bytes(bytes)
+        self.move_to(cursor, false, store.len());
+        HexOutcome::Edited
     }
 }

@@ -57,8 +57,8 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
 | 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
 | 🌍 **Text in any shape** | About 80 languages, plus your own with a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
-| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels (even live Markdown, as the Markdown Preview sample does), and install them from Plugins > Manage Plugins. |
-| 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits bytes, and a command palette on F1. F11 hides everything except your words. |
+| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels (even live Markdown with images, as the Markdown Preview sample does), and install them from Plugins > Manage Plugins. |
+| 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits any byte and opens binary files of any size, and a command palette on F1. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
 | 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, or collapse it out of the way. Hide the toolbar, the menu bar or both for a cleaner window (tap Alt to reach the menus). |
 | ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
@@ -210,7 +210,7 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/lang_api.rs`, `assets/api/` | Keyword and function lists for completion and parameter hints, and the user's own lists in the `api` folder |
 | `src/tools/xsd.rs`, `src/tools/dtd.rs`, `src/tools/xslt.rs`, `src/app/xml_schema.rs` | XSD and DTD validation and XSLT 1.0 |
 | `src/print.rs`, `src/app/printing.rs` | Printing and HTML export |
-| `src/hex.rs`, `src/hex_ui.rs` | Hex View: a tab's bytes as saved, and turning byte edits back into text |
+| `src/hex.rs`, `src/hex_ui.rs`, `src/bytes.rs` | Hex View: a tab's bytes as saved, turning byte edits back into text, and the piece table that holds binary and very large files |
 | `src/char_panel.rs` | The Character Panel: Unicode blocks, names, HTML entities and search |
 | `src/update.rs` | Checking GitHub for a newer release |
 | `src/self_update.rs` | Downloading, checking and installing an update |

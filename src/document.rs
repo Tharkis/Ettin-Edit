@@ -6,6 +6,7 @@ use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use crate::bytes::ByteStore;
 use crate::editor::Editor;
 use crate::encoding::TextEncoding;
 
@@ -51,7 +52,7 @@ impl LineEnding {
     }
 
     /// Picks the most common line ending in `text`.
-    fn detect(text: &str) -> Option<Self> {
+    pub(crate) fn detect(text: &str) -> Option<Self> {
         let crlf = text.matches("\r\n").count();
         let cr = text.matches('\r').count() - crlf;
         let lf = text.matches('\n').count() - crlf;
@@ -119,6 +120,13 @@ pub struct Document {
     /// The view whose carets are live in `editor`; the other view's are kept
     /// aside (see `Editor::swap_view`).
     pub live_view: usize,
+    /// The bytes, when the tab is edited as bytes in the hex view: a binary
+    /// file, or text that a hex edit left invalid. Saving writes these, and
+    /// the text in `editor` isn't used.
+    pub binary: Option<ByteStore>,
+    /// The bytes came from the tab's text, so it turns back into text as
+    /// soon as they're valid again.
+    pub binary_from_text: bool,
 }
 
 impl Document {
@@ -139,12 +147,18 @@ impl Document {
             untitled_number: number,
             views: [true, false],
             live_view: 0,
+            binary: None,
+            binary_from_text: false,
         }
     }
 
     /// Opens a file, detecting its encoding. `hint` is an encoding the file
     /// had before, used when the bytes alone don't settle it.
+    /// Binary files (see [`crate::bytes::looks_binary`]) open as bytes.
     pub fn open(id: u64, path: &Path, hint: Option<TextEncoding>) -> io::Result<Self> {
+        if crate::bytes::sniff(path)? {
+            return Self::open_bytes(id, path);
+        }
         let bytes = fs::read(path)?;
         let disk = DiskStamp::read(path).ok();
         let encoding = TextEncoding::detect(&bytes, hint);
@@ -160,12 +174,34 @@ impl Document {
         Ok(doc)
     }
 
+    /// Opens a file as bytes for the hex view, without reading it as text.
+    /// Very large files are read from disk as they're shown.
+    pub fn open_bytes(id: u64, path: &Path) -> io::Result<Self> {
+        let mut doc = Self::new_untitled(id, 0);
+        doc.binary = Some(ByteStore::open(path)?);
+        doc.path = Some(path.to_path_buf());
+        doc.disk = DiskStamp::read(path).ok();
+        Ok(doc)
+    }
+
     /// Reads the file again as one undoable edit. `encoding` forces an
     /// encoding; otherwise it is detected, preferring the current one.
     pub fn reload(&mut self, encoding: Option<TextEncoding>) -> io::Result<()> {
         let Some(path) = self.path.clone() else {
             return Ok(());
         };
+        // A tab edited as bytes reads the bytes again, unless an encoding
+        // was picked to read it as text.
+        if self.binary.is_some() && encoding.is_none() {
+            self.binary = Some(ByteStore::open(&path)?);
+            self.binary_from_text = false;
+            self.editor.buffer.mark_saved();
+            self.disk = DiskStamp::read(&path).ok();
+            self.disk_change = None;
+            return Ok(());
+        }
+        self.binary = None;
+        self.binary_from_text = false;
         let bytes = fs::read(&path)?;
         let encoding =
             encoding.unwrap_or_else(|| TextEncoding::detect(&bytes, Some(self.encoding)));
@@ -182,7 +218,9 @@ impl Document {
 
     pub fn save_to(&mut self, path: &Path) -> io::Result<()> {
         let eol = self.line_ending.as_str();
-        if self.encoding.is_utf8() {
+        if let Some(bytes) = &mut self.binary {
+            bytes.save(path)?;
+        } else if self.encoding.is_utf8() {
             // Stream UTF-8 straight from the rope, so big files need no copy.
             let file = fs::File::create(path)?;
             let mut out = BufWriter::new(file);
@@ -239,7 +277,7 @@ impl Document {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.editor.buffer.is_modified()
+        self.editor.buffer.is_modified() || self.binary.as_ref().is_some_and(|b| b.is_modified())
     }
 
     pub fn set_line_ending(&mut self, le: LineEnding) {
@@ -267,7 +305,10 @@ impl Document {
     }
 
     pub fn is_pristine_untitled(&self) -> bool {
-        self.path.is_none() && !self.is_dirty() && self.editor.buffer.is_empty()
+        self.path.is_none()
+            && !self.is_dirty()
+            && self.editor.buffer.is_empty()
+            && self.binary.is_none()
     }
 
     pub fn line_count(&self) -> usize {

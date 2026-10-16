@@ -1,13 +1,15 @@
 //! Hex view: a tab's text shown as the bytes it is saved as (in its encoding
 //! and with its line endings), with byte edits turned back into text.
 //!
-//! A byte edit is only applied when the new bytes read back as text and save
-//! as exactly those bytes again; otherwise saving would quietly write
-//! something different from what the hex view showed.
+//! A byte edit goes back into the text when the new bytes read back as text
+//! and save as exactly those bytes again. When they don't (half a UTF-8
+//! character, say), the tab is edited as bytes instead (see
+//! [`crate::bytes::ByteStore`]) until its bytes are valid text again.
 
 use std::ops::Range;
 use std::sync::Arc;
 
+use crate::bytes::ByteStore;
 use crate::document::LineEnding;
 use crate::encoding::TextEncoding;
 
@@ -107,12 +109,15 @@ pub fn format_hex(bytes: &[u8]) -> String {
         .join(" ")
 }
 
-/// One tab's hex view: its bytes, the byte cursor and the selection.
+/// One tab's hex view: the byte cursor and the selection, and the tab's text
+/// as bytes while it's shown as text.
 #[derive(Default)]
 pub struct HexView {
-    /// The buffer version, encoding and line ending the bytes were made from.
+    /// The buffer version, encoding and line ending `text_bytes` was made from.
     source: Option<(u64, TextEncoding, LineEnding)>,
-    pub bytes: Arc<Vec<u8>>,
+    /// The tab's text as the bytes it's saved as. Unused while the tab is
+    /// edited as bytes (the document holds the bytes then).
+    pub text_bytes: ByteStore,
     /// Byte the cursor is on (may equal the length: the end of the file).
     pub cursor: usize,
     /// Where a Shift-selection started.
@@ -125,9 +130,6 @@ pub struct HexView {
     pub message: Option<String>,
     /// Bring the cursor into view on the next frame.
     pub scroll_to_cursor: bool,
-    /// Cursor and anchor before this frame's edits, to go back to if the
-    /// app refuses them.
-    pub(crate) before_edit: Option<(usize, usize)>,
     /// Scroll position and visible height last frame.
     pub(crate) scroll: (f32, f32),
 }
@@ -149,30 +151,28 @@ impl HexView {
         self.source = Some(key);
         match text_to_bytes(&text(), encoding, line_ending) {
             Ok(bytes) => {
-                self.bytes = Arc::new(bytes);
-                self.cursor = self.cursor.min(self.bytes.len());
-                self.anchor = self.anchor.min(self.bytes.len());
+                self.text_bytes = ByteStore::from_bytes(bytes);
+                self.clamp(self.text_bytes.len());
                 Ok(())
             }
             Err(HexError::Unencodable(c)) => {
-                self.bytes = Arc::default();
-                self.cursor = 0;
-                self.anchor = 0;
+                self.text_bytes = ByteStore::default();
+                self.clamp(0);
                 Err(c)
             }
             Err(_) => Ok(()),
         }
     }
 
-    /// Makes the bytes from the text again on the next frame (after a
-    /// refused edit, so the view shows what will be saved), and puts the
-    /// cursor back where it was before the edit.
-    pub fn refresh(&mut self) {
+    /// Keeps the cursor and selection inside `len` bytes.
+    pub fn clamp(&mut self, len: usize) {
+        self.cursor = self.cursor.min(len);
+        self.anchor = self.anchor.min(len);
+    }
+
+    /// Makes the bytes from the text again on the next frame.
+    pub fn resync(&mut self) {
         self.source = None;
-        if let Some((cursor, anchor)) = self.before_edit.take() {
-            self.cursor = cursor;
-            self.anchor = anchor;
-        }
     }
 
     /// The selected byte range (empty when nothing is selected).
@@ -181,24 +181,14 @@ impl HexView {
     }
 
     /// Moves the cursor, extending the selection when `extend` is set.
-    pub fn move_to(&mut self, to: usize, extend: bool) {
-        self.cursor = to.min(self.bytes.len());
+    /// `len` is how many bytes there are.
+    pub fn move_to(&mut self, to: usize, extend: bool, len: usize) {
+        self.cursor = to.min(len);
         if !extend {
             self.anchor = self.cursor;
         }
         self.pending = None;
         self.scroll_to_cursor = true;
-    }
-
-    /// The bytes with `range` replaced by `with`.
-    pub fn replaced(&self, range: Range<usize>, with: &[u8]) -> Vec<u8> {
-        let end = range.end.min(self.bytes.len());
-        let start = range.start.min(end);
-        let mut out = Vec::with_capacity(self.bytes.len() + with.len());
-        out.extend_from_slice(&self.bytes[..start]);
-        out.extend_from_slice(with);
-        out.extend_from_slice(&self.bytes[end..]);
-        out
     }
 }
 

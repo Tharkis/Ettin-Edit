@@ -38,6 +38,8 @@ struct Span {
     text: String,
     style: Style,
     link: Option<String>,
+    /// An image: where it is. `text` is its description.
+    image: Option<String>,
 }
 
 type Inline = Vec<Span>;
@@ -71,6 +73,8 @@ struct InlineBuilder {
     strike: u32,
     kbd: bool,
     links: Vec<String>,
+    /// The image being read: (where it is, its description so far).
+    image: Option<(String, String)>,
 }
 
 impl InlineBuilder {
@@ -85,12 +89,17 @@ impl InlineBuilder {
     }
 
     fn push(&mut self, text: &str, code: bool) {
+        if let Some((_, alt)) = &mut self.image {
+            alt.push_str(text);
+            return;
+        }
         let mut style = self.style();
         style.code = code;
         let link = self.links.last().cloned();
         if let Some(last) = self.spans.last_mut()
             && last.style == style
             && last.link == link
+            && last.image.is_none()
         {
             last.text += text;
             return;
@@ -99,6 +108,7 @@ impl InlineBuilder {
             text: text.to_owned(),
             style,
             link,
+            image: None,
         });
     }
 
@@ -115,9 +125,23 @@ impl InlineBuilder {
             Event::End(TagEnd::Link) => {
                 self.links.pop();
             }
-            // Images are shown as their description.
-            Event::Start(Tag::Image { .. }) => self.emph += 1,
-            Event::End(TagEnd::Image) => self.emph = self.emph.saturating_sub(1),
+            // An image is one span: where it is, and its description,
+            // which is shown in italics where the image can't be.
+            Event::Start(Tag::Image { dest_url, .. }) => {
+                self.image = Some((dest_url.to_string(), String::new()));
+            }
+            Event::End(TagEnd::Image) => {
+                if let Some((src, alt)) = self.image.take() {
+                    let mut style = self.style();
+                    style.emph = true;
+                    self.spans.push(Span {
+                        text: alt,
+                        style,
+                        link: self.links.last().cloned(),
+                        image: Some(src),
+                    });
+                }
+            }
             Event::Text(t) => self.push(t, self.kbd),
             Event::Code(t) => self.push(t, true),
             Event::SoftBreak => self.push(" ", false),
@@ -245,9 +269,42 @@ fn table<'a>(events: &mut impl Iterator<Item = Event<'a>>) -> Block {
     Block::Table { head, rows }
 }
 
+const PARSE_OPTIONS: Options = Options::ENABLE_TABLES.union(Options::ENABLE_STRIKETHROUGH);
+
 fn parse(markdown: &str) -> Vec<Block> {
-    let options = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH;
-    blocks(&mut Parser::new_ext(markdown, options))
+    blocks(&mut Parser::new_ext(markdown, PARSE_OPTIONS))
+}
+
+/// The line (from 0) each top-level block of `markdown` starts on, in the
+/// order [`parse`] returns them.
+fn block_lines(markdown: &str) -> Vec<usize> {
+    let mut lines = Vec::new();
+    let mut depth = 0usize;
+    let mut line = 0;
+    let mut counted = 0;
+    let mut line_at = |offset: usize| {
+        line += markdown.as_bytes()[counted..offset]
+            .iter()
+            .filter(|&&b| b == b'\n')
+            .count();
+        counted = offset;
+        line
+    };
+    for (event, range) in Parser::new_ext(markdown, PARSE_OPTIONS).into_offset_iter() {
+        match event {
+            Event::Start(tag) => {
+                // HTML blocks are skipped, so they're not blocks here either.
+                if depth == 0 && !matches!(tag, Tag::HtmlBlock) {
+                    lines.push(line_at(range.start));
+                }
+                depth += 1;
+            }
+            Event::End(_) => depth = depth.saturating_sub(1),
+            Event::Rule if depth == 0 => lines.push(line_at(range.start)),
+            _ => {}
+        }
+    }
+    lines
 }
 
 fn plain(inline: &Inline) -> String {
@@ -571,6 +628,7 @@ impl ManualWindow {
                             link: None,
                             nav,
                             id: 0,
+                            base: None,
                         };
                         let mut area = egui::ScrollArea::vertical()
                             .id_salt("manual-page")
@@ -702,6 +760,9 @@ struct Render<'a> {
     nav: &'a mut Nav,
     /// Counts widgets that need their own ids.
     id: usize,
+    /// The folder images with relative paths are in; without one, images
+    /// are shown as their descriptions.
+    base: Option<&'a std::path::Path>,
 }
 
 const BODY: f32 = 14.5;
@@ -921,10 +982,115 @@ impl Render<'_> {
     /// Lays out and draws a run of styled text, wrapped to the width there
     /// is. Links in it can be clicked.
     fn inline(&mut self, ui: &mut Ui, text: &Inline, size: f32, color: Color32) -> egui::Rect {
+        if self.base.is_some() && text.iter().any(|s| s.image.is_some()) {
+            return self.inline_with_images(ui, text, size, color);
+        }
         let laid = self.lay_out(ui, text, size, color, ui.available_width());
         let (rect, response) = ui.allocate_exact_size(laid.galley.size(), Sense::click());
         self.paint(ui, laid, rect, &response);
         rect
+    }
+
+    /// Text with images in it: runs of text, and the images between them
+    /// side by side (like a row of badges), wrapping when they don't fit.
+    fn inline_with_images(
+        &mut self,
+        ui: &mut Ui,
+        text: &Inline,
+        size: f32,
+        color: Color32,
+    ) -> egui::Rect {
+        let mut rect = egui::Rect::NOTHING;
+        let mut run: Inline = Vec::new();
+        let mut images: Vec<&Span> = Vec::new();
+        let flush_images = |r: &mut Self, ui: &mut Ui, images: &mut Vec<&Span>| {
+            if images.is_empty() {
+                return egui::Rect::NOTHING;
+            }
+            ui.horizontal_wrapped(|ui| {
+                for span in images.drain(..) {
+                    r.image(ui, span, size);
+                }
+            })
+            .response
+            .rect
+        };
+        for span in text {
+            if span.image.is_some() {
+                // Spaces between images don't need a line of their own.
+                if run.iter().any(|s| !s.text.trim().is_empty()) {
+                    rect = rect.union(flush_images(self, ui, &mut images));
+                    let laid = self.lay_out(ui, &run, size, color, ui.available_width());
+                    let (r, response) = ui.allocate_exact_size(laid.galley.size(), Sense::click());
+                    self.paint(ui, laid, r, &response);
+                    rect = rect.union(r);
+                }
+                run.clear();
+                images.push(span);
+            } else {
+                run.push(span.clone());
+            }
+        }
+        rect = rect.union(flush_images(self, ui, &mut images));
+        if run.iter().any(|s| !s.text.trim().is_empty()) {
+            let laid = self.lay_out(ui, &run, size, color, ui.available_width());
+            let (r, response) = ui.allocate_exact_size(laid.galley.size(), Sense::click());
+            self.paint(ui, laid, r, &response);
+            rect = rect.union(r);
+        }
+        rect
+    }
+
+    /// Draws an image no wider than the room there is (never bigger than it
+    /// is), or its description if it can't be found or read.
+    fn image(&mut self, ui: &mut Ui, span: &Span, size: f32) {
+        let src = span.image.as_deref().unwrap_or_default();
+        let uri = self.base.and_then(|base| image_uri(src, base));
+        let alt = |ui: &mut Ui, why: Option<String>| {
+            let text = if span.text.trim().is_empty() {
+                src.to_owned()
+            } else {
+                span.text.clone()
+            };
+            let r = ui.label(
+                RichText::new(text)
+                    .italics()
+                    .size(size)
+                    .color(self.palette.text_dim),
+            );
+            match why {
+                Some(why) => r.on_hover_text(why),
+                None => r,
+            }
+        };
+        let response = match uri {
+            None => alt(ui, None),
+            Some(uri) => {
+                let image = egui::Image::new(uri)
+                    .fit_to_original_size(1.0)
+                    .max_width(ui.available_width().max(16.0))
+                    .sense(Sense::click());
+                match image.load_for_size(ui.ctx(), ui.available_size()) {
+                    Err(e) => alt(ui, Some(e.to_string())),
+                    Ok(_) => {
+                        let r = ui.add(image);
+                        if span.text.trim().is_empty() {
+                            r
+                        } else {
+                            r.on_hover_text(&span.text)
+                        }
+                    }
+                }
+            }
+        };
+        if let Some(href) = &span.link {
+            if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if response.clicked() {
+                self.link = Some(href.clone());
+            }
+        }
     }
 
     /// Wraps a run of styled text to a width.
@@ -1026,12 +1192,29 @@ pub struct MarkdownView {
     key: u64,
     blocks: Vec<Block>,
     nav: Nav,
+    /// The line each block starts on, and how many lines there are.
+    lines: Vec<usize>,
+    line_count: usize,
+    /// Where each block was drawn last frame (screen y), then where the
+    /// last one ended.
+    tops: Vec<f32>,
+    /// What the view was last scrolled to follow: (line, at the end, text,
+    /// height). It follows again only when one of them changes, so the
+    /// reader can still scroll it by hand.
+    followed: Option<(f32, bool, u64, i32)>,
 }
 
 impl MarkdownView {
     /// Draws `text`. Returns a link the reader clicked; links to a heading
-    /// on the page (`#anchor`) are followed here.
-    pub fn ui(&mut self, ui: &mut Ui, text: &str, palette: &Palette) -> Option<String> {
+    /// on the page (`#anchor`) are followed here. Images load from `base`,
+    /// the folder of the file the text comes from, and from the web.
+    pub fn ui(
+        &mut self,
+        ui: &mut Ui,
+        text: &str,
+        palette: &Palette,
+        base: Option<&std::path::Path>,
+    ) -> Option<String> {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         text.hash(&mut hasher);
@@ -1039,6 +1222,14 @@ impl MarkdownView {
         if key != self.key || (self.blocks.is_empty() && !text.is_empty()) {
             self.key = key;
             self.blocks = parse(text);
+            self.lines = block_lines(text);
+            self.line_count = text.lines().count().max(1);
+        }
+        if base.is_some() {
+            // Images: files and web addresses, PNG, JPEG, GIF, BMP, WebP and
+            // SVG. Only installed once needed, as finding the fonts SVG text
+            // uses takes a moment.
+            egui_extras::install_image_loaders(ui.ctx());
         }
         let mut r = Render {
             palette,
@@ -1046,10 +1237,17 @@ impl MarkdownView {
             link: None,
             nav: &mut self.nav,
             id: 0,
+            base,
         };
+        let tops = &mut self.tops;
+        tops.clear();
         ui.scope(|ui| {
             ui.spacing_mut().item_spacing.y = 8.0;
-            r.blocks(ui, &self.blocks, 0);
+            for block in &self.blocks {
+                tops.push(ui.cursor().top());
+                r.block(ui, block, 0);
+            }
+            tops.push(ui.min_rect().bottom());
         });
         let link = r.link?;
         match link.strip_prefix('#') {
@@ -1061,6 +1259,90 @@ impl MarkdownView {
             None => Some(link),
         }
     }
+
+    /// Where (screen y, as drawn this frame) the text's `line` (from 0,
+    /// fractional) is, between the blocks around it.
+    fn y_of_line(&self, line: f32) -> Option<f32> {
+        let (first, end) = (*self.tops.first()?, *self.tops.last()?);
+        if self.lines.len() + 1 != self.tops.len() {
+            return None;
+        }
+        let i = self.lines.iter().rposition(|&l| l as f32 <= line);
+        let Some(i) = i else {
+            return Some(first);
+        };
+        let (from_line, from_y) = (self.lines[i] as f32, self.tops[i]);
+        let (to_line, to_y) = match self.lines.get(i + 1) {
+            Some(&l) => (l as f32, self.tops[i + 1]),
+            None => (self.line_count as f32, end),
+        };
+        let t = ((line - from_line) / (to_line - from_line).max(1.0)).clamp(0.0, 1.0);
+        Some(from_y + (to_y - from_y) * t)
+    }
+
+    /// When the text's `line` (from 0) is at the top of the editor, or the
+    /// editor is scrolled to the `end`, the scroll offset that shows the
+    /// same place here. `origin` is the screen y of the top of the
+    /// scrolled content. `None` when nothing changed since last time.
+    pub fn follow(&mut self, line: f32, end: bool, origin: f32) -> Option<f32> {
+        let height = (self.tops.last()? - self.tops.first()?).round() as i32;
+        let now = (line, end, self.key, height);
+        if self.followed == Some(now) {
+            return None;
+        }
+        self.followed = Some(now);
+        if end {
+            return Some(f32::MAX);
+        }
+        // Above the first block: the very top, with anything before it.
+        if self.lines.first().is_none_or(|&first| line <= first as f32) {
+            return Some(0.0);
+        }
+        Some((self.y_of_line(line)? - origin).max(0.0))
+    }
+}
+
+/// The address egui loads an image from: web addresses as they are, and
+/// paths (relative to `base`, or absolute) as `file://` addresses. `None`
+/// for anything else (such as `data:` addresses) or a file that isn't there.
+fn image_uri(src: &str, base: &std::path::Path) -> Option<String> {
+    let src = src.trim();
+    if src.starts_with("http://") || src.starts_with("https://") {
+        return Some(src.to_owned());
+    }
+    let path = match src.strip_prefix("file://") {
+        Some(p) => p.to_owned(),
+        None if src.contains("://") || src.starts_with("data:") => return None,
+        // Drop a `#part` or `?query`, and decode `%20` and the like.
+        None => percent_decode(src.split(['#', '?']).next()?),
+    };
+    let path = std::path::Path::new(&path);
+    let full = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base.join(path)
+    };
+    full.is_file().then(|| format!("file://{}", full.display()))
+}
+
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| (b as char).to_digit(16);
+        if bytes[i] == b'%'
+            && let (Some(&h), Some(&l)) = (bytes.get(i + 1), bytes.get(i + 2))
+            && let (Some(h), Some(l)) = (hex(h), hex(l))
+        {
+            out.push((h * 16 + l) as u8);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Text wrapped and ready to draw.
@@ -1236,6 +1518,64 @@ mod tests {
             anchor_for("User-defined languages (.lang.json)"),
             "user-defined-languages-langjson"
         );
+    }
+
+    #[test]
+    fn images_and_block_lines() {
+        let md = "# Title\n\nSome text\nmore\n\n![A logo](img/logo.png) and [![badge](b.svg)](https://x.org)\n\n<div>skipped</div>\n\n---\n\n- one\n- two\n";
+        let blocks = parse(md);
+        let lines = block_lines(md);
+        assert_eq!(blocks.len(), lines.len());
+        assert_eq!(lines, vec![0, 2, 5, 9, 11]);
+        let Block::Paragraph(spans) = &blocks[2] else {
+            panic!("not a paragraph");
+        };
+        let images: Vec<_> = spans
+            .iter()
+            .filter_map(|s| Some((s.image.as_deref()?, s.text.as_str(), s.link.as_deref())))
+            .collect();
+        assert_eq!(
+            images,
+            vec![
+                ("img/logo.png", "A logo", None),
+                ("b.svg", "badge", Some("https://x.org"))
+            ]
+        );
+    }
+
+    #[test]
+    fn image_addresses() {
+        let dir = std::env::temp_dir().join(format!("ettin-md-img-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("my pics")).unwrap();
+        std::fs::write(dir.join("my pics/a.png"), b"x").unwrap();
+        let want = format!("file://{}", dir.join("my pics/a.png").display());
+        assert_eq!(image_uri("my%20pics/a.png", &dir), Some(want.clone()));
+        assert_eq!(image_uri("my pics/a.png?v=2", &dir), Some(want));
+        assert_eq!(image_uri("missing.png", &dir), None);
+        assert_eq!(image_uri("data:image/png;base64,xx", &dir), None);
+        assert_eq!(
+            image_uri("https://x.org/a.png", &dir).as_deref(),
+            Some("https://x.org/a.png")
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn follows_lines_between_blocks() {
+        let mut view = MarkdownView {
+            lines: vec![0, 10],
+            line_count: 20,
+            tops: vec![100.0, 200.0, 400.0],
+            ..Default::default()
+        };
+        assert_eq!(view.y_of_line(0.0), Some(100.0));
+        assert_eq!(view.y_of_line(5.0), Some(150.0));
+        assert_eq!(view.y_of_line(15.0), Some(300.0));
+        assert_eq!(view.follow(5.0, false, 100.0), Some(50.0));
+        // Nothing moved: leave the scrolling to the reader.
+        assert_eq!(view.follow(5.0, false, 100.0), None);
+        assert_eq!(view.follow(5.0, true, 100.0), Some(f32::MAX));
+        assert_eq!(view.follow(0.0, false, 100.0), Some(0.0));
     }
 
     #[test]

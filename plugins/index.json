@@ -30,12 +30,12 @@
     {
       "id": "markdown-preview",
       "name": "Markdown Preview",
-      "version": "1.0.0",
-      "description": "A live preview of the Markdown tab you are editing, in a side panel that updates as you type. A sample plugin in Python.",
+      "version": "1.1.0",
+      "description": "A live preview of the Markdown tab you are editing, with images, in a side panel that updates as you type and scrolls along with the text. A sample plugin in Python.",
       "author": "Ettin Edit",
       "homepage": "https://github.com/Tharkis/Ettin-Edit/tree/main/plugins/samples/markdown-preview",
       "download": "https://github.com/Tharkis/Ettin-Edit/releases/latest/download/markdown-preview.zip",
-      "min_app_version": "1.5.0"
+      "min_app_version": "1.9.0"
     }
   ]
 }

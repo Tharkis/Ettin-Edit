@@ -212,7 +212,18 @@ const ui = {
     return n;
   },
   table: (id, columns, rows) => ({ type: 'table', id, columns, rows }),
-  markdown: (text, { id = '' } = {}) => ({ type: 'markdown', id, text: String(text) }),
+  // `base`: the folder images with relative paths are in. `doc` (a document
+  // or its id): scroll along with that tab; `line`: its line (from 0) the
+  // text starts on.
+  markdown: (text, { id = '', base, doc, line = 0 } = {}) => {
+    const item = { type: 'markdown', id, text: String(text) };
+    if (base) item.base = String(base);
+    if (doc !== undefined && doc !== null) {
+      item.doc = typeof doc === 'object' ? doc.id : Number(doc);
+      item.line = Number(line);
+    }
+    return item;
+  },
 };
 
 // ----------------------------------------------------------------------

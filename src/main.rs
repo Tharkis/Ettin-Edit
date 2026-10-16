@@ -6,6 +6,7 @@
 mod i18n;
 mod actions;
 mod app;
+mod bytes;
 mod char_panel;
 mod compare;
 mod compare_ui;

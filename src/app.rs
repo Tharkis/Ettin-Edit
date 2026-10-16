@@ -50,6 +50,8 @@ const MAX_FONT: f32 = 48.0;
 struct CloseQueue {
     doc_ids: Vec<u64>,
     quit_after: bool,
+    /// When quitting, keep the other tabs' unsaved changes for next time.
+    remember: bool,
 }
 
 pub struct EttinApp {
@@ -349,6 +351,7 @@ impl EttinApp {
                         read_only: false,
                         caret: 0,
                         view: 0,
+                        binary: false,
                     })
                     .collect(),
                 active: app.settings.session_active,
@@ -571,6 +574,7 @@ impl EttinApp {
             self.close_queue = Some(CloseQueue {
                 doc_ids,
                 quit_after,
+                remember: false,
             });
         }
     }
@@ -600,11 +604,37 @@ impl EttinApp {
 
     fn restore_tab(&mut self, tab: SessionTab) -> Option<usize> {
         let store = self.session.as_ref()?;
-        let backup_text = tab.backup.as_ref().and_then(|b| store.read_backup(b).ok());
+        let backup_bytes = tab
+            .backup
+            .as_ref()
+            .filter(|_| tab.binary)
+            .and_then(|b| store.read_backup_bytes(b).ok());
+        let backup_text = tab
+            .backup
+            .as_ref()
+            .filter(|_| !tab.binary)
+            .and_then(|b| store.read_backup(b).ok());
         let backup_path = tab.backup.as_ref().map(|b| store.backup_dir().join(b));
         let encoding = tab.encoding.as_deref().and_then(TextEncoding::from_name);
         let id = self.alloc_id();
         let mut doc = match (&tab.path, backup_text) {
+            (_, None) if let Some(bytes) = backup_bytes => {
+                let mut doc = Document::new_untitled(id, tab.untitled_number);
+                let mut store = crate::bytes::ByteStore::from_bytes(bytes);
+                store.mark_modified();
+                doc.binary = Some(store);
+                if let Some(p) = &tab.path {
+                    doc.path = Some(p.clone());
+                    doc.disk = DiskStamp::read(p).ok();
+                }
+                if let Some(e) = encoding {
+                    doc.encoding = e;
+                }
+                doc.backup = backup_path;
+                doc.backup_version = doc.binary.as_ref().map_or(0, |b| b.version());
+                doc
+            }
+            (Some(p), None) if tab.binary && p.is_file() => Document::open_bytes(id, p).ok()?,
             (_, Some(text)) => {
                 let mut doc = Document::new_untitled(id, tab.untitled_number);
                 doc.editor = crate::editor::Editor::new(&text);
@@ -685,6 +715,7 @@ impl EttinApp {
                     [false, true] => 1,
                     _ => 0,
                 },
+                binary: doc.binary.is_some(),
             });
         }
         Session { tabs, active }
@@ -697,8 +728,19 @@ impl EttinApp {
             return;
         };
         for doc in &mut self.docs {
+            // Very large files edited as bytes aren't copied; quitting asks
+            // to save them instead.
+            if doc.binary.as_ref().is_some_and(|b| b.is_paged()) {
+                if let Some(path) = doc.backup.take() {
+                    let _ = std::fs::remove_file(path);
+                }
+                continue;
+            }
             if doc.is_dirty() {
-                let version = doc.editor.buffer.version();
+                let version = match &doc.binary {
+                    Some(b) => b.version(),
+                    None => doc.editor.buffer.version(),
+                };
                 if doc.backup.is_some() && doc.backup_version == version {
                     continue;
                 }
@@ -706,7 +748,11 @@ impl EttinApp {
                     .backup
                     .clone()
                     .unwrap_or_else(|| store.new_backup_path(&doc.title()));
-                match store.write_backup(&path, doc.editor.buffer.rope().chunks()) {
+                let written = match &doc.binary {
+                    Some(b) => store.write_backup_bytes(&path, &b.to_vec()),
+                    None => store.write_backup(&path, doc.editor.buffer.rope().chunks()),
+                };
+                match written {
                     Ok(()) => {
                         doc.backup = Some(path);
                         doc.backup_version = version;
@@ -1004,7 +1050,20 @@ impl EttinApp {
                 );
             }
             Action::Quit => {
-                if self.session.is_some() && self.settings.remember_unsaved {
+                // Very large files edited as bytes aren't backed up, so
+                // they're asked about even when unsaved changes are kept.
+                let big: Vec<u64> = self
+                    .docs
+                    .iter()
+                    .filter(|d| d.is_dirty() && d.binary.as_ref().is_some_and(|b| b.is_paged()))
+                    .map(|d| d.id)
+                    .collect();
+                if self.session.is_some() && self.settings.remember_unsaved && !big.is_empty() {
+                    self.request_close(big, true);
+                    if let Some(q) = &mut self.close_queue {
+                        q.remember = true;
+                    }
+                } else if self.session.is_some() && self.settings.remember_unsaved {
                     // Unsaved changes are backed up and come back next time.
                     self.finish_session(true);
                     self.quitting = true;
@@ -1133,6 +1192,7 @@ impl EttinApp {
             Action::ReopenWithEncoding(name) => {
                 if let Some(e) = TextEncoding::from_name(&name) {
                     let doc = &mut self.docs[self.active];
+                    let was_binary = doc.binary.is_some();
                     if doc.path.is_none() {
                         doc.set_encoding(e);
                     } else if let Err(e) = doc.reload(Some(e)) {
@@ -1141,12 +1201,21 @@ impl EttinApp {
                             name = doc.title(),
                             error = e.to_string()
                         ));
-                    } else if doc.lossy {
-                        self.errors.push(t!(
-                            "reopen-lossy",
-                            name = doc.title(),
-                            encoding = doc.encoding.name()
-                        ));
+                    } else {
+                        if was_binary {
+                            // Read as text now: show the text.
+                            doc.syntax = self
+                                .highlighter
+                                .detect(doc.path.as_deref(), &doc.editor.buffer.line_text(0));
+                            self.hex_views.remove(&doc.id);
+                        }
+                        if doc.lossy {
+                            self.errors.push(t!(
+                                "reopen-lossy",
+                                name = doc.title(),
+                                encoding = doc.encoding.name()
+                            ));
+                        }
                     }
                 }
             }
@@ -1398,7 +1467,17 @@ impl EttinApp {
             Action::ToggleColumnMode => self.column_mode = !self.column_mode,
             Action::ToggleCharPanel => self.settings.char_panel = !self.settings.char_panel,
             Action::ToggleHexView => {
-                if self.hex_views.remove(&doc_id).is_none() {
+                let doc = &mut self.docs[self.active];
+                if doc.binary.is_some() {
+                    // Back to text, if the bytes read as text.
+                    let hex = self.hex_views.entry(doc_id).or_default();
+                    if binary_to_text(doc, hex, ctx, true) {
+                        doc.syntax = self
+                            .highlighter
+                            .detect(doc.path.as_deref(), &doc.editor.buffer.line_text(0));
+                        self.hex_views.remove(&doc_id);
+                    }
+                } else if self.hex_views.remove(&doc_id).is_none() {
                     self.hex_views.insert(doc_id, Default::default());
                 }
             }
@@ -2785,7 +2864,7 @@ impl EttinApp {
         let Some(language) = self.docs.get(index).map(|d| d.syntax.clone()) else {
             return false;
         };
-        if self.hex_views.contains_key(&self.docs[index].id) {
+        if self.hex_views.contains_key(&self.docs[index].id) || self.docs[index].binary.is_some() {
             return self.hex_pane(ui, view, index, request_focus);
         }
         let api = self.apis.get(&language);
@@ -2865,34 +2944,43 @@ impl EttinApp {
     fn hex_shown(&self) -> bool {
         self.docs
             .get(self.active)
-            .is_some_and(|d| self.hex_views.contains_key(&d.id))
+            .is_some_and(|d| self.hex_views.contains_key(&d.id) || d.binary.is_some())
     }
 
     /// Draws tab `index` in `view` as hex. Returns true when it has keyboard focus.
     fn hex_pane(&mut self, ui: &mut Ui, view: usize, index: usize, request_focus: bool) -> bool {
-        use crate::hex::{self, HexError};
+        use crate::hex;
         use crate::hex_ui::HexOutcome;
         let palette = self.palette();
         let ctx = ui.ctx().clone();
         let font_size = self.settings.font_size;
         let doc = &mut self.docs[index];
-        let Some(hex) = self.hex_views.get_mut(&doc.id) else {
-            return false;
-        };
+        let hex = self.hex_views.entry(doc.id).or_default();
         let id = Id::new(("hex", doc.id, view));
         let (encoding, line_ending) = (doc.encoding, doc.line_ending);
-        let version = doc.editor.buffer.version();
-        let editor = &mut doc.editor;
-        if let Err(c) = hex.sync(version, encoding, line_ending, || editor.text_snapshot()) {
-            hex.message = Some(t!(
-                "hex-cant-encode",
-                char = c.to_string(),
-                encoding = encoding.name()
-            ));
+        let binary = doc.binary.is_some();
+        if !binary {
+            let version = doc.editor.buffer.version();
+            let editor = &mut doc.editor;
+            if let Err(c) = hex.sync(version, encoding, line_ending, || editor.text_snapshot()) {
+                hex.message = Some(t!(
+                    "hex-cant-encode",
+                    char = c.to_string(),
+                    encoding = encoding.name()
+                ));
+            }
         }
         let read_only = doc.editor.buffer.read_only;
+        // The tab's text as bytes, or its bytes when it's edited as bytes.
+        let mut text_bytes = None;
+        let store = match &mut doc.binary {
+            Some(b) => b,
+            None => text_bytes.insert(std::mem::take(&mut hex.text_bytes)),
+        };
         let outcome = hex.ui(
             ui,
+            store,
+            binary,
             id,
             font_size,
             &palette,
@@ -2901,30 +2989,46 @@ impl EttinApp {
             request_focus,
         );
         match outcome {
-            Some(HexOutcome::Bytes(bytes)) => {
-                match hex::bytes_to_text(&bytes, encoding, line_ending) {
+            Some(HexOutcome::Edited) if !binary => {
+                let store = text_bytes.take().unwrap_or_default();
+                match hex::bytes_to_text(&store.to_vec(), encoding, line_ending) {
                     Ok(text) => {
                         let old = doc.editor.text_snapshot();
                         let (range, replacement) = hex::diff(&old, &text);
                         doc.editor.edit_ranges(&ctx, vec![(range, replacement)]);
+                        hex.text_bytes = store;
                     }
-                    Err(e) => {
-                        hex.message = Some(match e {
-                            HexError::Invalid => t!("hex-invalid", encoding = encoding.name()),
-                            HexError::RoundTrip => t!("hex-round-trip"),
-                            HexError::Unencodable(c) => t!(
-                                "hex-cant-encode",
-                                char = c.to_string(),
-                                encoding = encoding.name()
-                            ),
-                        });
-                        hex.refresh();
+                    Err(_) => {
+                        // Not valid text any more (half a character, a
+                        // lone CR...): keep the bytes and edit them as bytes.
+                        doc.binary = Some(store);
+                        doc.binary_from_text = true;
+                        hex.message = Some(t!("hex-now-binary", encoding = encoding.name()));
+                    }
+                }
+            }
+            Some(HexOutcome::Edited) if doc.binary_from_text => {
+                binary_to_text(doc, hex, &ctx, false);
+            }
+            Some(HexOutcome::Undo | HexOutcome::Redo) if binary => {
+                if let Some(store) = &mut doc.binary {
+                    let done = if outcome == Some(HexOutcome::Undo) {
+                        store.undo()
+                    } else {
+                        store.redo()
+                    };
+                    hex.clamp(store.len());
+                    if done && doc.binary_from_text {
+                        binary_to_text(doc, hex, &ctx, false);
                     }
                 }
             }
             Some(HexOutcome::Undo) => doc.editor.undo(),
             Some(HexOutcome::Redo) => doc.editor.redo(),
-            None => {}
+            _ => {}
+        }
+        if let Some(store) = text_bytes {
+            hex.text_bytes = store;
         }
         ui.memory(|m| m.has_focus(id))
     }
@@ -2941,8 +3045,14 @@ impl EttinApp {
         let syntax = doc.syntax.clone();
         let line_ending = doc.line_ending;
         let encoding = doc.encoding.name();
-        let length = doc.editor.buffer.len_chars();
-        let lines = doc.line_count();
+        let length = match &doc.binary {
+            Some(bytes) => t!("hex-size", count = bytes.len()),
+            None => t!(
+                "status-length-lines",
+                length = doc.editor.buffer.len_chars(),
+                lines = doc.line_count()
+            ),
+        };
         let zoom =
             (self.settings.font_size / self.settings.default_font_size.max(1.0) * 100.0).round();
         let read_only = doc.editor.buffer.read_only;
@@ -2963,11 +3073,7 @@ impl EttinApp {
                     }
                 });
             });
-            ui.label(dim(t!(
-                "status-length-lines",
-                length = length,
-                lines = lines
-            )));
+            ui.label(dim(length));
             if let Some(path) = xpath {
                 let shown = if path.chars().count() > 80 {
                     let tail: String = path.chars().rev().take(79).collect();
@@ -3047,10 +3153,10 @@ impl EttinApp {
                 return;
             };
             let Some(&id) = queue.doc_ids.first() else {
-                let quit = queue.quit_after;
+                let (quit, remember) = (queue.quit_after, queue.remember);
                 self.close_queue = None;
                 if quit {
-                    self.finish_session(false);
+                    self.finish_session(remember);
                     self.quitting = true;
                     ctx.send_viewport_cmd(ViewportCommand::Close);
                 }
@@ -3565,4 +3671,68 @@ fn draw_pin(painter: &egui::Painter, c: Pos2, color: egui::Color32) {
         Stroke::new(1.6, color),
     );
     painter.line_segment([head, c + Vec2::new(-4.5, 4.5)], Stroke::new(1.4, color));
+}
+
+/// Turns a tab edited as bytes back into text, when its bytes are valid text
+/// that saves as exactly those bytes. The tab's own encoding is tried first;
+/// when the user `asked` (by leaving the hex view), the encoding is also
+/// worked out from the bytes. Returns false, with a note in the hex view
+/// when `asked`, if the bytes stay bytes.
+fn binary_to_text(
+    doc: &mut Document,
+    hex: &mut crate::hex::HexView,
+    ctx: &egui::Context,
+    asked: bool,
+) -> bool {
+    use crate::hex::bytes_to_text;
+    let Some(store) = &doc.binary else {
+        return true;
+    };
+    if store.is_paged() {
+        if asked {
+            hex.message = Some(t!("hex-too-big-for-text"));
+        }
+        return false;
+    }
+    let bytes = store.to_vec();
+    let modified = store.is_modified();
+    let mut found = bytes_to_text(&bytes, doc.encoding, doc.line_ending)
+        .ok()
+        .map(|text| (text, doc.encoding, doc.line_ending));
+    if found.is_none() && asked {
+        let encoding = TextEncoding::detect(&bytes, Some(doc.encoding));
+        let (raw, lossy) = encoding.decode(&bytes);
+        if !lossy {
+            let line_ending = crate::document::LineEnding::detect(&raw).unwrap_or(doc.line_ending);
+            found = bytes_to_text(&bytes, encoding, line_ending)
+                .ok()
+                .map(|text| (text, encoding, line_ending));
+        }
+    }
+    let Some((text, encoding, line_ending)) = found else {
+        if asked {
+            hex.message = Some(t!("hex-not-text", encoding = doc.encoding.name()));
+        }
+        return false;
+    };
+    if doc.binary_from_text {
+        // One edit on top of the text's own history.
+        let old = doc.editor.text_snapshot();
+        let (range, replacement) = crate::hex::diff(&old, &text);
+        if !range.is_empty() || !replacement.is_empty() {
+            doc.editor.edit_ranges(ctx, vec![(range, replacement)]);
+        }
+    } else {
+        doc.editor = crate::editor::Editor::new(&text);
+    }
+    if modified || encoding != doc.encoding || line_ending != doc.line_ending {
+        doc.editor.buffer.mark_modified();
+    }
+    doc.encoding = encoding;
+    doc.line_ending = line_ending;
+    doc.binary = None;
+    doc.binary_from_text = false;
+    hex.resync();
+    hex.message = (!asked).then(|| t!("hex-text-again"));
+    true
 }

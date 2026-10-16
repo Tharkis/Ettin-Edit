@@ -35,6 +35,9 @@ pub struct SessionTab {
     /// The view the tab is in: 0 main, 1 other, 2 both.
     #[serde(default)]
     pub view: u8,
+    /// Edited as bytes in the hex view; a backup holds bytes, not text.
+    #[serde(default)]
+    pub binary: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -125,6 +128,16 @@ impl SessionStore {
         write_atomic(path, &data)
     }
 
+    /// Backs up the bytes of a tab edited as bytes.
+    pub fn write_backup_bytes(&self, path: &Path, bytes: &[u8]) -> io::Result<()> {
+        fs::create_dir_all(self.backup_dir())?;
+        write_atomic(path, bytes)
+    }
+
+    pub fn read_backup_bytes(&self, name: &str) -> io::Result<Vec<u8>> {
+        fs::read(self.backup_dir().join(name))
+    }
+
     pub fn read_backup(&self, name: &str) -> io::Result<String> {
         let bytes = fs::read(self.backup_dir().join(name))?;
         Ok(String::from_utf8_lossy(&bytes).into_owned())
@@ -181,6 +194,7 @@ mod tests {
                 read_only: false,
                 caret: 3,
                 view: 1,
+                binary: false,
             }],
             active: 0,
         };

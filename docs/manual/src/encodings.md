@@ -22,6 +22,9 @@ the encoding it chose, Ettin Edit says so and shows them as �. Saving would
 replace them with �, so if the text looks wrong, use **Reopen With** (below)
 first.
 
+Binary files (with a `00` byte near the start that isn't UTF-16) aren't read
+as text at all: they open in [Hex View](view.md#binary-and-very-large-files).
+
 ## The Encoding menu
 
 Open it from the menu bar or by clicking the encoding on the status bar.
