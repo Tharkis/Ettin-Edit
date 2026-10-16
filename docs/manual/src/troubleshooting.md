@@ -79,11 +79,13 @@ browser instead, and turn off **Help > Check for Updates Automatically**.
   itself. Download the new version from the release page, or move Ettin Edit
   to a folder of your own.
 
-## Word wrap is slow to resize on a huge file
+## The scroll bar settles after resizing a huge file
 
-Resizing the window with word wrap on measures every line again, which takes
-a moment in files with hundreds of thousands of lines. Turn word wrap off
-(<kbd>Alt+Z</kbd>) for files that size.
+With word wrap on, resizing the window wraps the lines you can see straight
+away and the rest of the file in the background, so the window never freezes.
+In a file with hundreds of thousands of long lines that takes a second or
+two, and until it finishes the scroll bar's size and the document map can
+shift a little. The text at the top of the view stays where it is.
 
 ## I closed a file without saving
 

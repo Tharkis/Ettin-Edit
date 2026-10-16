@@ -18,10 +18,10 @@ use syntect::parsing::{SyntaxReference, SyntaxSet};
 use super::buffer::{CharEdit, LineEdit};
 use super::fold::FoldMark;
 use super::highlight::LineSpans;
-use super::layout::{char_cols, wrap_points};
+use super::layout::{REWRAP_BUDGET, char_cols, wrap_points};
 use super::selection::{Selection, Selections};
 use super::smart::ColumnSel;
-use super::{DragMode, Editor};
+use super::{DragMode, Editor, TopAnchor};
 use crate::menu::{self, MenuEntry};
 use crate::theme::Palette;
 
@@ -328,6 +328,32 @@ impl Editor {
         let w = Arc::new(wrap_points(&chars, self.rows.wrap_cols()));
         cache.wraps.insert(line, w.clone());
         w
+    }
+
+    /// After the wrap width changes (or lines are re-wrapped), scrolls so the
+    /// text that was at the top of the view stays there.
+    fn keep_top_line(&mut self) {
+        let Some(a) = self.top_anchor else {
+            return;
+        };
+        if self.map_scroll.is_some()
+            || (a.wrap_cols, a.generation) == (self.rows.wrap_cols(), self.rows.generation())
+        {
+            return;
+        }
+        let line = a.line.min(self.buffer.len_lines().saturating_sub(1));
+        self.rows.ensure_exact(&self.buffer, line..line + 1);
+        let chars: Vec<char> = self
+            .buffer
+            .rope()
+            .line(line)
+            .chars()
+            .filter(|&c| c != '\n')
+            .collect();
+        let wraps = wrap_points(&chars, self.rows.wrap_cols());
+        let sub = wraps.iter().rposition(|&p| p <= a.offset).unwrap_or(0);
+        let row = self.rows.line_to_row(line) + sub;
+        self.map_scroll = Some(row as f32 + a.frac);
     }
 
     /// Visual row and display column of char `pos`.
@@ -741,6 +767,10 @@ impl Editor {
         self.sync_caches();
         self.fold_scan.poll(&self.buffer, ui.ctx());
         self.rows.set_wrap(&self.buffer, wrap_cols);
+        if self.rows.refine(&self.buffer, REWRAP_BUDGET) {
+            ui.ctx().request_repaint();
+        }
+        self.keep_top_line();
 
         let version_before = self.buffer.version();
         let mut cache = FrameCache::default();
@@ -841,10 +871,28 @@ impl Editor {
                 cache = FrameCache::default();
             }
 
-            // Rows on screen.
+            // Rows on screen. Lines still waiting to be re-wrapped after a
+            // width change are wrapped now when they come into view; that
+            // only moves the rows below the first line.
+            let top = (viewport.min.y / metrics.row_h).max(0.0);
+            if !self.rows.is_settled() {
+                let (line, _) = self.rows.row_to_line(top as usize);
+                let shown = (viewport.height() / metrics.row_h).ceil() as usize + 2;
+                self.rows.ensure_exact(&self.buffer, line..line + shown);
+            }
             let total_rows = self.rows.total_rows();
-            let first =
-                ((viewport.min.y / metrics.row_h).floor().max(0.0) as usize).min(total_rows);
+            let first = (top.floor() as usize).min(total_rows);
+            if first < total_rows {
+                let (line, sub) = self.rows.row_to_line(first);
+                let wraps = self.line_wraps(&mut cache, line);
+                self.top_anchor = Some(TopAnchor {
+                    line,
+                    offset: wraps.get(sub).copied().unwrap_or(0),
+                    frac: top - first as f32,
+                    wrap_cols: self.rows.wrap_cols(),
+                    generation: self.rows.generation(),
+                });
+            }
             let last = ((viewport.max.y / metrics.row_h).ceil() as usize + 1).min(total_rows);
             let rows: Vec<(usize, Arc<RowLayout>)> = (first..last)
                 .map(|r| {

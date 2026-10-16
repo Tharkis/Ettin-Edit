@@ -19,6 +19,14 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.8: Word wrap on very large files
+
+Reported on 2026-10-16.
+
+- [x] Resizing the window with word wrap on no longer stalls on files with hundreds of thousands of lines. Lines that fit the new width are never read again; long lines are re-wrapped visible ones first, the rest a few at a time in the background while the window stays responsive (a resize step on a 500,000-line file went from about 0.65 s to under 10 ms)
+- [x] The line at the top of the view stays there when the window is resized or word wrap is turned on or off
+- [x] A document shown in both views of a split at different widths keeps the wrapping for both, instead of re-wrapping the whole file every frame
+
 ### 1.7: Updates from inside Ettin Edit
 
 Requested on 2026-10-16.
@@ -463,6 +471,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| Word wrap on very large files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines | 1.8 |
 | Searching for `\r` or `\r\n` finds nothing with regular expressions, and line-break matches aren't highlighted in Extended mode | 1.6.1 |
 | The `.deb` doesn't tell software centres its licence or repository, so they show "Unknown License" and "No Software Repository Included" and the software updater can't update it | 1.4 |
 
@@ -474,9 +483,6 @@ Features that are planned or only partly done.
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more). Still open from them:
 - [ ] Markdown preview: show images, and scroll the preview along with the text
 - [ ] Hex View: edit any byte in any encoding (today an edit must leave valid text in the tab's encoding; reopening the file as Windows-1252 allows any byte), and open very large binary files without reading them as text first
-
-### Editing
-- [~] Word wrap on very large files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines
 
 ### XML
 - [ ] Comment / uncomment selection, convert text to XML
