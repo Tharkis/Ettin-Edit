@@ -11,8 +11,28 @@ Everything in this chapter is in the **View** menu unless it says otherwise.
 | **Highlight Current Line** | | A band behind the caret's line |
 | **Show Symbol > Show Whitespace** | | A dot for each space and an arrow across each tab |
 | **Show Symbol > Show End of Line** | | `LF`, `CRLF` or `CR` at each line end |
+| **Show Symbol > Show Invisible Characters** | | A small label for each character you otherwise couldn't see (see below) |
+| **Show Symbol > Show All Characters** | | Whitespace, line ends and invisible characters together; choose it again to hide them all |
 | **Show Symbol > Indent Guides** | | Faint lines at each indentation level |
 | **Long-Line Marker** | | A vertical line at a column, 80 unless you change it |
+
+**Show Invisible Characters** labels characters that look like nothing, or
+like an ordinary space, so they can't hide in your text:
+
+| Label | Character |
+| --- | --- |
+| `NUL`, `SOH` … `US`, `DEL`, `C1` | Control characters, such as `ESC` (character 27) |
+| `NBSP`, `NNBSP` | No-break space and narrow no-break space |
+| `SP`, `MMSP`, `IDSP` | Other spaces (en, em, thin, hair and so on, medium mathematical, ideographic) |
+| `ZWSP`, `ZWNJ`, `ZWJ`, `WJ` | Zero-width space, non-joiner, joiner and word joiner |
+| `SHY` | Soft hyphen |
+| `LRM`, `RLM`, `ALM`, `LRE`, `RLE`, `PDF`, `LRO`, `RLO`, `LRI`, `RLI`, `FSI`, `PDI` | Text direction marks and controls |
+| `BOM` | A byte-order mark (zero-width no-break space) inside the text |
+| `LS`, `PS` | Unicode line and paragraph separators |
+| `VS`, `CGJ`, `TAG`, `INV`, `HF`, `MVS`, `IAC`, `DEPR` | Variation selectors and other invisible formatting characters |
+
+Without it, control characters still show as small symbols, but the other
+characters in the table look like a space or like nothing at all.
 
 Change the long-line column at the bottom of the **Settings** menu or in
 [Preferences](preferences.md). **Edit > Line Operations > Split Lines at
@@ -74,6 +94,59 @@ INI sections and the keys of JSON and YAML files.
 - Type in **Filter** to find one by name.
 - **Show where the caret is** keeps the entry you're in selected as you move
   around.
+
+## Character Panel
+
+**View > Character Panel** opens a table of characters on the right, with
+each one's decimal and hex code, HTML entity and Unicode name, like
+Notepad++'s ASCII Codes Insertion Panel.
+
+- Pick a block in the list: **ASCII**, **Latin-1 Supplement**, **Greek and
+  Coptic**, **Arrows**, **Box Drawing**, **Currency Symbols** and others.
+- Or search: type a character (`é`), a code (`U+00E9`, `0xE9`, `233`,
+  `&eacute;`) or words of its name (`e acute`, `rightwards arrow`, `smiling
+  face`). The search covers every character up to the emoji.
+- Double-click a row to insert the character at the caret, or at every
+  caret. The second list chooses what is inserted: **the character**, **the
+  HTML entity** (`&eacute;`), **the code** (`U+00E9`) or **the decimal code**
+  (`233`).
+- Right-click a row to copy the character, its HTML entity or its code.
+
+## Hex View
+
+**View > Hex View** (<kbd>Ctrl+Alt+Shift+H</kbd>) shows the current tab as
+the bytes it's saved as, in its [encoding](encodings.md) and with its line
+endings: the offset of each row on the left, sixteen bytes in hex in the
+middle, and the same bytes as text on the right, where anything that isn't a
+printable ASCII character is a dot. Choose it again to go back to the text.
+Each tab remembers whether it's in hex until you close it.
+
+The bar at the bottom shows the offset of the byte at the cursor (in hex and
+decimal), its value in hex, decimal and binary, how many bytes are selected,
+and the size of the file.
+
+| Keys | What they do |
+| --- | --- |
+| Arrows, <kbd>PageUp</kbd>, <kbd>PageDown</kbd> | Move the cursor; with <kbd>Shift</kbd>, select bytes |
+| <kbd>Home</kbd> / <kbd>End</kbd> | Start or end of the row; with <kbd>Ctrl</kbd>, of the file |
+| <kbd>0</kbd>–<kbd>9</kbd>, <kbd>A</kbd>–<kbd>F</kbd> | Type a byte in hex: the first digit waits for the second, then the byte under the cursor is replaced |
+| <kbd>Tab</kbd> | Switch between the hex and text columns. In the text column, typing a character replaces the bytes under the cursor with that character's bytes |
+| <kbd>Delete</kbd> / <kbd>Backspace</kbd> | Remove the selected bytes, or the byte at or before the cursor |
+| <kbd>Insert</kbd> | Insert a `00` byte at the cursor, to type over |
+| <kbd>Ctrl+C</kbd> | Copy the selected bytes as hex, such as `48 65 6C` |
+| <kbd>Ctrl+V</kbd> | Paste hex digits over the bytes at the cursor (or over the selection) |
+| <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> | Undo and redo, shared with the text |
+
+Every change goes into the tab's text, so **Undo** works across both views and
+**Save** writes the bytes you see. A change is only made if the new bytes are
+still valid text in the tab's encoding and would be saved exactly as shown.
+For example, in a UTF-8 file, typing over the first byte of `é` (`C3 A9`)
+would leave half a character, so the bar says so and nothing changes; paste
+both bytes at once (`C3 A8` for `è`) or type the character in the text column
+instead. Likewise, a lone `0D` can't be added to a file whose line endings are
+`CR LF`. To change any byte freely, first reopen the tab in an encoding with
+one byte per character, such as **Western European > Windows-1252 /
+ISO-8859-1**, from the [Encoding menu](encodings.md#the-encoding-menu).
 
 ## Document Map
 

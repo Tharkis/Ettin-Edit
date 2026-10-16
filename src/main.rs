@@ -6,6 +6,7 @@
 mod i18n;
 mod actions;
 mod app;
+mod char_panel;
 mod compare;
 mod compare_ui;
 mod csv_query;
@@ -17,6 +18,8 @@ mod folder_ui;
 mod fonts;
 mod function_list;
 mod function_list_ui;
+mod hex;
+mod hex_ui;
 mod highlight;
 mod instance;
 mod lang_api;

@@ -7,6 +7,7 @@ mod fold;
 mod fold_scan;
 pub mod highlight;
 mod hints;
+pub mod invisible;
 pub mod layout;
 pub mod lines;
 mod map;
@@ -70,6 +71,9 @@ pub struct Editor {
     column: Option<(smart::ColumnSel, Selections)>,
     /// Where an Alt+drag rectangular selection started (visual row, column).
     column_drag: Option<(usize, usize)>,
+    /// Column mode (set from the view config each frame): plain drags and
+    /// Shift+arrows select rectangles.
+    column_mode: bool,
     /// Folded regions: first line → last hidden line.
     folds: BTreeMap<usize, usize>,
     /// The regions the language's grammar finds, kept up to date in the background.
@@ -151,6 +155,7 @@ impl Editor {
             doc_signatures: None,
             column: None,
             column_drag: None,
+            column_mode: false,
             folds: BTreeMap::new(),
             fold_scan: fold_scan::FoldScanner::default(),
             other_view: None,

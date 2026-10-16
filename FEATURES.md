@@ -19,6 +19,19 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.5: Hex View, Character Panel, Markdown Preview and more
+
+The six features requested on 2026-10-16.
+
+- [x] Markdown Preview, a new sample plugin (Python): a side panel showing the Markdown tab rendered, updating a moment after you stop typing and keeping its place; it follows the active tab, opens links to other files, scrolls to `#heading` links and skips YAML front matter (<kbd>Ctrl+Shift+M</kbd>; [Using plugins](docs/manual/src/plugins.md#markdown-preview)). Images show as their description and raw HTML is left out
+- [x] Plugins can show Markdown in a panel: a new `markdown` panel item (`ui.markdown(text)`), drawn like the user manual, with a `link` event for links that aren't web pages ([Writing plugins](docs/manual/src/plugin-guide.md#panels))
+- [x] Hex View (View > Hex View, <kbd>Ctrl+Alt+Shift+H</kbd>): a tab's bytes as saved (in its encoding and line endings) with offsets, hex and text columns; type hex digits or characters to change bytes, Delete, Backspace and Insert, copy and paste bytes as hex, undo shared with the text. Edits that would leave invalid text in the tab's encoding are refused with a note ([Hex View](docs/manual/src/view.md#hex-view))
+- [x] Column Mode (Edit > Column Mode, <kbd>Alt+Shift+C</kbd>): a plain drag and Shift+arrows select a rectangle without holding Alt; the status bar shows it's on ([Column Mode](docs/manual/src/editing.md#column-mode))
+- [x] Extended search mode (the `\n` button in the find bar, and Find in Files): `\n`, `\r`, `\t`, `\0`, `\\`, `\xNN`, `\uNNNN`, `\u{…}`, `\dNNN`, `\oNNN` and `\bNNNNNNNN` in Find and Replace mean those characters ([Extended mode](docs/manual/src/search.md#extended-mode-n-t-xnn))
+- [x] View > Show Symbol > Show Invisible Characters: labels such as `NBSP`, `ZWSP`, `BOM`, `RLO` and `ESC` for control characters, unusual spaces, zero-width and direction characters; and **Show All Characters**, which turns whitespace, line ends and invisible characters on or off together (also in Preferences and on the toolbar's View tab)
+- [x] Character Panel (View > Character Panel): characters by Unicode block (ASCII, Latin-1, Greek, arrows, box drawing, currency and more) with decimal and hex codes, HTML entities and Unicode names; search by character, code or name; double-click to insert the character, its HTML entity or its code; right-click to copy ([Character Panel](docs/manual/src/view.md#character-panel))
+- [x] New toolbar buttons for Column Mode, Show All Characters, Character Panel and Hex View, and all new text in the four interface languages
+
 ### 1.4: Package information and updates through APT (in progress)
 
 - [x] Fixed: the `.deb` had no licence, release notes, age rating or update source, so software centres showed "Unknown License" and "No Software Repository Included" and never updated it ([Installing and updating](docs/manual/src/installing.md#getting-updates-on-debian-and-ubuntu))
@@ -353,7 +366,7 @@ full API.
 - [x] Plugin panels (dock a custom view, e.g. a tree or a grid)
 - [x] Plugin folder in the config directory, enable/disable per plugin
 - [x] Plugin manager: browse, install, update, remove (Plugins > Manage Plugins: Installed and Available tabs from a plugin index, Install from File or Folder, updates when the index has a newer version, Remove to the trash; new and updated plugins ask for permission)
-- [x] Sample plugins in both Python and JavaScript
+- [x] Sample plugins in both Python and JavaScript (Text Statistics, Markdown Outline, Markdown Preview, HL7 Viewer)
 - [x] Permission prompt the first time a plugin runs and again when its files change (plugins are not sandboxed)
 
 ## Notepad++ plugin equivalents
@@ -427,13 +440,9 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-Requested on 2026-10-16; not yet given a release.
-- [ ] Markdown preview: a panel beside a Markdown file showing it rendered, updating live as you type (as a plugin)
-- [ ] Hex viewer: show a file's bytes in hex next to their text, and edit them
-- [~] Column selection: Alt+drag and Alt+Shift+arrows already select a box (0.4), and Edit > Column Editor fills one; still to come is a Column Mode switch in the Edit menu so a plain drag or Shift+arrows selects columns without holding Alt
-- [ ] Escape mode for search: an "Extended" search mode where `\n`, `\r`, `\t`, `\0`, `\xNN` and `\uNNNN` in Find and Replace mean those characters without needing regular expressions (today `\n` and `\t` work only in a regex replacement)
-- [~] Show All Characters under View > Show Symbol: Show Whitespace and Show End of Line exist (0.4); still to come is one option that turns on both, plus markers for control characters and other invisible characters (zero-width spaces, non-breaking spaces)
-- [ ] Character panel: a table of characters (ASCII and Unicode) with their codes in decimal, hex and HTML entity form; click one to insert it
+The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more). Still open from them:
+- [ ] Markdown preview: show images, and scroll the preview along with the text
+- [ ] Hex View: edit any byte in any encoding (today an edit must leave valid text in the tab's encoding; reopening the file as Windows-1252 allows any byte), and open very large binary files without reading them as text first
 
 ### Editing
 - [~] Word wrap on very large files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines

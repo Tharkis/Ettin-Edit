@@ -49,8 +49,9 @@ See [Typing helpers](editing.md#typing-helpers) for what each one does.
 Whatever font you choose, Chinese, Japanese and Korean characters are drawn
 with a CJK font from your system when one is installed.
 
-**Show**: word wrap, line numbers, the current line highlight, whitespace and
-end-of-line symbols, indent guides, and the **Long-line marker at column**,
+**Show**: word wrap, line numbers, the current line highlight, whitespace,
+end-of-line symbols and invisible characters, indent guides, and the
+**Long-line marker at column**,
 with its column. These are the same switches as in the
 [View menu](view.md#what-the-editor-shows).
 

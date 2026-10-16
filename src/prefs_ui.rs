@@ -270,6 +270,7 @@ impl PrefsDialog {
         );
         ui.checkbox(&mut settings.show_whitespace, t!("prefs-whitespace"));
         ui.checkbox(&mut settings.show_eol, t!("prefs-eol"));
+        ui.checkbox(&mut settings.show_invisible, t!("prefs-invisible"));
         ui.checkbox(&mut settings.indent_guides, t!("prefs-indent-guides"));
         ui.horizontal(|ui| {
             ui.checkbox(&mut settings.show_edge, t!("prefs-edge"));

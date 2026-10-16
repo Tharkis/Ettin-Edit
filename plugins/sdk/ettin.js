@@ -190,7 +190,7 @@ function showPanel(id, { title, items = [], position = 'right', scrollToTop = fa
 }
 function closePanel(id) { return call('panel.close', { id }); }
 /** Calls fn(event) when the user uses the panel: {item, event, value, values},
- *  where event is 'click', 'change', 'submit', 'select' or 'close'. */
+ *  where event is 'click', 'change', 'submit', 'select', 'link' or 'close'. */
 function onPanel(panelId, fn) { panelHandlers.set(panelId, fn); }
 
 /** Builds panel items. */
@@ -212,6 +212,7 @@ const ui = {
     return n;
   },
   table: (id, columns, rows) => ({ type: 'table', id, columns, rows }),
+  markdown: (text, { id = '' } = {}) => ({ type: 'markdown', id, text: String(text) }),
 };
 
 // ----------------------------------------------------------------------

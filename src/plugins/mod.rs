@@ -98,6 +98,27 @@ pub const SAMPLES: &[(&str, &[(&str, &str)])] = &[
             ),
         ],
     ),
+    (
+        "markdown-preview",
+        &[
+            (
+                "plugin.json",
+                include_str!("../../plugins/samples/markdown-preview/plugin.json"),
+            ),
+            (
+                "main.py",
+                include_str!("../../plugins/samples/markdown-preview/main.py"),
+            ),
+            (
+                "preview.py",
+                include_str!("../../plugins/samples/markdown-preview/preview.py"),
+            ),
+            (
+                "test_preview.py",
+                include_str!("../../plugins/samples/markdown-preview/test_preview.py"),
+            ),
+        ],
+    ),
 ];
 
 const MAX_LOG: usize = 2000;

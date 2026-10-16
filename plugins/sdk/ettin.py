@@ -330,8 +330,8 @@ def close_panel(id):
 
 def on_panel(panel_id):
     """Decorator: called with a dict when the user uses the panel:
-    item (the item's id), event ("click", "change", "submit", "select" or
-    "close"), value, and values (every field's value, by id)."""
+    item (the item's id), event ("click", "change", "submit", "select",
+    "link" or "close"), value, and values (every field's value, by id)."""
 
     def decorate(fn):
         _panel_handlers[panel_id] = fn
@@ -392,6 +392,10 @@ class ui:
         if open is not None:
             n["open"] = open
         return n
+
+    @staticmethod
+    def markdown(text, id=""):
+        return {"type": "markdown", "id": id, "text": str(text)}
 
     @staticmethod
     def table(id, columns, rows):

@@ -126,12 +126,22 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
             ToggleEol,
         ),
         (
+            &["menu-view", "menu-show-symbol", "show-invisible"],
+            ToggleInvisible,
+        ),
+        (
+            &["menu-view", "menu-show-symbol", "show-all-characters"],
+            ToggleAllChars,
+        ),
+        (
             &["menu-view", "menu-show-symbol", "indent-guides"],
             ToggleIndentGuides,
         ),
         (&["menu-view", "long-line-marker"], ToggleEdge),
         (&["menu-view", "function-list"], ToggleFunctionList),
         (&["menu-view", "document-map"], ToggleDocMap),
+        (&["menu-view", "character-panel"], ToggleCharPanel),
+        (&["menu-view", "hex-view"], ToggleHexView),
         (&["menu-view", "folder-as-workspace"], ToggleFolderPanel),
         (
             &["menu-view", "distraction-free-mode"],

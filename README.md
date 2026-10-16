@@ -50,15 +50,15 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 
 | | |
 | --- | --- |
-| ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing, code folding that follows the grammar, keyword completion, parameter hints, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second. |
+| ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing (with a Column Mode), code folding that follows the grammar, keyword completion, parameter hints, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second. |
 | 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with live preview. Drop in any `.tmTheme` you like. |
-| 🔎 **Finds things** | Find and replace with regex, Find All in open tabs, Find in Files in the background, marks and a results panel. |
+| 🔎 **Finds things** | Find and replace with regex or extended escapes (`\n`, `\t`, `\x41`), Find All in open tabs, Find in Files in the background, marks and a results panel. |
 | 🧰 **Tools menu** | JSON and JavaScript formatting, minifying and a live JSON tree (JSTool). Base64, URL, HTML entities and SAML (MIME tools). XPath, pretty print, XSD/DTD validation and XSLT (XML Tools). |
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
 | 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
 | 🌍 **Text in any shape** | About 80 languages, plus your own with a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
-| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels, and install them from Plugins > Manage Plugins. |
-| 🧭 **Panels** | Function list, document map, a folder workspace, and a command palette on F1. F11 hides everything except your words. |
+| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels (even live Markdown, as the Markdown Preview sample does), and install them from Plugins > Manage Plugins. |
+| 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits bytes, and a command palette on F1. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
 | 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, or collapse it out of the way. |
 | ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
@@ -183,8 +183,8 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/instance.rs` | Single-window mode: hands files to the Ettin Edit already running |
 | `src/system.rs` | Opening the file manager and a terminal, and reading the last Git commit |
 | `src/file_ui.rs` | Rename, move to trash and summary dialogs, the changed-on-disk bar, the Encoding menu |
-| `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `fold_scan.rs` (grammar-aware fold regions, scanned in the background), `hints.rs` (parameter hints), `view.rs` (drawing, keyboard and mouse) |
-| `src/search.rs` | Search queries (plain, whole word, regex), replacement templates, and Find in Files |
+| `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `invisible.rs` (labels for invisible characters), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `fold_scan.rs` (grammar-aware fold regions, scanned in the background), `hints.rs` (parameter hints), `view.rs` (drawing, keyboard and mouse) |
+| `src/search.rs` | Search queries (plain, extended escapes, whole word, regex), replacement templates, and Find in Files |
 | `src/search_ui.rs` | The find bar, results panel, and the Go to Line and Find in Files dialogs |
 | `src/tools_ui.rs` | The Column Editor and macro dialogs |
 | `src/tools/` | The Tools menu's text tools: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0), `csv.rs` (reading delimited text), `sql.rs` (CsvQuery's SQLite tables and queries) |
@@ -198,7 +198,7 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/plugins/` | The plugin host: `mod.rs` (starting plugins, messages, commands, events), `manifest.rs` (`plugin.json`, finding plugins, the permission fingerprint), `process.rs` (plugin processes), `shortcut.rs` (shortcut text), `panel.rs` (JSON panels), `ui.rs` (Manage Plugins, the log and the permission prompt) |
 | `src/app/plugins.rs` | Answers plugin calls on the open documents, sends events, draws plugin panels |
 | `plugins/sdk/` | The Python and JavaScript SDKs that plugins import |
-| `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
+| `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript), Markdown Preview (Python) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/prefs_ui.rs`, `src/shortcut_ui.rs`, `src/style_ui.rs` | Preferences, the Shortcut Mapper and the theme colour editor |
 | `src/palette_ui.rs`, `src/app/commands.rs` | The command palette and tab list, and the list of every command |
@@ -208,6 +208,8 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/lang_api.rs`, `assets/api/` | Keyword and function lists for completion and parameter hints, and the user's own lists in the `api` folder |
 | `src/tools/xsd.rs`, `src/tools/dtd.rs`, `src/tools/xslt.rs`, `src/app/xml_schema.rs` | XSD and DTD validation and XSLT 1.0 |
 | `src/print.rs`, `src/app/printing.rs` | Printing and HTML export |
+| `src/hex.rs`, `src/hex_ui.rs` | Hex View: a tab's bytes as saved, and turning byte edits back into text |
+| `src/char_panel.rs` | The Character Panel: Unicode blocks, names, HTML entities and search |
 | `src/update.rs` | Checking GitHub for a newer release |
 | `src/plugins/store.rs` | The plugin manager: the plugin index, downloads and safe installs |
 | `docs/manual/`, `src/manual.rs` | The user manual (mdBook sources, also built into the app) and its in-app viewer; see `docs/manual/README.md` |

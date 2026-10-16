@@ -189,7 +189,16 @@ impl FindBar {
 
             changed |= option_toggle(ui, "Aa", &mut opts.match_case, &t!("match-case"));
             changed |= option_toggle(ui, "W", &mut opts.whole_word, &t!("whole-word"));
-            changed |= option_toggle(ui, ".*", &mut opts.regex, &t!("regular-expression"));
+            // Extended and regular expression are two ways of reading the
+            // pattern, so turning one on turns the other off.
+            if option_toggle(ui, "\\n", &mut opts.extended, &t!("extended-search")) {
+                changed = true;
+                opts.regex &= !opts.extended;
+            }
+            if option_toggle(ui, ".*", &mut opts.regex, &t!("regular-expression")) {
+                changed = true;
+                opts.extended &= !opts.regex;
+            }
 
             let count = match self.count {
                 _ if self.find.is_empty() => None,
@@ -279,6 +288,8 @@ impl FindBar {
                         .id(Id::new(REPLACE_FIELD))
                         .hint_text(if opts.regex {
                             t!("replace-hint-regex")
+                        } else if opts.extended {
+                            t!("replace-hint-extended")
                         } else {
                             t!("replace")
                         })
@@ -799,7 +810,19 @@ impl FifDialog {
                     ui.horizontal_wrapped(|ui| {
                         ui.checkbox(&mut opts.match_case, t!("match-case"));
                         ui.checkbox(&mut opts.whole_word, t!("whole-word"));
-                        ui.checkbox(&mut opts.regex, t!("regular-expression"));
+                        if ui
+                            .checkbox(&mut opts.extended, t!("extended-search-short"))
+                            .on_hover_text(t!("extended-search"))
+                            .changed()
+                        {
+                            opts.regex &= !opts.extended;
+                        }
+                        if ui
+                            .checkbox(&mut opts.regex, t!("regular-expression"))
+                            .changed()
+                        {
+                            opts.extended &= !opts.regex;
+                        }
                     });
                     ui.end_row();
                     ui.label("");

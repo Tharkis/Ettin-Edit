@@ -45,6 +45,15 @@ Hold <kbd>Alt</kbd> and drag, or use <kbd>Alt+Shift</kbd> with the arrow
 keys, to select a rectangle. Typing then replaces or inserts on every row,
 and <kbd>Backspace</kbd> and <kbd>Delete</kbd> work on every row too.
 
+### Column Mode
+
+**Edit > Column Mode** (<kbd>Alt+Shift+C</kbd>) saves holding
+<kbd>Alt</kbd>: while it's on, a plain drag and <kbd>Shift</kbd> with the
+arrow keys select a rectangle, and the status bar says **Column mode**. A
+plain click still puts one caret where you click, and <kbd>Shift</kbd>+click
+still extends a normal selection. Click **Column mode** in the status bar, or
+use the command again, to turn it off. It's off each time Ettin Edit starts.
+
 ### Column Editor
 
 **Edit > Column Editor…** (<kbd>Alt+C</kbd>) inserts the same thing at every

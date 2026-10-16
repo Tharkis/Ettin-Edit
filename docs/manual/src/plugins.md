@@ -21,16 +21,33 @@ one, set the program in **Plugins > Manage Plugins** or
 
 ## Trying the samples
 
-**Plugins > Install Sample Plugins** installs and starts three plugins:
+**Plugins > Install Sample Plugins** installs and starts four plugins:
 
 | Plugin | Language | What it does |
 | --- | --- | --- |
 | **Text Statistics** | Python | Live counts for the current tab in a side panel (<kbd>Ctrl+Alt+T</kbd>), word frequencies as CSV in a new tab, and a word count of the selection |
 | **Markdown Outline** | JavaScript | A clickable outline of a Markdown file's headings, **Insert UUID**, and **Wrap Lines…** to a width you choose |
+| **Markdown Preview** | Python | A live preview of the Markdown tab you're editing (see below) |
 | **HL7 Viewer** | Python | Browse and edit HL7 v2 messages (see below) |
 
 Their commands appear in the **Plugins** menu, under each plugin's name, and
 in the editor's right-click menu.
+
+### Markdown Preview
+
+Open a Markdown file and choose **Plugins > Markdown Preview > Show or Hide
+Markdown Preview** (<kbd>Ctrl+Shift+M</kbd>). A panel on the right shows the
+file rendered: headings, lists, tables, quotes, code blocks, links,
+**bold**, *italic* and ~~strikethrough~~. It updates a moment after you stop
+typing, keeps its place as you edit, and follows you when you switch tabs.
+
+- Click a web link to open it in your browser, a link to a heading
+  (`#install`) to scroll there, or a link to another file (`notes.md`) to
+  open it in a tab.
+- YAML front matter (the `---` block some sites put at the top) isn't shown.
+- Images show as their description, and raw HTML is left out.
+- Tabs that aren't Markdown (by language, or a `.md` / `.markdown` name) show
+  a note instead.
 
 ### HL7 Viewer
 
