@@ -1,0 +1,8 @@
+# The Ettin Edit package repository, added by the ettin-edit package so your
+# software updater installs new versions. Delete this file to stop updates.
+Types: deb
+URIs: https://tharkis.github.io/Ettin-Edit/apt
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/ettin-edit-archive-keyring.gpg

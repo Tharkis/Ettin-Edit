@@ -32,7 +32,30 @@ Download one of these:
 | Anything else | `.tar.gz` | Extract it and run `./ettin-edit` |
 
 The packages add Ettin Edit to your application menu with its icon, and offer
-it in **Open With** for text files.
+it in **Open With** for text files. Software centres such as GNOME Software,
+KDE Discover and Ubuntu's App Center show its licence (MIT), website, release
+notes and age rating.
+
+### Getting updates on Debian and Ubuntu
+
+From 1.4.0 the `.deb` also adds the Ettin Edit package repository, which lives
+next to this manual on GitHub Pages. After that, your software updater (or
+`sudo apt update && sudo apt upgrade`) installs new versions like any other
+app, and the software centre no longer says "No software repository included".
+Install the 1.4.0 `.deb` by hand once if you have an older one.
+
+The repository's settings are in `/etc/apt/sources.list.d/ettin-edit.sources`.
+Delete that file to stop getting updates this way.
+
+To add the repository without downloading the `.deb` first:
+
+```sh
+sudo curl -fsSLo /usr/share/keyrings/ettin-edit-archive-keyring.gpg \
+  https://tharkis.github.io/Ettin-Edit/apt/ettin-edit-archive-keyring.gpg
+sudo curl -fsSLo /etc/apt/sources.list.d/ettin-edit.sources \
+  https://tharkis.github.io/Ettin-Edit/apt/ettin-edit.sources
+sudo apt update && sudo apt install ettin-edit
+```
 
 The `.tar.gz` needs the usual desktop libraries, which almost every desktop
 already has: OpenGL and, on X11, `libxkbcommon-x11`. On Debian or Ubuntu:
@@ -57,6 +80,10 @@ cargo run --release -- notes.txt
 ```
 
 ## Updating
+
+On Debian and Ubuntu, the `.deb`'s package repository brings updates through
+your software updater (see [above](#getting-updates-on-debian-and-ubuntu)).
+On Windows, Arch and the `.tar.gz`, use Ettin Edit's own check:
 
 **Help > Check for Updates…** asks GitHub whether there's a newer release. If
 there is, it shows what changed and an **Open Download Page** button; download
