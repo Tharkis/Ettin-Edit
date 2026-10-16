@@ -3,6 +3,11 @@ name: User manual
 # Builds the user manual (docs/manual) with mdBook on every pull request that
 # touches it, and publishes it to GitHub Pages when it changes on main:
 # https://tharkis.github.io/Ettin-Edit/
+#
+# The same site carries the Ettin Edit APT repository at /apt, built from the
+# .deb files of the latest releases and signed with the APT_SIGNING_KEY secret,
+# so it's rebuilt after every release as well. Without that secret the site
+# has no /apt folder.
 
 on:
   push:
@@ -14,7 +19,11 @@ on:
     paths:
       - "docs/manual/**"
       - ".github/workflows/manual.yml"
+      - "packaging/debian/**"
   workflow_dispatch:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
 
 permissions:
   contents: read
@@ -29,6 +38,9 @@ env:
 jobs:
   build:
     name: Build
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +52,36 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Build the manual
         run: mdbook build docs/manual
+      - name: Build the APT repository
+        # The .deb files of the three latest releases that have one. Pull
+        # requests sign with a throwaway key, just to check the script works.
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$APT_SIGNING_KEY" ]; then
+            if [ "${{ github.event_name }}" != pull_request ]; then
+              echo "::warning::APT_SIGNING_KEY is not set, so the site has no APT repository."
+              exit 0
+            fi
+            export GNUPGHOME=$(mktemp -d)
+            gpg --batch --passphrase '' --quick-gen-key "Ettin Edit test key" ed25519 sign never
+            APT_SIGNING_KEY=$(gpg --armor --export-secret-keys)
+            export APT_SIGNING_KEY
+          fi
+          sudo apt-get update -q && sudo apt-get install -y -q apt-utils
+          mkdir -p debs
+          for tag in $(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
+                         --limit 20 --json tagName --jq '.[].tagName'); do
+            [ "$(ls debs | wc -l)" -ge 3 ] && break
+            gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'ettin-edit_*_amd64.deb' --dir debs || true
+          done
+          ls -l debs
+          if ls debs/*.deb >/dev/null 2>&1; then
+            packaging/debian/build-apt-repo.sh debs docs/manual/book/apt
+          else
+            echo "::warning::No release has a .deb yet, so the site has no APT repository."
+          fi
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:
@@ -47,7 +89,7 @@ jobs:
 
   deploy:
     name: Publish to GitHub Pages
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_run')
     needs: build
     runs-on: ubuntu-latest
     permissions:

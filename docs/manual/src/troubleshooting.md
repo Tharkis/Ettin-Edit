@@ -7,6 +7,14 @@ desktop library when using the `.tar.gz`: install OpenGL and, on X11,
 `libxkbcommon-x11` (`sudo apt install libxkbcommon-x11-0 libgl1` on Debian
 and Ubuntu). The `.deb` and Arch packages install these for you.
 
+## The software centre says "No software repository included" or "Unknown licence"
+
+That's a `.deb` from before 1.4.0, which had no package information for
+software centres. Install the latest `.deb` once: it shows the licence and
+release notes, and adds the Ettin Edit repository so updates arrive through
+your software updater. See [Getting updates on Debian and
+Ubuntu](installing.md#getting-updates-on-debian-and-ubuntu).
+
 ## A file opened in the running window instead of a new one
 
 That's the **Single Window** setting. Turn it off in the **Settings** menu, or

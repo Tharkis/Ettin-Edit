@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata: what software centres (GNOME Software, KDE Discover,
+     Ubuntu's App Center) show about Ettin Edit, such as its licence, website,
+     age rating and release notes. Installed to /usr/share/metainfo.
+     Add a <release> for every new version: the release workflow refuses to
+     build a version that isn't listed here. -->
+<component type="desktop-application">
+  <id>io.github.tharkis.EttinEdit</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Ettin Edit</name>
+  <summary>Fast text and code editor inspired by Notepad++</summary>
+  <developer id="io.github.tharkis">
+    <name>Tharkis</name>
+  </developer>
+  <description>
+    <p>
+      Ettin Edit is a modern, cross-platform text and code editor. It opens
+      large files quickly and carries built-in versions of the Notepad++
+      plugins people install first.
+    </p>
+    <ul>
+      <li>Tabs, split view and a customisable tabbed toolbar</li>
+      <li>Syntax highlighting, folding and completion for many languages</li>
+      <li>Multiple carets, column editing, macros and powerful search</li>
+      <li>Compare two files side by side</li>
+      <li>CsvQuery: run SQL over CSV files</li>
+      <li>JSON, JavaScript, XML, MIME and HL7 tools</li>
+      <li>Dark and light themes, and plugins written in Python or JavaScript</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">ettin-edit.desktop</launchable>
+  <provides>
+    <binary>ettin-edit</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+    <category>TextEditor</category>
+    <category>Development</category>
+  </categories>
+  <keywords>
+    <keyword>text</keyword>
+    <keyword>editor</keyword>
+    <keyword>code</keyword>
+    <keyword>notepad</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/Tharkis/Ettin-Edit</url>
+  <url type="bugtracker">https://github.com/Tharkis/Ettin-Edit/issues</url>
+  <url type="help">https://tharkis.github.io/Ettin-Edit/</url>
+  <url type="vcs-browser">https://github.com/Tharkis/Ettin-Edit</url>
+  <url type="translate">https://tharkis.github.io/Ettin-Edit/translations.html</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Ettin Edit with the dark theme</caption>
+      <image>https://raw.githubusercontent.com/Tharkis/Ettin-Edit/main/docs/screenshots/dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Ettin Edit with the light theme</caption>
+      <image>https://raw.githubusercontent.com/Tharkis/Ettin-Edit/main/docs/screenshots/light.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <releases>
+    <release version="1.4.0" date="2026-10-16">
+      <description>
+        <p>Software centres now show Ettin Edit's licence, release notes and age
+        rating, and the .deb adds the Ettin Edit package repository so your
+        software updater keeps it up to date.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.4.0</url>
+    </release>
+    <release version="1.3.0" date="2026-10-16">
+      <description>
+        <p>A customisable tabbed toolbar (ribbon) under the menu bar.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.3.0</url>
+    </release>
+    <release version="1.2.0" date="2026-10-15">
+      <description>
+        <p>German, French and Spanish translations, and a user manual (Help > User Manual).</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.2.0</url>
+    </release>
+    <release version="1.1.0" date="2026-10-15">
+      <description>
+        <p>Syntax-aware code folding, keyword completion and parameter hints.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.1.0</url>
+    </release>
+    <release version="1.0.0" date="2026-10-15">
+      <description>
+        <p>Preferences, shortcut mapper, theme editor, function list, folder panel,
+        plugin manager, and installers for Windows and Debian.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.0.0</url>
+    </release>
+  </releases>
+</component>

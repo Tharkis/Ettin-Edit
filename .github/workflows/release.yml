@@ -68,6 +68,10 @@ jobs:
             echo "::error::Tag $tag does not match the version in Cargo.toml ($version)"
             exit 1
           fi
+          if ! grep -q "<release version=\"$version\"" packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml; then
+            echo "::error::Add a <release version=\"$version\"> entry to packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml"
+            exit 1
+          fi
 
   linux:
     name: Linux build
@@ -88,26 +92,29 @@ jobs:
           dir="ettin-edit-$VERSION-linux-x86_64"
           mkdir -p "$dir/icons"
           cp target/release/ettin-edit README.md LICENSE "$dir/"
-          cp packaging/linux/ettin-edit.desktop "$dir/"
+          cp packaging/linux/ettin-edit.desktop packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml "$dir/"
           cp assets/icons/ettin-edit.svg assets/icons/ettin-edit-256.png "$dir/icons/"
           tar czf "$dir.tar.gz" "$dir"
-      - name: Debian package
+      - name: Check the AppStream metadata
         run: |
-          root="ettin-edit_${VERSION}_amd64"
-          install -Dm755 target/release/ettin-edit "$root/usr/bin/ettin-edit"
-          install -Dm644 packaging/linux/ettin-edit.desktop "$root/usr/share/applications/ettin-edit.desktop"
-          install -Dm644 assets/icons/ettin-edit.svg "$root/usr/share/icons/hicolor/scalable/apps/ettin-edit.svg"
-          install -Dm644 assets/icons/ettin-edit-256.png "$root/usr/share/icons/hicolor/256x256/apps/ettin-edit.png"
-          install -Dm644 assets/icons/ettin-edit-32.png "$root/usr/share/icons/hicolor/32x32/apps/ettin-edit.png"
-          install -Dm644 assets/icons/ettin-edit-48.png "$root/usr/share/icons/hicolor/48x48/apps/ettin-edit.png"
-          install -Dm644 assets/icons/ettin-edit-64.png "$root/usr/share/icons/hicolor/64x64/apps/ettin-edit.png"
-          install -Dm644 assets/icons/ettin-edit-128.png "$root/usr/share/icons/hicolor/128x128/apps/ettin-edit.png"
-          install -Dm644 README.md "$root/usr/share/doc/ettin-edit/README.md"
-          install -Dm644 LICENSE "$root/usr/share/doc/ettin-edit/copyright"
-          mkdir -p "$root/DEBIAN"
-          size=$(du -sk "$root/usr" | cut -f1)
-          sed -e "s/@VERSION@/$VERSION/" -e "s/@SIZE@/$size/" packaging/debian/control > "$root/DEBIAN/control"
-          dpkg-deb --root-owner-group --build "$root"
+          sudo apt-get update -q && sudo apt-get install -y -q appstream
+          appstreamcli validate --no-net packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml
+      - name: Debian package
+        # The APT_SIGNING_KEY secret makes the .deb add the Ettin Edit APT
+        # repository (published with the manual on GitHub Pages), so software
+        # updaters keep it up to date. See packaging/debian/build-deb.sh.
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          if [ -z "$APT_SIGNING_KEY" ] && [ "${{ github.event_name }}" = pull_request ]; then
+            # Without the secret, pull requests sign with a throwaway key to check the rest.
+            export GNUPGHOME=$(mktemp -d)
+            gpg --batch --passphrase '' --quick-gen-key "Ettin Edit test key" ed25519 sign never
+            APT_SIGNING_KEY=$(gpg --armor --export-secret-keys)
+            export APT_SIGNING_KEY
+          fi
+          packaging/debian/build-deb.sh "$VERSION" target/release/ettin-edit
+          dpkg-deb -c ettin-edit_*.deb
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -230,6 +237,7 @@ jobs:
 
             **Debian / Ubuntu:** download the `.deb` file, then run
             `sudo apt install ./ettin-edit_${{ needs.version.outputs.version }}_amd64.deb`.
+            It adds the Ettin Edit package repository, so your software updater installs later versions.
 
             **Other Linux:** download the `linux-x86_64.tar.gz`, extract it and run `./ettin-edit`.
             It needs OpenGL and `libxkbcommon-x11`.

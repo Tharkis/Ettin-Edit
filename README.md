@@ -85,7 +85,9 @@ Grab the latest build from the
 | **Debian / Ubuntu** | `.deb` | `sudo apt install ./ettin-edit_*_amd64.deb` |
 | **Any other Linux** | `.tar.gz` | Extract it and run `./ettin-edit` |
 
-Help > Check for Updates tells you when a newer one is out.
+Help > Check for Updates tells you when a newer one is out. On Debian and Ubuntu the
+`.deb` also adds the Ettin Edit package repository, so your software updater installs
+new versions for you ([details](https://tharkis.github.io/Ettin-Edit/installing.html#getting-updates-on-debian-and-ubuntu)).
 
 To build the Arch package yourself from a checkout:
 
@@ -215,7 +217,7 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/settings.rs` | Settings, recent files and session, saved as JSON |
 | `assets/themes/` | The nine built-in themes as `.tmTheme` files |
 | `assets/icons/` | The app icon (SVG, PNG, ICO) |
-| `packaging/` | Linux `.desktop` file, the Arch `PKGBUILD`, the Debian `control` file and the Windows installer script (Inno Setup) |
+| `packaging/` | Linux `.desktop` file and AppStream metadata, the Arch `PKGBUILD`, the `.deb` and APT repository scripts, and the Windows installer script (Inno Setup) |
 
 The GUI uses [egui](https://github.com/emilk/egui)/eframe, which draws everything itself
 with OpenGL, so the look is identical on Linux and Windows.

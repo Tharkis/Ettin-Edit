@@ -1,7 +1,7 @@
 # Builds Ettin Edit from the checkout this file lives in.
 # Usage: cd packaging/arch && makepkg -si
 pkgname=ettin-edit
-pkgver=1.3.0
+pkgver=1.4.0
 pkgrel=1
 pkgdesc="A modern, cross-platform text editor"
 arch=('x86_64' 'aarch64')
@@ -37,6 +37,7 @@ package() {
   cd "$(_root)"
   install -Dm755 "$srcdir/target/release/ettin-edit" "$pkgdir/usr/bin/ettin-edit"
   install -Dm644 packaging/linux/ettin-edit.desktop "$pkgdir/usr/share/applications/ettin-edit.desktop"
+  install -Dm644 packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml "$pkgdir/usr/share/metainfo/io.github.tharkis.EttinEdit.metainfo.xml"
   install -Dm644 assets/icons/ettin-edit.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/ettin-edit.svg"
   install -Dm644 assets/icons/ettin-edit-256.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/ettin-edit.png"
   install -Dm644 assets/icons/ettin-edit-32.png "$pkgdir/usr/share/icons/hicolor/32x32/apps/ettin-edit.png"

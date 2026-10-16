@@ -14,9 +14,17 @@ work that remains. It is updated with every release.
 - [Release history](#release-history)
 - [Plugin system](#plugin-system)
 - [Notepad++ plugin equivalents](#notepad-plugin-equivalents)
+- [Known bugs](#known-bugs)
 - [Roadmap](#roadmap)
 
 ## Release history
+
+### 1.4: Package information and updates through APT (in progress)
+
+- [x] Fixed: the `.deb` had no licence, release notes, age rating or update source, so software centres showed "Unknown License" and "No Software Repository Included" and never updated it ([Installing and updating](docs/manual/src/installing.md#getting-updates-on-debian-and-ubuntu))
+- [x] AppStream metadata (`io.github.tharkis.EttinEdit.metainfo.xml`) in the `.deb`, the Arch package and the `.tar.gz`: MIT licence, website, bug tracker, manual, screenshots, release notes and an "all ages" rating
+- [x] The `.deb`'s copyright file is in the machine-readable Debian format
+- [x] A signed APT repository at `https://tharkis.github.io/Ettin-Edit/apt`, rebuilt after every release from the latest `.deb` files; the `.deb` adds it, so the software updater installs new versions
 
 ### 1.3: The toolbar
 
@@ -406,9 +414,26 @@ are original implementations, available from the Tools menu without installing a
 - [x] Diff overview bar (where differences are in the file)
 - [x] Export the diff as a unified patch
 
+## Known bugs
+
+Bugs reported but not yet in a release, with the release that fixes them.
+
+| Bug | Fixed in |
+| --- | --- |
+| The `.deb` doesn't tell software centres its licence or repository, so they show "Unknown License" and "No Software Repository Included" and the software updater can't update it | 1.4 |
+
 ## Roadmap
 
 Features that are planned or only partly done.
+
+### Planned (not yet scheduled)
+Requested on 2026-10-16; not yet given a release.
+- [ ] Markdown preview: a panel beside a Markdown file showing it rendered, updating live as you type (as a plugin)
+- [ ] Hex viewer: show a file's bytes in hex next to their text, and edit them
+- [~] Column selection: Alt+drag and Alt+Shift+arrows already select a box (0.4), and Edit > Column Editor fills one; still to come is a Column Mode switch in the Edit menu so a plain drag or Shift+arrows selects columns without holding Alt
+- [ ] Escape mode for search: an "Extended" search mode where `\n`, `\r`, `\t`, `\0`, `\xNN` and `\uNNNN` in Find and Replace mean those characters without needing regular expressions (today `\n` and `\t` work only in a regex replacement)
+- [~] Show All Characters under View > Show Symbol: Show Whitespace and Show End of Line exist (0.4); still to come is one option that turns on both, plus markers for control characters and other invisible characters (zero-width spaces, non-breaking spaces)
+- [ ] Character panel: a table of characters (ASCII and Unicode) with their codes in decimal, hex and HTML entity form; click one to insert it
 
 ### Editing
 - [~] Word wrap on very large files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines
@@ -420,4 +445,4 @@ Features that are planned or only partly done.
 
 ### Platform and distribution
 - [x] Translations (1.2): English, German, French and Spanish, plus your own `.ftl` files
-- [~] Packages: Arch package (0.2), Windows installer and `.deb` (1.0); AppImage and Flatpak are not yet available
+- [~] Packages: Arch package (0.2), Windows installer and `.deb` (1.0), APT repository and AppStream metadata (1.4); AppImage and Flatpak are not yet available
