@@ -543,6 +543,33 @@ mod tests {
     }
 
     #[test]
+    fn line_breaks_can_be_found_and_deleted() {
+        let ctx = egui::Context::default();
+        let extended = SearchOptions {
+            extended: true,
+            ..Default::default()
+        };
+        for q in [
+            regex(r"\r\n"),
+            regex(r"\r"),
+            Query::new(r"\r\n", &extended).unwrap().unwrap(),
+        ] {
+            let mut e = Editor::new("one\ntwo\nthree");
+            assert_eq!(e.find_next(&q, true, true), FindOutcome::Found);
+            assert_eq!(e.selections.primary().range(), 3..4);
+            let (replaced, _) = e.replace_current(&ctx, &q, "", true);
+            assert!(replaced);
+            assert_eq!(e.buffer.text(), "onetwo\nthree");
+            assert_eq!(e.replace_all(&ctx, &q, "", false), 1);
+            assert_eq!(e.buffer.text(), "onetwothree");
+        }
+        // Plain text replaced with nothing.
+        let mut e = Editor::new("a-b-c");
+        assert_eq!(e.replace_all(&ctx, &query("-"), "", false), 2);
+        assert_eq!(e.buffer.text(), "abc");
+    }
+
+    #[test]
     fn incremental_search_returns_to_origin() {
         let mut e = Editor::new("one two one");
         assert!(e.find_incremental(&query("one"), 1, true));

@@ -19,6 +19,15 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.6.1: Finding line breaks
+
+Reported on 2026-10-16.
+
+- [x] `\r` and `\r\n` find line breaks in regular expressions, as they already did in Extended mode, and `\r?\n` still finds one line break ([Finding and replacing](docs/manual/src/search.md#line-breaks))
+- [x] Matches on a line break are highlighted (they used to have no width, so a search for one seemed to find nothing)
+- [x] `\r` in a regular-expression replacement inserts a line break instead of a stray carriage return
+- [x] Replacing with an empty box deletes the matches, in normal, Extended and regular-expression modes (now covered by tests)
+
 ### 1.6: A tidier window
 
 Requested on 2026-10-16.
@@ -442,6 +451,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| Searching for `\r` or `\r\n` finds nothing with regular expressions, and line-break matches aren't highlighted in Extended mode | 1.6.1 |
 | The `.deb` doesn't tell software centres its licence or repository, so they show "Unknown License" and "No Software Repository Included" and the software updater can't update it | 1.4 |
 
 ## Roadmap
