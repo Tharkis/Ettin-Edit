@@ -173,6 +173,7 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
         (&["menu-view", "command-palette"], CommandPalette),
         (&["menu-view", "toolbar-show"], ToggleToolbar),
         (&["menu-view", "toolbar-collapse-menu"], CollapseToolbar),
+        (&["menu-view", "menu-bar-show"], ToggleMenuBar),
         (&["menu-view", "customise-toolbar-dots"], CustomiseToolbar),
         (&["menu-theme", "edit-theme-colours"], StyleConfigurator),
         (&["menu-theme", "open-themes-folder"], OpenThemesFolder),

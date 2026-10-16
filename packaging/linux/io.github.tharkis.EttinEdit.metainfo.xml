@@ -68,6 +68,14 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.6.0" date="2026-10-16">
+      <description>
+        <p>A tidier window: hide the menu bar (View > Menu Bar or Ctrl+M; tap
+        Alt to show it for a moment) as well as the toolbar, and the app icon
+        is gone from the menu bar.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.6.0</url>
+    </release>
     <release version="1.5.0" date="2026-10-16">
       <description>
         <p>A hex view that edits a file's bytes, a character panel with every

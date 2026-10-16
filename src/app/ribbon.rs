@@ -250,6 +250,7 @@ impl EttinApp {
             Action::ToggleReadOnly => on(editor.is_some_and(|e| e.buffer.read_only)),
             Action::ToggleCompareOption(opt) => on(s.compare.get(*opt)),
             Action::ToggleToolbar => on(s.show_toolbar),
+            Action::ToggleMenuBar => on(s.show_menu_bar),
             Action::SetTheme(name) => on(self
                 .themes
                 .get(self.theme_idx)
@@ -334,6 +335,7 @@ impl EttinApp {
         let views = self.toolbar_views(&ctx);
         let collapsed = self.settings.toolbar_collapsed;
         let mut events = Vec::new();
+        self.toolbar.bar.menu_bar_shown = self.settings.show_menu_bar;
         egui::Panel::top("toolbar")
             .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
                 left: 6,
@@ -355,6 +357,7 @@ impl EttinApp {
                 BarEvent::Customise => self.pending.push(Action::CustomiseToolbar),
                 BarEvent::ToggleCollapsed => self.pending.push(Action::CollapseToolbar),
                 BarEvent::Hide => self.pending.push(Action::ToggleToolbar),
+                BarEvent::ToggleMenuBar => self.pending.push(Action::ToggleMenuBar),
             }
         }
     }

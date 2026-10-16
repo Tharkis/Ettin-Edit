@@ -63,6 +63,7 @@ pub enum BarEvent {
     Customise,
     ToggleCollapsed,
     Hide,
+    ToggleMenuBar,
 }
 
 #[derive(Default)]
@@ -71,6 +72,8 @@ pub struct RibbonBar {
     pub selected: usize,
     /// While collapsed: the selected tab's buttons are showing.
     popup: bool,
+    /// The menu bar is showing, for the right-click menu's wording.
+    pub menu_bar_shown: bool,
 }
 
 impl RibbonBar {
@@ -172,7 +175,7 @@ impl RibbonBar {
                 }
                 self.selected = tab.index;
             }
-            strip_menu(&response, collapsed, events);
+            strip_menu(&response, collapsed, self.menu_bar_shown, events);
         }
         // The rest of the row: the collapse button at the far right.
         let rest = ui.available_rect_before_wrap();
@@ -180,7 +183,7 @@ impl RibbonBar {
             Rect::from_min_size(rest.min, Vec2::new(rest.width(), 24.0)),
             Sense::click(),
         );
-        strip_menu(&response, collapsed, events);
+        strip_menu(&response, collapsed, self.menu_bar_shown, events);
         let button = Rect::from_center_size(
             Pos2::new(rest.right() - 14.0, rest.top() + 12.0),
             Vec2::splat(22.0),
@@ -213,7 +216,7 @@ impl RibbonBar {
 }
 
 /// The right-click menu of the tab names.
-fn strip_menu(response: &Response, collapsed: bool, events: &mut Vec<BarEvent>) {
+fn strip_menu(response: &Response, collapsed: bool, menu_bar: bool, events: &mut Vec<BarEvent>) {
     response.context_menu(|ui| {
         if ui.button(t!("customise-toolbar-dots")).clicked() {
             events.push(BarEvent::Customise);
@@ -228,6 +231,14 @@ fn strip_menu(response: &Response, collapsed: bool, events: &mut Vec<BarEvent>) 
         }
         if ui.button(t!("toolbar-hide")).clicked() {
             events.push(BarEvent::Hide);
+        }
+        let label = if menu_bar {
+            t!("menu-bar-hide")
+        } else {
+            t!("menu-bar-show-again")
+        };
+        if ui.button(label).clicked() {
+            events.push(BarEvent::ToggleMenuBar);
         }
     });
 }

@@ -40,8 +40,15 @@ While it's collapsed, clicking a tab name opens its buttons over the text;
 they close again when you click a button or anywhere else. Expand it the same
 ways (**⌄** at the right end).
 
-**View > Toolbar** hides the toolbar completely and shows it again. The
-classic menu bar always stays.
+**View > Toolbar** hides the toolbar completely and shows it again; so does
+**Hide the toolbar** in its right-click menu.
+
+You can hide the classic menu bar as well, with **View > Menu Bar**,
+<kbd>Ctrl+M</kbd> or **Hide the menu bar** in the toolbar's right-click menu.
+While it's hidden, tap <kbd>Alt</kbd> to show it for a moment, and press
+<kbd>Ctrl+M</kbd> to bring it back for good. With both hidden, only the tabs,
+the text and the status bar are left. Both choices are kept in
+`settings.json`.
 
 ## Customising
 

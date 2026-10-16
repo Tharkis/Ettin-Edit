@@ -107,6 +107,9 @@ pub struct Settings {
     pub show_toolbar: bool,
     /// Only the toolbar's tab names show.
     pub toolbar_collapsed: bool,
+    /// The File, Edit, View… menu bar. When it is hidden, tapping Alt shows it
+    /// until a command runs.
+    pub show_menu_bar: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -183,6 +186,7 @@ impl Default for Settings {
             workspace: None,
             show_toolbar: true,
             toolbar_collapsed: false,
+            show_menu_bar: true,
         }
     }
 }

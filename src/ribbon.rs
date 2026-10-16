@@ -621,6 +621,7 @@ pub fn default_icon(action: &Action) -> &'static str {
         CustomiseToolbar => ph::TOOLBOX,
         ToggleToolbar => ph::SQUARES_FOUR,
         CollapseToolbar => ph::CARET_UP,
+        ToggleMenuBar => ph::LIST,
         SelectTab(_) | SelectTabInView(..) | CloseTabInView(..) => GENERIC_ICON,
     }
 }

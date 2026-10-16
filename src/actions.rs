@@ -249,6 +249,8 @@ pub enum Action {
     ToggleToolbar,
     /// Show only the toolbar's tab names, or the buttons too.
     CollapseToolbar,
+    /// Show or hide the menu bar.
+    ToggleMenuBar,
 }
 
 impl Action {
@@ -458,6 +460,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(NONE, Key::F7), Action::NextDifference),
         (s(CMD, Key::Comma), Action::Preferences),
         (s(CMD, Key::F1), Action::CollapseToolbar),
+        (s(CMD, Key::M), Action::ToggleMenuBar),
         (s(SHIFT, Key::F1), Action::UserManual),
         (s(NONE, Key::F1), Action::CommandPalette),
         (s(NONE, Key::F11), Action::ToggleDistractionFree),
