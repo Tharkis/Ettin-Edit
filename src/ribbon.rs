@@ -124,6 +124,10 @@ fn version() -> u32 {
     1
 }
 
+/// The layout version this build writes. Layouts saved by older versions get
+/// the default groups added since then (see [`Layout::upgrade`]).
+pub const LAYOUT_VERSION: u32 = 2;
+
 pub const FILE_NAME: &str = "toolbar.json";
 
 pub fn layout_path() -> Option<PathBuf> {
@@ -140,7 +144,10 @@ impl Layout {
         match std::fs::read_to_string(&path) {
             Err(_) => (Self::default(), None),
             Ok(text) => match serde_json::from_str(&text) {
-                Ok(layout) => (layout, None),
+                Ok(mut layout) => {
+                    let _ = Layout::upgrade(&mut layout);
+                    (layout, None)
+                }
                 Err(e) => (
                     Self::default(),
                     Some(t!(
@@ -178,6 +185,41 @@ impl Layout {
         })
     }
 
+    /// Adds the default groups that came after the version this layout was
+    /// saved by, so a customised toolbar still gets new buttons. Groups go to
+    /// the end of their built-in tab; a tab the user removed or renamed, or a
+    /// group already there, is left alone. True when something was added.
+    pub fn upgrade(&mut self) -> bool {
+        let mut added = false;
+        if self.version < 2 {
+            // 2 (Ettin Edit 1.7): the Help group on Home, so the Help menu
+            // can be reached while the menu bar is hidden.
+            added |= self.add_default_group("toolbar-tab-home", "toolbar-group-help");
+        }
+        self.version = self.version.max(LAYOUT_VERSION);
+        added
+    }
+
+    fn add_default_group(&mut self, tab_id: &str, group_id: &str) -> bool {
+        let is = |name: &Name, id: &str| name.id.as_deref() == Some(id);
+        let Some(group) = Self::default()
+            .tabs
+            .into_iter()
+            .flat_map(|t| t.groups)
+            .find(|g| is(&g.name, group_id))
+        else {
+            return false;
+        };
+        let Some(tab) = self.tabs.iter_mut().find(|t| is(&t.name, tab_id)) else {
+            return false;
+        };
+        if tab.groups.iter().any(|g| is(&g.name, group_id)) {
+            return false;
+        }
+        tab.groups.push(group);
+        true
+    }
+
     /// Removes the button at `tab`, `group`, `item`.
     pub fn remove(&mut self, tab: usize, group: usize, item: usize) {
         if let Some(items) = self
@@ -212,7 +254,7 @@ impl Default for Layout {
         use Action::*;
         use Size::{Large as L, Small as S};
         Self {
-            version: 1,
+            version: LAYOUT_VERSION,
             tabs: vec![
                 tab(
                     "toolbar-tab-home",
@@ -246,6 +288,15 @@ impl Default for Layout {
                         group(
                             "toolbar-group-tabs",
                             vec![(CloseTab, S), (CloseAll, S), (TabList, S)],
+                        ),
+                        group(
+                            "toolbar-group-help",
+                            vec![
+                                (UserManual, L),
+                                (WebManual, S),
+                                (CheckForUpdates, S),
+                                (About, S),
+                            ],
                         ),
                     ],
                 ),
@@ -674,6 +725,58 @@ mod tests {
         assert_eq!(button_label("Open…"), "Open");
         assert_eq!(button_label("Find..."), "Find");
         assert_eq!(button_label("Save"), "Save");
+    }
+
+    #[test]
+    fn home_tab_has_the_help_menu() {
+        let layout = Layout::default();
+        let help = layout.tabs[0]
+            .groups
+            .iter()
+            .find(|g| g.name.id.as_deref() == Some("toolbar-group-help"))
+            .unwrap();
+        let actions: Vec<_> = help.items.iter().filter_map(Item::action).collect();
+        for a in [Action::UserManual, Action::CheckForUpdates, Action::About] {
+            assert!(actions.contains(&a), "{a:?}");
+        }
+    }
+
+    #[test]
+    fn older_layouts_get_the_help_group() {
+        let mut old = Layout {
+            version: 1,
+            ..Default::default()
+        };
+        old.tabs[0]
+            .groups
+            .retain(|g| g.name.id.as_deref() != Some("toolbar-group-help"));
+        old.tabs[0].groups.remove(0); // a customisation the upgrade must keep
+        let mut upgraded = old.clone();
+        assert!(upgraded.upgrade());
+        assert_eq!(upgraded.version, LAYOUT_VERSION);
+        let ids: Vec<_> = upgraded.tabs[0]
+            .groups
+            .iter()
+            .map(|g| g.name.show())
+            .collect();
+        assert_eq!(ids.len(), old.tabs[0].groups.len() + 1);
+        assert_eq!(
+            upgraded.tabs[0].groups.last().unwrap().name.id.as_deref(),
+            Some("toolbar-group-help")
+        );
+        // Upgrading again, or a layout that already has it, adds nothing.
+        assert!(!upgraded.clone().upgrade());
+        let mut current = Layout {
+            version: 1,
+            ..Default::default()
+        };
+        assert!(!current.upgrade());
+        // A layout without the built-in Home tab is left alone.
+        let mut mine: Layout =
+            serde_json::from_str(r#"{"tabs":[{"name":{"text":"Mine"}}]}"#).unwrap();
+        assert!(!mine.upgrade());
+        assert_eq!(mine.tabs.len(), 1);
+        assert!(mine.tabs[0].groups.is_empty());
     }
 
     #[test]

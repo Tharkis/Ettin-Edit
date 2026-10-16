@@ -22,7 +22,7 @@ tabs, groups and buttons however you like.
 
 | Tab | Groups |
 | --- | --- |
-| **Home** | File, Clipboard, Undo, Find, Tabs |
+| **Home** | File, Clipboard, Undo, Find, Tabs, Help |
 | **Edit** | Lines, Sort, Case, Comment, Blanks, Selection |
 | **View** | Show, Zoom, Folding, Panels, Window, Customise |
 | **Tools** | Compare, JSON, XML, Data (CsvQuery and MIME Tools), Macros |
@@ -46,8 +46,9 @@ ways (**⌄** at the right end).
 You can hide the classic menu bar as well, with **View > Menu Bar**,
 <kbd>Ctrl+M</kbd> or **Hide the menu bar** in the toolbar's right-click menu.
 While it's hidden, tap <kbd>Alt</kbd> to show it for a moment, and press
-<kbd>Ctrl+M</kbd> to bring it back for good. With both hidden, only the tabs,
-the text and the status bar are left. Both choices are kept in
+<kbd>Ctrl+M</kbd> to bring it back for good. The Help menu's commands (the user
+manual, Check for Updates and About) are on the toolbar's **Home** tab too.
+With both hidden, only the tabs, the text and the status bar are left. Both choices are kept in
 `settings.json`.
 
 ## Customising
@@ -125,4 +126,8 @@ Your toolbar is saved in `toolbar.json` in the
 `%APPDATA%\EttinEdit` on Windows). Copy that file to use the same toolbar on
 another computer. While you haven't changed anything, there's no file and you
 get the default toolbar, including any new buttons later versions add.
+A toolbar you have customised keeps your changes; Ettin Edit 1.7 adds only the
+new **Help** group to the end of its **Home** tab (unless you renamed or
+removed that tab), so the Help commands can be reached while the menu bar is
+hidden. Delete the group if you don't want it.
 Whether the toolbar is shown or collapsed is kept in `settings.json`.

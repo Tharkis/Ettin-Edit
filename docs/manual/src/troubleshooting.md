@@ -60,10 +60,24 @@ Install a CJK font, such as Noto Sans CJK (`noto-fonts-cjk` on Arch,
 
 ## The update check says it couldn't reach GitHub
 
-Ettin Edit needs to reach `api.github.com` to check for updates. Behind a
+Ettin Edit needs to reach `api.github.com` to check for updates, and
+`github.com` to download them. Behind a
 proxy or firewall that blocks it, check the
 [releases page](https://github.com/Tharkis/Ettin-Edit/releases) in your
 browser instead, and turn off **Help > Check for Updates Automatically**.
+
+## Update Now says the install failed
+
+- **"needs an administrator password, and none was given"**: the password
+  prompt was closed. Click **Try Again**.
+- **pacman says it couldn't lock the database**: another package manager is
+  running (a system update, perhaps). Let it finish, then **Try Again**.
+- **"didn't match its checksum"**: the download was damaged or changed on the
+  way. Try again later, or download the file from the release page.
+- **Can't write to the folder**: a `.tar.gz` or `.zip` copy unpacked
+  somewhere only an administrator can change (such as `/opt`) can't replace
+  itself. Download the new version from the release page, or move Ettin Edit
+  to a folder of your own.
 
 ## Word wrap is slow to resize on a huge file
 

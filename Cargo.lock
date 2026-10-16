@@ -897,7 +897,7 @@ checksum = "0b5343afd4a8365a643ac588dab4cf234a190c7f6c88c9f6dd6ffe00837661b7"
 
 [[package]]
 name = "ettin-edit"
-version = "1.6.1"
+version = "1.7.0"
 dependencies = [
  "chardetng",
  "chrono",
@@ -908,6 +908,7 @@ dependencies = [
  "egui-phosphor",
  "egui_extras",
  "encoding_rs",
+ "flate2",
  "fluent-bundle",
  "fluent-syntax",
  "miniz_oxide 0.9.1",
@@ -925,6 +926,7 @@ dependencies = [
  "skrifa",
  "syntect",
  "sys-locale",
+ "tar",
  "trash",
  "unic-langid",
  "unicode-segmentation",
@@ -987,6 +989,16 @@ name = "fearless_simd"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97b65636e5b9ef369943878ac74335ba1c55c1cb6adbf1e2c293c624248d693"
+
+[[package]]
+name = "filetime"
+version = "0.2.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c287a33c7f0a620c38e641e7f60827713987b3c0f26e8ddc9462cc69cf75759"
+dependencies = [
+ "cfg-if",
+ "libc",
+]
 
 [[package]]
 name = "find-msvc-tools"
@@ -3140,6 +3152,16 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
 dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "tar"
+version = "0.4.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
+dependencies = [
+ "filetime",
  "libc",
 ]
 

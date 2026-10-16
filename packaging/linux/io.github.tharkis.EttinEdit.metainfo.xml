@@ -68,6 +68,15 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.7.0" date="2026-10-16">
+      <description>
+        <p>Ettin Edit updates itself: Check for Updates downloads the new
+        version, checks it against GitHub's checksum and installs it, then
+        offers a restart. The Help commands are now on the toolbar's Home tab,
+        so they can be reached while the menu bar is hidden.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.7.0</url>
+    </release>
     <release version="1.6.1" date="2026-10-16">
       <description>
         <p>Find and Replace fixes: \r and \r\n now find line breaks in regular

@@ -103,11 +103,27 @@ Root: HKA; Subkey: "Software\Classes\.cmd\OpenWithProgids"; ValueType: string; V
 
 [Run]
 Filename: "{app}\ettin-edit.exe"; Description: "Start Ettin Edit"; Flags: nowait postinstall skipifsilent
+; Ettin Edit's own updater runs setup silently with /update=1; start the new
+; version again afterwards, as the user rather than as administrator.
+Filename: "{app}\ettin-edit.exe"; Flags: nowait runasoriginaluser; Check: IsSelfUpdate
 
 [Code]
 const
   EnvKeyUser = 'Environment';
   EnvKeyMachine = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
+
+function IsSelfUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:update|0}') = '1';
+end;
+
+function InitializeSetup: Boolean;
+begin
+  // The updater starts setup as Ettin Edit closes; give it a moment to exit
+  // so its files aren't in use.
+  if IsSelfUpdate then Sleep(2000);
+  Result := True;
+end;
 
 function EnvRoot: Integer;
 begin
