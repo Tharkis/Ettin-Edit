@@ -11,12 +11,20 @@ def is_markdown(doc):
     return bool(doc.path) and doc.path.lower().endswith(EXTENSIONS)
 
 
-def strip_front_matter(text):
-    """Drops a YAML front matter block (--- ... --- at the very top)."""
+def split_front_matter(text):
+    """Drops a YAML front matter block (--- ... --- at the very top).
+    Returns the rest and the line (from 0) it starts on."""
     if not text.startswith("---\n"):
-        return text
+        return text, 0
     end = text.find("\n---", 4)
     if end < 0:
-        return text
+        return text, 0
     rest = text[end + 4:]
-    return rest[1:] if rest.startswith("\n") else rest
+    if rest.startswith("\n"):
+        rest = rest[1:]
+    return rest, text[:len(text) - len(rest)].count("\n")
+
+
+def strip_front_matter(text):
+    """The text without its front matter block."""
+    return split_front_matter(text)[0]

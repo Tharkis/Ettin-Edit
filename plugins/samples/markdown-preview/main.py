@@ -2,7 +2,9 @@
 
 Shows the Markdown tab you are editing, rendered, in a side panel. The
 preview follows the tab that has focus and updates a moment after you stop
-typing. Links to other files open them; web links open in the browser.
+typing. Images show, from files next to the Markdown file or from the web,
+and the preview scrolls along with the text unless you untick "Scroll with
+the text". Links to other files open them; web links open in the browser.
 Read it alongside the plugin guide (Plugins > Plugin Guide).
 """
 
@@ -11,13 +13,13 @@ import os
 import ettin
 from ettin import ui
 
-from preview import is_markdown, strip_front_matter
+from preview import is_markdown, split_front_matter
 
 # Bigger tabs aren't previewed, so typing stays smooth.
 MAX_CHARS = 2_000_000
 PANEL = "preview"
 
-state = {"shown": False, "doc": None}
+state = {"shown": False, "doc": None, "sync": True}
 
 
 def render(doc=None):
@@ -33,11 +35,18 @@ def render(doc=None):
     elif doc.length > MAX_CHARS:
         items = [ui.label("This tab is too big to preview as you type.", weak=True)]
     else:
-        text = strip_front_matter(doc.get_text())
+        text, first_line = split_front_matter(doc.get_text())
         if not text.strip():
             items = [ui.label("Nothing to show yet. Start typing Markdown.", weak=True)]
         else:
-            items = [ui.markdown(text, id="page")]
+            # Images with relative paths are next to the file (none until
+            # it's saved). Following the tab keeps the preview level with it.
+            base = os.path.dirname(doc.path) if doc.path else None
+            follow = doc if state["sync"] else None
+            items = [
+                ui.checkbox("sync", "Scroll with the text", state["sync"]),
+                ui.markdown(text, id="page", base=base, doc=follow, line=first_line),
+            ]
     # A different tab starts at the top; the same tab keeps its place.
     other_tab = previous is None or previous.id != doc.id
     ettin.show_panel(PANEL, title, items, scroll_to_top=other_tab)
@@ -49,6 +58,9 @@ def panel(event):
         state["shown"] = False
     elif event["event"] == "link":
         follow(event["value"])
+    elif event["item"] == "sync":
+        state["sync"] = bool(event["value"])
+        render()
 
 
 def follow(href):

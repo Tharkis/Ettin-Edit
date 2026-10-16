@@ -68,6 +68,14 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.9.0" date="2026-10-16">
+      <description>
+        <p>Markdown Preview shows images and scrolls along with the text. Hex
+        View can change any byte in any encoding, and binary files, even
+        several gigabytes, open straight into it.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.9.0</url>
+    </release>
     <release version="1.8.0" date="2026-10-16">
       <description>
         <p>Word wrap keeps up with window resizing on very large files: only

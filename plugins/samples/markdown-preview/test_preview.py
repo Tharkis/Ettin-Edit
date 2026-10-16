@@ -28,6 +28,11 @@ class PreviewTest(unittest.TestCase):
         self.assertEqual(main.strip_front_matter("# Hi\n---\n"), "# Hi\n---\n")
         self.assertEqual(main.strip_front_matter("---\nno end"), "---\nno end")
 
+    def test_front_matter_line_count(self):
+        self.assertEqual(main.split_front_matter("---\na: 1\nb: 2\n---\n# Hi\n"),
+                         ("# Hi\n", 4))
+        self.assertEqual(main.split_front_matter("# Hi\n"), ("# Hi\n", 0))
+
 
 if __name__ == "__main__":
     unittest.main()

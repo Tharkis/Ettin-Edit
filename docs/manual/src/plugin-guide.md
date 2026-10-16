@@ -379,7 +379,7 @@ Items:
 | `ui.tree(id, nodes, selected)` | `{"type": "tree", "id", "nodes", "selected"}` | Sends `select` with the node's id. `selected` (optional) is a node id to highlight; when it changes, the tree opens to it and scrolls it into view. In JavaScript: `ui.tree(id, nodes, { selected })`. |
 | `ui.node(label, id, detail, children, open)` | `{"label", "id", "detail", "children", "open"}` | A tree node. `detail` is dimmed text after the label. |
 | `ui.table(id, columns, rows)` | `{"type": "table", "id", "columns", "rows"}` | Click a header to sort. Sends `select` with the row's index in your `rows`. |
-| `ui.markdown(text, id)` | `{"type": "markdown", "id", "text"}` | Markdown, drawn like the user manual: headings, lists, tables, quotes, code blocks with a Copy button, links. Web links open in the browser and `#heading` links scroll to the heading; any other link sends `link` with the link as `value`. `id` is optional. In JavaScript: `ui.markdown(text, { id })`. Needs Ettin Edit 1.5. |
+| `ui.markdown(text, id, base, doc, line)` | `{"type": "markdown", "id", "text", "base", "doc", "line"}` | Markdown, drawn like the user manual: headings, lists, tables, quotes, code blocks with a Copy button, links. Web links open in the browser and `#heading` links scroll to the heading; any other link sends `link` with the link as `value`. `id` is optional. `base` (1.9) is the folder images with relative paths are in; without it, only the descriptions of images are shown. `doc` (1.9, a document or its id) makes the panel scroll along with that tab, and `line` is the tab's line (from 0) the text starts on, if you left some out at the top. In JavaScript: `ui.markdown(text, { id, base, doc, line })`. Needs Ettin Edit 1.5. |
 
 The handler gets: `item` (the item's id), `event` (`click`, `change`,
 `submit`, `select`, `link` or `close`), `value`, and `values` (every input,
@@ -391,11 +391,15 @@ does it, needs only a few lines:
 ```python
 @ettin.on("changed")
 def changed(doc):
-    ettin.show_panel("preview", "Preview", [ui.markdown(doc.get_text())])
+    folder = os.path.dirname(doc.path) if doc.path else None
+    ettin.show_panel("preview", "Preview",
+                     [ui.markdown(doc.get_text(), base=folder, doc=doc)])
 ```
 
 Sending the same id again updates the panel and keeps its scroll position,
-so the preview doesn't jump while you type.
+so the preview doesn't jump while you type. With `doc`, the panel follows
+the tab's scrolling instead, and it only moves when the tab scrolls or the
+text changes, so the reader can still scroll it by hand.
 
 Updating a panel keeps what the user typed in a field, unless you send a
 different `value` for it.

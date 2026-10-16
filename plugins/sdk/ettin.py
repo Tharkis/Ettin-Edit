@@ -394,8 +394,17 @@ class ui:
         return n
 
     @staticmethod
-    def markdown(text, id=""):
-        return {"type": "markdown", "id": id, "text": str(text)}
+    def markdown(text, id="", base=None, doc=None, line=0):
+        """``base`` is the folder images with relative paths are in. With
+        ``doc`` (a Document or its id), the panel scrolls along with that
+        tab; ``line`` is the tab's line (from 0) the text starts on."""
+        item = {"type": "markdown", "id": id, "text": str(text)}
+        if base:
+            item["base"] = str(base)
+        if doc is not None:
+            item["doc"] = doc.id if isinstance(doc, Document) else int(doc)
+            item["line"] = int(line)
+        return item
 
     @staticmethod
     def table(id, columns, rows):

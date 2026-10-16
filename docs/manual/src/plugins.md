@@ -44,8 +44,15 @@ typing, keeps its place as you edit, and follows you when you switch tabs.
 - Click a web link to open it in your browser, a link to a heading
   (`#install`) to scroll there, or a link to another file (`notes.md`) to
   open it in a tab.
+- Images show: PNG, JPEG, GIF, BMP, WebP and SVG, from files next to the
+  Markdown file (`![Logo](img/logo.png)`) or from the web. An image that
+  can't be found or read shows its description instead. Images in an
+  unsaved tab only load from the web, as there's no folder to look in yet.
+- The preview scrolls along with the text: scroll the editor and the preview
+  shows the same place. Untick **Scroll with the text** at the top of the
+  preview to scroll it on its own.
 - YAML front matter (the `---` block some sites put at the top) isn't shown.
-- Images show as their description, and raw HTML is left out.
+- Raw HTML is left out.
 - Tabs that aren't Markdown (by language, or a `.md` / `.markdown` name) show
   a note instead.
 

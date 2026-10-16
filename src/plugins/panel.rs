@@ -82,6 +82,15 @@ pub enum Item {
         #[serde(default)]
         id: String,
         text: String,
+        /// The folder images with relative paths are in.
+        #[serde(default)]
+        base: Option<String>,
+        /// A tab to scroll along with: when it scrolls, so does the text here.
+        #[serde(default)]
+        doc: Option<u64>,
+        /// The line of that tab (from 0) the text starts on.
+        #[serde(default)]
+        line: usize,
     },
 }
 
@@ -141,6 +150,8 @@ pub struct Panel {
     to_top: bool,
     /// Parsed Markdown items, by item id.
     markdown: HashMap<String, crate::manual::MarkdownView>,
+    /// Scroll to this offset next frame (following a tab's scrolling).
+    scroll_to: Option<f32>,
 }
 
 impl Panel {
@@ -158,6 +169,7 @@ impl Panel {
             reveal: HashMap::new(),
             to_top: false,
             markdown: HashMap::new(),
+            scroll_to: None,
         }
     }
 
@@ -185,9 +197,27 @@ impl Panel {
         Value::Object(self.values.clone().into_iter().collect())
     }
 
+    /// The tabs Markdown items here scroll along with.
+    pub fn followed_docs(&self) -> Vec<u64> {
+        self.items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Markdown { doc, .. } => *doc,
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Draws the panel; returns what the user did. `closed` is set when the
-    /// panel's close button was clicked.
-    pub fn ui(&mut self, ui: &mut Ui, palette: &Palette) -> Vec<PanelEvent> {
+    /// panel's close button was clicked. `scrolled` has, for the tabs in
+    /// [`Panel::followed_docs`], the line at the top of the tab's view and
+    /// whether it's scrolled to the end.
+    pub fn ui(
+        &mut self,
+        ui: &mut Ui,
+        palette: &Palette,
+        scrolled: &HashMap<u64, (f32, bool)>,
+    ) -> Vec<PanelEvent> {
         let mut events = Vec::new();
         ui.horizontal(|ui| {
             ui.label(RichText::new(&self.title).strong());
@@ -213,12 +243,33 @@ impl Panel {
             .auto_shrink([false, false]);
         if std::mem::take(&mut self.to_top) {
             scroll = scroll.vertical_scroll_offset(0.0);
+        } else if let Some(y) = self.scroll_to.take() {
+            scroll = scroll.vertical_scroll_offset(y);
         }
-        scroll.show(ui, |ui| {
+        let output = scroll.show(ui, |ui| {
+            let origin = ui.min_rect().top();
             for item in &items {
                 self.item_ui(ui, item, palette, &mut events);
+                if let Item::Markdown {
+                    id,
+                    doc: Some(doc),
+                    line,
+                    ..
+                } = item
+                    && let Some(&(top, end)) = scrolled.get(doc)
+                    && let Some(view) = self.markdown.get_mut(id)
+                    && let Some(y) = view.follow(top - *line as f32, end, origin)
+                {
+                    self.scroll_to = Some(y);
+                    ui.ctx().request_repaint();
+                }
             }
         });
+        if self.scroll_to == Some(f32::MAX) {
+            // The end: as far as the content goes.
+            let max = output.content_size.y - output.inner_rect.height();
+            self.scroll_to = Some(max.max(0.0));
+        }
         self.items = items;
         events
     }
@@ -248,9 +299,10 @@ impl Panel {
             Item::Separator => {
                 ui.separator();
             }
-            Item::Markdown { id, text } => {
+            Item::Markdown { id, text, base, .. } => {
                 let view = self.markdown.entry(id.clone()).or_default();
-                if let Some(href) = view.ui(ui, text, palette) {
+                let base = base.as_deref().map(std::path::Path::new);
+                if let Some(href) = view.ui(ui, text, palette, base) {
                     let web = href.contains("://") || href.starts_with("mailto:");
                     if web && crate::system::open_url(&href).is_ok() {
                         return;

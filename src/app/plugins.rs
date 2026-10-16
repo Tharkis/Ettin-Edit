@@ -539,6 +539,15 @@ impl EttinApp {
         let mut order: Vec<usize> = (0..self.plugins.panels.len()).collect();
         order.sort_by_key(|&i| self.plugins.panels[i].position != Position::Bottom);
         let max_side = ui.available_width() * 0.6;
+        // Where the tabs that Markdown panels scroll along with are scrolled to.
+        let mut scrolled = std::collections::HashMap::new();
+        for panel in &self.plugins.panels {
+            for id in panel.followed_docs() {
+                if let Some(doc) = self.docs.iter_mut().find(|d| d.id == id) {
+                    scrolled.insert(id, doc.editor.top_line());
+                }
+            }
+        }
         for i in order {
             let panel = &mut self.plugins.panels[i];
             let id = egui::Id::new(("plugin-panel", &panel.plugin, &panel.id));
@@ -547,7 +556,7 @@ impl EttinApp {
                 .inner_margin(Margin::symmetric(8, 4));
             let position = panel.position;
             let mut show = |ui: &mut Ui| {
-                for e in panel.ui(ui, &palette) {
+                for e in panel.ui(ui, &palette, &scrolled) {
                     events.push((i, e));
                 }
             };

@@ -138,15 +138,39 @@ and the size of the file.
 | <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> | Undo and redo, shared with the text |
 
 Every change goes into the tab's text, so **Undo** works across both views and
-**Save** writes the bytes you see. A change is only made if the new bytes are
-still valid text in the tab's encoding and would be saved exactly as shown.
-For example, in a UTF-8 file, typing over the first byte of `é` (`C3 A9`)
-would leave half a character, so the bar says so and nothing changes; paste
-both bytes at once (`C3 A8` for `è`) or type the character in the text column
-instead. Likewise, a lone `0D` can't be added to a file whose line endings are
-`CR LF`. To change any byte freely, first reopen the tab in an encoding with
-one byte per character, such as **Western European > Windows-1252 /
-ISO-8859-1**, from the [Encoding menu](encodings.md#the-encoding-menu).
+**Save** writes the bytes you see.
+
+### Changing any byte
+
+You can type any byte anywhere, even one that leaves the text invalid in the
+tab's encoding. For example, in a UTF-8 file, typing over the first byte of
+`é` (`C3 A9`) leaves half a character, and a lone `0D` in a file whose line
+endings are `CR LF` would be saved differently. When that happens, the tab is
+**edited as bytes**: the bar says so, and **Save** writes exactly the bytes
+shown. Undo the change, or finish it (type the second byte of a new
+character, say), and the tab goes back to being text as soon as its bytes
+are valid again.
+
+While a tab is edited as bytes it stays in Hex View. Choosing **View > Hex
+View** again shows it as text if its bytes read as text in its encoding (or
+in one Ettin Edit can work out from them); otherwise the bar says why it
+stays. **Encoding > Reopen With** reads the file as text in the encoding you
+pick, whatever its bytes (see [Encodings](encodings.md#the-encoding-menu)).
+
+### Binary and very large files
+
+Files that look like binary data rather than text (images, programs,
+archives: anything with a `00` byte near the start that isn't UTF-16) open
+straight into Hex View, edited as bytes, without being read as text first.
+Files up to 64 MB are read into memory; bigger ones are read from disk as you
+scroll, so even a file of several gigabytes opens at once and changing a byte
+in it is instant.
+
+Saving writes to a new file next to the old one and then puts it in place,
+so the file is never half written. For files over 64 MB, Undo starts again
+after saving. Unsaved changes to files up to 64 MB come back next time like
+any other tab's; for bigger files, Ettin Edit asks whether to save them when
+you quit. **Copy** copies at most 16 MB.
 
 ## Document Map
 

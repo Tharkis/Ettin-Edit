@@ -19,6 +19,19 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.9: Markdown Preview and Hex View finished
+
+Requested on 2026-10-16: the parts of the 1.5 Markdown Preview and Hex View that were still missing.
+
+- [x] Markdown Preview shows images: PNG, JPEG, GIF, BMP, WebP and SVG (with its text), from files next to the Markdown file or from the web, no wider than the panel; an image that can't be loaded shows its description, and an image inside a link follows the link ([Using plugins](docs/manual/src/plugins.md#markdown-preview))
+- [x] Markdown Preview scrolls along with the text: scroll the editor and the preview shows the same place, down to the end; untick **Scroll with the text** to scroll it on its own
+- [x] Plugins: `ui.markdown(text, base=..., doc=..., line=...)` loads images from a folder and follows a tab's scrolling ([Writing plugins](docs/manual/src/plugin-guide.md#panels)); Markdown Preview sample 1.1.0
+- [x] Hex View changes any byte in any encoding: an edit that leaves the text invalid (half a UTF-8 character, a lone CR in a CR LF file) turns the tab into bytes, saved exactly as shown, and it becomes text again as soon as its bytes are valid ([Changing any byte](docs/manual/src/view.md#changing-any-byte))
+- [x] Binary files (a `00` byte near the start that isn't UTF-16) open straight into Hex View without being read as text; files over 64 MB are read from disk as you scroll, so multi-gigabyte files open at once ([Binary and very large files](docs/manual/src/view.md#binary-and-very-large-files))
+- [x] Byte edits are kept in a piece table with their own undo; saving goes through a temporary file, so the file is never half written
+- [x] Unsaved byte edits come back after a restart like text ones (files up to 64 MB; for bigger ones Ettin Edit asks to save when you quit)
+- [x] New text in all four interface languages
+
 ### 1.8: Word wrap on very large files
 
 Reported on 2026-10-16.
@@ -60,9 +73,9 @@ Requested on 2026-10-16.
 
 The six features requested on 2026-10-16.
 
-- [x] Markdown Preview, a new sample plugin (Python): a side panel showing the Markdown tab rendered, updating a moment after you stop typing and keeping its place; it follows the active tab, opens links to other files, scrolls to `#heading` links and skips YAML front matter (<kbd>Ctrl+Shift+M</kbd>; [Using plugins](docs/manual/src/plugins.md#markdown-preview)). Images show as their description and raw HTML is left out
+- [x] Markdown Preview, a new sample plugin (Python): a side panel showing the Markdown tab rendered, updating a moment after you stop typing and keeping its place; it follows the active tab, opens links to other files, scrolls to `#heading` links and skips YAML front matter (<kbd>Ctrl+Shift+M</kbd>; [Using plugins](docs/manual/src/plugins.md#markdown-preview)). Images showed as their description until [1.9](#19-markdown-preview-and-hex-view-finished); raw HTML is left out
 - [x] Plugins can show Markdown in a panel: a new `markdown` panel item (`ui.markdown(text)`), drawn like the user manual, with a `link` event for links that aren't web pages ([Writing plugins](docs/manual/src/plugin-guide.md#panels))
-- [x] Hex View (View > Hex View, <kbd>Ctrl+Alt+Shift+H</kbd>): a tab's bytes as saved (in its encoding and line endings) with offsets, hex and text columns; type hex digits or characters to change bytes, Delete, Backspace and Insert, copy and paste bytes as hex, undo shared with the text. Edits that would leave invalid text in the tab's encoding are refused with a note ([Hex View](docs/manual/src/view.md#hex-view))
+- [x] Hex View (View > Hex View, <kbd>Ctrl+Alt+Shift+H</kbd>): a tab's bytes as saved (in its encoding and line endings) with offsets, hex and text columns; type hex digits or characters to change bytes, Delete, Backspace and Insert, copy and paste bytes as hex, undo shared with the text. Edits that would leave invalid text in the tab's encoding were refused until [1.9](#19-markdown-preview-and-hex-view-finished) ([Hex View](docs/manual/src/view.md#hex-view))
 - [x] Column Mode (Edit > Column Mode, <kbd>Alt+Shift+C</kbd>): a plain drag and Shift+arrows select a rectangle without holding Alt; the status bar shows it's on ([Column Mode](docs/manual/src/editing.md#column-mode))
 - [x] Extended search mode (the `\n` button in the find bar, and Find in Files): `\n`, `\r`, `\t`, `\0`, `\\`, `\xNN`, `\uNNNN`, `\u{…}`, `\dNNN`, `\oNNN` and `\bNNNNNNNN` in Find and Replace mean those characters ([Extended mode](docs/manual/src/search.md#extended-mode-n-t-xnn))
 - [x] View > Show Symbol > Show Invisible Characters: labels such as `NBSP`, `ZWSP`, `BOM`, `RLO` and `ESC` for control characters, unusual spaces, zero-width and direction characters; and **Show All Characters**, which turns whitespace, line ends and invisible characters on or off together (also in Preferences and on the toolbar's View tab)
@@ -480,9 +493,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more). Still open from them:
-- [ ] Markdown preview: show images, and scroll the preview along with the text
-- [ ] Hex View: edit any byte in any encoding (today an edit must leave valid text in the tab's encoding; reopening the file as Windows-1252 allows any byte), and open very large binary files without reading them as text first
+The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished). Nothing else is planned yet.
 
 ### XML
 - [ ] Comment / uncomment selection, convert text to XML
