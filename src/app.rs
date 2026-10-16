@@ -3129,6 +3129,7 @@ impl EttinApp {
                     }
                 }
                 crate::update::UpdateEvent::StopChecking => self.settings.check_updates = false,
+                crate::update::UpdateEvent::Quit => self.pending.push(Action::Quit),
             }
         }
         if let Some(e) = self.manual.ui(ctx, &palette) {
@@ -3538,6 +3539,11 @@ impl eframe::App for EttinApp {
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.plugins.shutdown();
+        if crate::self_update::has_after_exit() {
+            // Stop listening now, so the version started after an update
+            // opens its own window instead of handing its files to this one.
+            self.instance = None;
+        }
     }
 }
 

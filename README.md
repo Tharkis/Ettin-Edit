@@ -85,9 +85,11 @@ Grab the latest build from the
 | **Debian / Ubuntu** | `.deb` | `sudo apt install ./ettin-edit_*_amd64.deb` |
 | **Any other Linux** | `.tar.gz` | Extract it and run `./ettin-edit` |
 
-Help > Check for Updates tells you when a newer one is out. On Debian and Ubuntu the
-`.deb` also adds the Ettin Edit package repository, so your software updater installs
-new versions for you ([details](https://tharkis.github.io/Ettin-Edit/installing.html#getting-updates-on-debian-and-ubuntu)).
+Help > Check for Updates tells you when a newer one is out, and **Update Now** downloads
+it, checks it against GitHub's checksum and installs it (packages ask for your password),
+then restarts Ettin Edit ([details](https://tharkis.github.io/Ettin-Edit/installing.html#updating)).
+On Debian and Ubuntu the `.deb` also adds the Ettin Edit package repository, so your
+software updater installs new versions for you too.
 
 To build the Arch package yourself from a checkout:
 
@@ -211,6 +213,7 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/hex.rs`, `src/hex_ui.rs` | Hex View: a tab's bytes as saved, and turning byte edits back into text |
 | `src/char_panel.rs` | The Character Panel: Unicode blocks, names, HTML entities and search |
 | `src/update.rs` | Checking GitHub for a newer release |
+| `src/self_update.rs` | Downloading, checking and installing an update |
 | `src/plugins/store.rs` | The plugin manager: the plugin index, downloads and safe installs |
 | `docs/manual/`, `src/manual.rs` | The user manual (mdBook sources, also built into the app) and its in-app viewer; see `docs/manual/README.md` |
 | `src/highlight.rs` | Language list and detection (syntect grammars) |

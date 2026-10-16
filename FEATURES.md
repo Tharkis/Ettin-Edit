@@ -19,6 +19,17 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.7: Updates from inside Ettin Edit
+
+Requested on 2026-10-16.
+
+- [x] **Update Now** in Check for Updates: Ettin Edit downloads the release file that matches how it was installed (Arch package, `.deb`, `.tar.gz`, Windows installer or `.zip`), checks its SHA-256 against the checksum GitHub lists, installs it and offers **Restart Now** ([Updating](docs/manual/src/installing.md#updating))
+- [x] Packages install through `pkexec pacman -U` or `pkexec apt-get install`, which shows the desktop's password prompt; without pkexec the dialog shows the command to run in a terminal
+- [x] The `.tar.gz` and `.zip` copies replace their own program; the Windows installer runs silently as Ettin Edit closes and starts the new version
+- [x] Restarting closes like File > Exit (unsaved work is asked about or kept) and reopens your files
+- [x] A Help group on the toolbar's Home tab (User Manual, User Manual on the Web, Check for Updates, About), so Help can be reached with the menu bar hidden. Customised toolbars get the group added once ([The toolbar](docs/manual/src/toolbar.md#where-the-layout-is-kept))
+- [x] New text in all four interface languages
+
 ### 1.6.1: Finding line breaks
 
 Reported on 2026-10-16.
@@ -367,6 +378,7 @@ JavaScript script. See [Writing plugins](docs/manual/src/plugin-guide.md), also 
 - [x] File > Print… (Ctrl+P): opens the document in the browser's print preview, with syntax colours darkened for paper (a dark theme prints with Ettin Light's colours) and line numbers; both can be turned off in Preferences
 - [x] File > Export as HTML…: the document as a web page in the current theme's colours
 - [x] Help > Check for Updates…, and a weekly automatic check (Help menu or Preferences) that only speaks up when there's a newer release
+- [x] Update Now downloads, checks and installs the new release, then restarts (1.7)
 - [x] Saved macros keep their shortcuts when another macro is deleted
 
 #### Installers

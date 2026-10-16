@@ -35,6 +35,7 @@ mod ribbon_dialog;
 mod ribbon_ui;
 mod search;
 mod search_ui;
+mod self_update;
 mod session;
 mod settings;
 mod shortcut_ui;
@@ -61,6 +62,8 @@ fn main() -> eframe::Result {
     }
 
     settings::migrate_old_config();
+    self_update::exe_path();
+    self_update::clean_up();
 
     // Hand the files to an Ettin Edit that is already running, if there is one.
     // `owner` is the window that keeps the session and backups.
@@ -92,9 +95,12 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
-    eframe::run_native(
+    let result = eframe::run_native(
         "Ettin Edit",
         options,
         Box::new(move |cc| Ok(Box::new(app::EttinApp::new(cc, files, owner)))),
-    )
+    );
+    // Restart after an update, or run the Windows installer.
+    self_update::run_after_exit();
+    result
 }
