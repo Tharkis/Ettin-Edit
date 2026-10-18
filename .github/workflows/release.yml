@@ -1,7 +1,9 @@
 name: Release
 
-# Pushing a tag such as v0.3.0 builds Ettin Edit for Linux, Arch and Windows and
-# publishes a GitHub release with the builds attached. "Run workflow" on the
+# Pushing a tag such as v0.3.0 builds Ettin Edit for Linux (.tar.gz, .deb, .rpm,
+# AppImage, Flatpak), Arch and Windows, checks that every package carries its
+# metadata (packaging/check-packages.sh) and publishes a GitHub release with
+# the builds attached. "Run workflow" on the
 # Actions tab does the same without pushing a tag: give it a tag name and it
 # builds that tag, or creates the tag on the chosen commit (default: the head of
 # the branch it runs on). Pull requests that touch the packaging only build, so
@@ -95,16 +97,24 @@ jobs:
           cp packaging/linux/ettin-edit.desktop packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml "$dir/"
           cp assets/icons/ettin-edit.svg assets/icons/ettin-edit-256.png "$dir/icons/"
           tar czf "$dir.tar.gz" "$dir"
-      - name: Check the AppStream metadata
+      - name: Install the packaging tools
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q appstream
-          appstreamcli validate --no-net packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml
-      - name: Debian package
-        # The APT_SIGNING_KEY secret makes the .deb add the Ettin Edit APT
-        # repository (published with the manual on GitHub Pages), so software
-        # updaters keep it up to date. See packaging/debian/build-deb.sh.
+          sudo apt-get update -q
+          sudo apt-get install -y -q appstream appstream-compose librsvg2-common \
+            desktop-file-utils rpm flatpak ostree zsync
+          curl -fsSLo "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+      - name: Check the AppStream metadata
+        run: appstreamcli validate --no-net packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml
+      - name: Debian, RPM, AppImage and Flatpak packages
+        # The APT_SIGNING_KEY secret signs the Ettin Edit package repositories
+        # (published with the manual on GitHub Pages). With it, the .deb, .rpm
+        # and .flatpak add those repositories, so software updaters keep them
+        # up to date. See packaging/debian, packaging/rpm and packaging/flatpak.
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          APPIMAGETOOL: ${{ runner.temp }}/appimagetool
         run: |
           if [ -z "$APT_SIGNING_KEY" ] && [ "${{ github.event_name }}" = pull_request ]; then
             # Without the secret, pull requests sign with a throwaway key to check the rest.
@@ -112,15 +122,23 @@ jobs:
             gpg --batch --passphrase '' --quick-gen-key "Ettin Edit test key" ed25519 sign never
             APT_SIGNING_KEY=$(gpg --armor --export-secret-keys)
             export APT_SIGNING_KEY
+            unset GNUPGHOME
           fi
           packaging/debian/build-deb.sh "$VERSION" target/release/ettin-edit
-          dpkg-deb -c ettin-edit_*.deb
+          packaging/rpm/build-rpm.sh "$VERSION" target/release/ettin-edit
+          packaging/appimage/build-appimage.sh "$VERSION" target/release/ettin-edit
+          packaging/flatpak/build-flatpak.sh "$VERSION" target/release/ettin-edit
+          ls -l ettin-edit*
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
             ettin-edit-*.tar.gz
             ettin-edit_*.deb
+            ettin-edit-*.rpm
+            ettin-edit-*.AppImage
+            ettin-edit-*.AppImage.zsync
+            ettin-edit-*.flatpak
 
   arch:
     name: Arch package
@@ -212,9 +230,111 @@ jobs:
           name: plugins
           path: plugin-zips/*.zip
 
+  check:
+    name: Check the packages
+    # Every package must carry its licence, website, release notes, desktop
+    # file and icons, and the AppImage and Flatpak must start.
+    needs: [version, linux, arch, windows]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      # Packages add the update repositories when they were signed: always on
+      # pull requests (with a throwaway key), and with the APT_SIGNING_KEY secret.
+      EXPECT_UPDATES: ${{ (github.event_name == 'pull_request' || secrets.APT_SIGNING_KEY != '') && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Install the tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q appstream appstream-compose librsvg2-common desktop-file-utils \
+            rpm rpm2cpio cpio zstd unzip createrepo-c apt-utils flatpak ostree \
+            xvfb libxkbcommon-x11-0 libgl1 libegl1
+      - name: Check the metadata
+        run: packaging/check-packages.sh dist "$VERSION"
+      - name: Build the package repositories from these packages
+        # What the manual workflow does after a release, with a throwaway key.
+        run: |
+          export GNUPGHOME=$(mktemp -d)
+          gpg --batch --passphrase '' --quick-gen-key "Ettin Edit test key" ed25519 sign never
+          APT_SIGNING_KEY=$(gpg --armor --export-secret-keys)
+          export APT_SIGNING_KEY
+          unset GNUPGHOME
+          mkdir -p repos/debs repos/rpms
+          cp dist/*.deb repos/debs/ && cp dist/*.rpm repos/rpms/
+          packaging/debian/build-apt-repo.sh repos/debs repos/apt
+          packaging/rpm/build-rpm-repo.sh repos/rpms repos/rpm
+          packaging/flatpak/build-flatpak-repo.sh dist/ettin-edit-*-x86_64.flatpak repos/flatpak
+          zgrep -q 'ProjectLicense: MIT' repos/apt/dists/stable/main/dep11/Components-amd64.yml.gz
+          zgrep -q '<project_license>MIT</project_license>' repos/rpm/repodata/*-appstream.xml.gz
+          test "$(ostree --repo=repos/flatpak/repo refs | grep -c '^appstream2/x86_64$')" = 1
+      - name: Start the AppImage
+        run: |
+          chmod +x dist/*.AppImage
+          status=0
+          HOME=$(mktemp -d) APPIMAGE_EXTRACT_AND_RUN=1 timeout 20 xvfb-run -a dist/ettin-edit-*-x86_64.AppImage || status=$?
+          # 124: still running when the time was up, as it should be.
+          if [ "$status" -ne 124 ]; then echo "::error::The AppImage stopped with $status"; exit 1; fi
+      - name: Install and start the Flatpak
+        run: |
+          # Flatpak's sandbox needs user namespaces, which Ubuntu restricts.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//24.08
+          flatpak install --user -y --noninteractive --bundle dist/ettin-edit-*-x86_64.flatpak
+          flatpak info --user io.github.tharkis.EttinEdit
+          status=0
+          timeout 30 xvfb-run -a flatpak run io.github.tharkis.EttinEdit || status=$?
+          if [ "$status" -ne 124 ]; then echo "::error::The Flatpak stopped with $status"; exit 1; fi
+
+  rpm:
+    name: Install the RPM on ${{ matrix.image }}
+    needs: [version, linux]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['fedora:latest', 'opensuse/leap:15.6']
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux
+          path: dist
+      - name: Install
+        run: |
+          if command -v dnf >/dev/null; then
+            dnf install -y dist/ettin-edit-*.x86_64.rpm
+          else
+            zypper --non-interactive --no-gpg-checks install dist/ettin-edit-*.x86_64.rpm
+          fi
+      - name: Check
+        run: |
+          rpm -qi ettin-edit
+          test "$(rpm -q --qf '%{LICENSE}' ettin-edit)" = MIT
+          test -f /usr/share/metainfo/io.github.tharkis.EttinEdit.metainfo.xml
+          # Every library the program needs is there ("weak version not
+          # found" only means an optional glibc function is missing).
+          libs=$(LD_TRACE_LOADED_OBJECTS=1 /usr/bin/ettin-edit)
+          echo "$libs"
+          case "$libs" in *"=> not found"*) exit 1 ;; esac
+          if [ -f /etc/pki/rpm-gpg/RPM-GPG-KEY-ettin-edit ]; then
+            # With the key the package installs (dnf and zypper offer to
+            # trust it on the first update), its signature checks out.
+            rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-ettin-edit
+            result=$(rpm -K dist/ettin-edit-*.x86_64.rpm 2>&1 || true)
+            echo "$result"
+            case "$result" in *"signatures OK"*) ;; *) exit 1 ;; esac
+          fi
+
   publish:
     name: Publish release
-    needs: [version, linux, arch, windows, plugins]
+    needs: [version, linux, arch, windows, plugins, check, rpm]
     if: needs.version.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
@@ -239,8 +359,19 @@ jobs:
             `sudo apt install ./ettin-edit_${{ needs.version.outputs.version }}_amd64.deb`.
             It adds the Ettin Edit package repository, so your software updater installs later versions.
 
+            **Fedora / openSUSE:** download the `.rpm` file, then run
+            `sudo dnf install ./ettin-edit-${{ needs.version.outputs.version }}-1.x86_64.rpm`
+            (or `sudo zypper install` on openSUSE). It adds the Ettin Edit package repository, so your software updater installs later versions.
+
+            **Flatpak (any Linux):** download the `.flatpak` file and open it with your software centre, or run
+            `flatpak install --user ./ettin-edit-${{ needs.version.outputs.version }}-x86_64.flatpak`.
+            It adds the Ettin Edit Flatpak repository, so `flatpak update` and your software centre install later versions.
+
+            **AppImage (any Linux):** download the `.AppImage`, make it executable and run it.
+            Ettin Edit and AppImage tools such as Gear Lever can update it.
+
             **Other Linux:** download the `linux-x86_64.tar.gz`, extract it and run `./ettin-edit`.
-            It needs OpenGL and `libxkbcommon-x11`.
+            The `.tar.gz` and AppImage need OpenGL and `libxkbcommon-x11`, which desktops have.
 
             **Windows:** download `windows-x86_64-setup.exe` and run it. It installs for your
             account without admin rights (or for everyone, if you choose), adds a Start menu

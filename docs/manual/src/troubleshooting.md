@@ -5,15 +5,22 @@
 Run `ettin-edit` in a terminal to see the error. The usual cause is a missing
 desktop library when using the `.tar.gz`: install OpenGL and, on X11,
 `libxkbcommon-x11` (`sudo apt install libxkbcommon-x11-0 libgl1` on Debian
-and Ubuntu). The `.deb` and Arch packages install these for you.
+and Ubuntu). The `.deb`, `.rpm`, Arch and Flatpak packages install these for
+you; the `.tar.gz` and AppImage use the ones on your system.
 
 ## The software centre says "No software repository included" or "Unknown licence"
 
-That's a `.deb` from before 1.4.0, which had no package information for
-software centres. Install the latest `.deb` once: it shows the licence and
-release notes, and adds the Ettin Edit repository so updates arrive through
-your software updater. See [Getting updates on Debian and
-Ubuntu](installing.md#getting-updates-on-debian-and-ubuntu).
+You opened the downloaded `.deb` file in GNOME Software (the Software app on
+Zorin OS and many Ubuntu-based systems). That page only reads the package's
+basic fields, so it says this for every `.deb`, even though Ettin Edit's has
+the licence, release notes and update repository. Install it anyway: the
+details show once it's installed, and updates arrive through your software
+updater. For the full page before installing, use the Flatpak, or add the
+Ettin Edit repository first. See [Why a downloaded .deb shows "Unknown
+licence"](installing.md#why-a-downloaded-deb-shows-unknown-licence).
+
+A `.deb` from before 1.4.0 really had no package information: install the
+latest one once.
 
 ## A file opened in the running window instead of a new one
 

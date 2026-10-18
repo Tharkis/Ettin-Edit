@@ -82,14 +82,19 @@ Grab the latest build from the
 | --- | --- | --- |
 | **Windows** | `setup.exe` (no admin rights needed), or the `.zip` | Run it |
 | **Arch / CachyOS** | `.pkg.tar.zst` | `sudo pacman -U ./ettin-edit-*.pkg.tar.zst` |
-| **Debian / Ubuntu** | `.deb` | `sudo apt install ./ettin-edit_*_amd64.deb` |
+| **Debian / Ubuntu / Zorin OS** | `.deb` | `sudo apt install ./ettin-edit_*_amd64.deb` |
+| **Fedora / openSUSE** | `.rpm` | `sudo dnf install ./ettin-edit-*.x86_64.rpm` (or `zypper install`) |
+| **Any Linux (Flatpak)** | `.flatpak` | Open it in your software centre, or `flatpak install --user ./ettin-edit-*.flatpak` |
+| **Any Linux (AppImage)** | `.AppImage` | Make it executable and run it |
 | **Any other Linux** | `.tar.gz` | Extract it and run `./ettin-edit` |
 
 Help > Check for Updates tells you when a newer one is out, and **Update Now** downloads
 it, checks it against GitHub's checksum and installs it (packages ask for your password),
 then restarts Ettin Edit ([details](https://tharkis.github.io/Ettin-Edit/installing.html#updating)).
-On Debian and Ubuntu the `.deb` also adds the Ettin Edit package repository, so your
-software updater installs new versions for you too.
+The `.deb`, `.rpm` and `.flatpak` also add Ettin Edit's own package repository, so your
+software updater (or `flatpak update`) installs new versions for you too, and every package
+shows its licence, website and release notes in software centres
+([why a downloaded `.deb` file's page doesn't](https://tharkis.github.io/Ettin-Edit/installing.html#why-a-downloaded-deb-shows-unknown-licence)).
 
 To build the Arch package yourself from a checkout:
 
@@ -222,7 +227,7 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/settings.rs` | Settings, recent files and session, saved as JSON |
 | `assets/themes/` | The nine built-in themes as `.tmTheme` files |
 | `assets/icons/` | The app icon (SVG, PNG, ICO) |
-| `packaging/` | Linux `.desktop` file and AppStream metadata, the Arch `PKGBUILD`, the `.deb` and APT repository scripts, and the Windows installer script (Inno Setup) |
+| `packaging/` | Linux `.desktop` file and AppStream metadata, the Arch `PKGBUILD`, the scripts for the `.deb`, `.rpm`, Flatpak and AppImage and their package repositories, the check that every package carries its metadata (`check-packages.sh`), and the Windows installer script (Inno Setup) |
 
 The GUI uses [egui](https://github.com/emilk/egui)/eframe, which draws everything itself
 with OpenGL, so the look is identical on Linux and Windows.

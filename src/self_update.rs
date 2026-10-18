@@ -2,10 +2,13 @@
 //! the matching file from a GitHub release, downloads it, checks its SHA-256
 //! against the one GitHub lists for the file and installs it.
 //!
-//! - Arch and Debian packages are installed with `pkexec pacman -U` or
-//!   `pkexec apt-get install`, which asks for an administrator password.
+//! - Arch, Debian and RPM packages are installed with `pkexec pacman -U`,
+//!   `pkexec apt-get install` or `pkexec dnf install` (zypper or rpm where
+//!   there's no dnf), which asks for an administrator password.
 //! - The Linux `.tar.gz` and Windows `.zip` copies replace their own program
-//!   file.
+//!   file, and an AppImage replaces its `.AppImage` file.
+//! - A Flatpak, or a build packaged for an app store (built with
+//!   `ETTIN_UPDATES_BY` set to the store's name), leaves updates to them.
 //! - The Windows installer runs the new `setup.exe` silently once Ettin Edit
 //!   has closed; setup starts Ettin Edit again when it's done.
 
@@ -37,6 +40,10 @@ pub enum Install {
     Arch,
     /// The Debian package (`dpkg`), in /usr/bin.
     Deb,
+    /// The RPM package (Fedora, openSUSE), in /usr/bin.
+    Rpm,
+    /// The AppImage; `file` is the `.AppImage` the user started.
+    AppImage { file: PathBuf },
     /// The Linux `.tar.gz`, unpacked to a folder the user can write to.
     LinuxPortable { exe: PathBuf },
     /// The Windows installer; `all_users` when installed for everyone.
@@ -53,6 +60,8 @@ impl Install {
         match self {
             Install::Arch => Some("-x86_64.pkg.tar.zst"),
             Install::Deb => Some("_amd64.deb"),
+            Install::Rpm => Some(".x86_64.rpm"),
+            Install::AppImage { .. } => Some("-x86_64.AppImage"),
             Install::LinuxPortable { .. } => Some("-linux-x86_64.tar.gz"),
             Install::WindowsSetup { .. } => Some("-windows-x86_64-setup.exe"),
             Install::WindowsPortable { .. } => Some("-windows-x86_64.zip"),
@@ -65,6 +74,8 @@ impl Install {
         match self {
             Install::Arch => t!("self-update-how-arch"),
             Install::Deb => t!("self-update-how-deb"),
+            Install::Rpm => t!("self-update-how-rpm"),
+            Install::AppImage { .. } => t!("self-update-how-appimage"),
             Install::LinuxPortable { .. } | Install::WindowsPortable { .. } => {
                 t!("self-update-how-portable")
             }
@@ -127,7 +138,29 @@ pub fn detect() -> Install {
     if is_source_build(&exe) {
         return Install::Manual(t!("self-update-source-build"));
     }
+    if let Some(store) = option_env!("ETTIN_UPDATES_BY").filter(|s| !s.is_empty()) {
+        return Install::Manual(t!("self-update-managed", store = store));
+    }
     detect_for(&exe)
+}
+
+/// The `.AppImage` file this copy runs from: its runtime sets `APPIMAGE`, and
+/// mounts the program under `APPDIR`.
+#[cfg(not(windows))]
+fn appimage_file(exe: &Path) -> Option<PathBuf> {
+    let file = PathBuf::from(std::env::var_os("APPIMAGE")?);
+    let mount = PathBuf::from(std::env::var_os("APPDIR")?);
+    (exe.starts_with(&mount) && file.is_file()).then_some(file)
+}
+
+/// The program to start again after an update: an AppImage's own program
+/// file is gone once it closes, so it's the `.AppImage` instead.
+fn relaunch_path() -> Option<PathBuf> {
+    #[cfg(not(windows))]
+    if let Some(file) = exe_path().as_deref().and_then(appimage_file) {
+        return Some(file);
+    }
+    exe_path()
 }
 
 #[cfg(windows)]
@@ -161,12 +194,30 @@ fn detect_for(exe: &Path) -> Install {
             .output()
             .is_ok_and(|o| o.status.success())
     };
+    // Flatpak updates come from its repository, through `flatpak update` or
+    // the software centre.
+    if Path::new("/.flatpak-info").is_file() {
+        return Install::Manual(t!("self-update-flatpak"));
+    }
+    if let Some(file) = appimage_file(exe) {
+        return if can_write_beside(&file) {
+            Install::AppImage { file }
+        } else {
+            Install::Manual(t!(
+                "self-update-read-only",
+                path = file.parent().unwrap_or(&file).display().to_string()
+            ))
+        };
+    }
     if exe.starts_with("/usr") {
         if owned_by("pacman", &["-Qqo"]) {
             return Install::Arch;
         }
         if owned_by("dpkg-query", &["-S"]) {
             return Install::Deb;
+        }
+        if owned_by("rpm", &["-qf"]) {
+            return Install::Rpm;
         }
     }
     if can_write_beside(exe) {
@@ -280,7 +331,7 @@ pub fn install(install: &Install, file: &Path) -> Result<Installed, String> {
     // and packages are removed by the next update.
     if matches!(
         install,
-        Install::LinuxPortable { .. } | Install::WindowsPortable { .. }
+        Install::LinuxPortable { .. } | Install::WindowsPortable { .. } | Install::AppImage { .. }
     ) && result.is_ok()
     {
         let _ = std::fs::remove_dir_all(download_dir());
@@ -292,6 +343,11 @@ fn install_file(install: &Install, file: &Path) -> Result<Installed, String> {
     match install {
         Install::Arch => run_as_admin(&package_command(install, file)),
         Install::Deb => run_as_admin(&package_command(install, file)),
+        Install::Rpm => run_as_admin(&package_command(install, file)),
+        Install::AppImage { file: appimage } => {
+            replace_exe(appimage, file)?;
+            Ok(Installed::Restart)
+        }
         Install::LinuxPortable { exe } => {
             let program = unpack_tar_gz(file, "ettin-edit")?;
             replace_exe(exe, &program)?;
@@ -314,11 +370,31 @@ fn install_file(install: &Install, file: &Path) -> Result<Installed, String> {
 
 /// The package manager command that installs `file`, as root.
 fn package_command(install: &Install, file: &Path) -> Vec<String> {
+    package_command_with(install, file, on_path)
+}
+
+/// `package_command`, with `has` telling which programs are installed.
+fn package_command_with(install: &Install, file: &Path, has: impl Fn(&str) -> bool) -> Vec<String> {
     let file = file.display().to_string();
+    let args = |a: &[&str]| -> Vec<String> {
+        a.iter()
+            .map(|s| s.to_string())
+            .chain(std::iter::once(file.clone()))
+            .collect()
+    };
     match install {
-        Install::Arch => vec!["pacman".into(), "-U".into(), "--noconfirm".into(), file],
-        _ => vec!["apt-get".into(), "install".into(), "-y".into(), file],
+        Install::Arch => args(&["pacman", "-U", "--noconfirm"]),
+        Install::Rpm if has("dnf") => args(&["dnf", "install", "-y"]),
+        Install::Rpm if has("zypper") => args(&["zypper", "--non-interactive", "install"]),
+        Install::Rpm => args(&["rpm", "-U"]),
+        _ => args(&["apt-get", "install", "-y"]),
     }
+}
+
+/// True when `program` is in a folder on the `PATH`.
+fn on_path(program: &str) -> bool {
+    std::env::var_os("PATH")
+        .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(program).is_file()))
 }
 
 fn setup_args(all_users: bool) -> Vec<&'static str> {
@@ -483,7 +559,7 @@ pub fn set_after_exit(cmd: Option<Command>) {
 
 /// Starts this program again once it has closed.
 pub fn restart_after_exit() {
-    if let Some(exe) = exe_path() {
+    if let Some(exe) = relaunch_path() {
         set_after_exit(Some(Command::new(exe)));
     }
 }
@@ -523,6 +599,10 @@ mod tests {
             "ettin-edit-1.7.0-windows-x86_64-setup.exe",
             "ettin-edit-1.7.0-windows-x86_64.zip",
             "ettin-edit_1.7.0_amd64.deb",
+            "ettin-edit-1.7.0-1.x86_64.rpm",
+            "ettin-edit-1.7.0-x86_64.AppImage",
+            "ettin-edit-1.7.0-x86_64.AppImage.zsync",
+            "ettin-edit-1.7.0-x86_64.flatpak",
             "hl7-viewer.zip",
         ]
         .into_iter()
@@ -534,6 +614,17 @@ mod tests {
             "ettin-edit-1.7.0-1-x86_64.pkg.tar.zst"
         );
         assert_eq!(name(&Install::Deb).unwrap(), "ettin-edit_1.7.0_amd64.deb");
+        assert_eq!(
+            name(&Install::Rpm).unwrap(),
+            "ettin-edit-1.7.0-1.x86_64.rpm"
+        );
+        assert_eq!(
+            name(&Install::AppImage {
+                file: PathBuf::from("Ettin.AppImage")
+            })
+            .unwrap(),
+            "ettin-edit-1.7.0-x86_64.AppImage"
+        );
         let exe = PathBuf::from("x");
         assert_eq!(
             name(&Install::LinuxPortable { exe: exe.clone() }).unwrap(),
@@ -577,6 +668,21 @@ mod tests {
             shell_line(&deb),
             "sudo apt-get install -y '/tmp/my files/e.deb'"
         );
+        let rpm = Path::new("/tmp/ettin-edit-1.7.0-1.x86_64.rpm");
+        let with = |tools: &'static [&'static str]| {
+            shell_line(&package_command_with(&Install::Rpm, rpm, |p| {
+                tools.contains(&p)
+            }))
+        };
+        assert_eq!(
+            with(&["dnf", "zypper"]),
+            "sudo dnf install -y /tmp/ettin-edit-1.7.0-1.x86_64.rpm"
+        );
+        assert_eq!(
+            with(&["zypper"]),
+            "sudo zypper --non-interactive install /tmp/ettin-edit-1.7.0-1.x86_64.rpm"
+        );
+        assert_eq!(with(&[]), "sudo rpm -U /tmp/ettin-edit-1.7.0-1.x86_64.rpm");
         assert!(setup_args(true).contains(&"/ALLUSERS"));
         assert!(setup_args(false).contains(&"/CURRENTUSER"));
         assert!(setup_args(false).contains(&"/update=1"));

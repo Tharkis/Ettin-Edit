@@ -1,0 +1,15 @@
+[Application]
+name=@APP@
+runtime=org.freedesktop.Platform/x86_64/@RUNTIME_VERSION@
+sdk=org.freedesktop.Sdk/x86_64/@RUNTIME_VERSION@
+command=ettin-edit
+
+[Context]
+shared=network;ipc;
+sockets=x11;wayland;fallback-x11;
+devices=dri;
+filesystems=host;
+
+[Session Bus Policy]
+org.freedesktop.Flatpak=talk
+org.freedesktop.FileManager1=talk

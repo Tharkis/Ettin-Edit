@@ -28,26 +28,33 @@ Download one of these:
 | Your system | Download | Install with |
 | --- | --- | --- |
 | Arch, CachyOS, Manjaro, EndeavourOS | `.pkg.tar.zst` | `sudo pacman -U ./ettin-edit-*.pkg.tar.zst` |
-| Debian, Ubuntu, Mint, Pop!_OS | `.deb` | `sudo apt install ./ettin-edit_*_amd64.deb` |
+| Debian, Ubuntu, Mint, Pop!_OS, Zorin OS | `.deb` | `sudo apt install ./ettin-edit_*_amd64.deb` |
+| Fedora, openSUSE | `.rpm` | `sudo dnf install ./ettin-edit-*.x86_64.rpm` (openSUSE: `sudo zypper install ./ettin-edit-*.x86_64.rpm`) |
+| Any Linux, with Flatpak | `.flatpak` | Open it in your software centre, or `flatpak install --user ./ettin-edit-*-x86_64.flatpak` |
+| Any Linux, nothing to install | `.AppImage` | Make it executable and run it |
 | Anything else | `.tar.gz` | Extract it and run `./ettin-edit` |
 
-The packages add Ettin Edit to your application menu with its icon, and offer
-it in **Open With** for text files. Software centres such as GNOME Software,
-KDE Discover and Ubuntu's App Center show its licence (MIT), website, release
-notes and age rating.
+The packages and the Flatpak add Ettin Edit to your application menu with its
+icon, and offer it in **Open With** for text files. They carry Ettin Edit's
+AppStream file, so software centres such as GNOME Software, KDE Discover and
+Ubuntu's App Center show its licence (MIT), website, release notes and age
+rating.
 
 ### Getting updates on Debian and Ubuntu
 
 From 1.4.0 the `.deb` also adds the Ettin Edit package repository, which lives
 next to this manual on GitHub Pages. After that, your software updater (or
 `sudo apt update && sudo apt upgrade`) installs new versions like any other
-app, and the software centre no longer says "No software repository included".
-Install the 1.4.0 `.deb` by hand once if you have an older one.
+app. From 1.9.1 the repository also carries the app details software centres
+read, so once it's added, Ettin Edit shows up in their search with its licence,
+screenshots and release notes. Install the latest `.deb` by hand once if you
+have one older than 1.4.0.
 
 The repository's settings are in `/etc/apt/sources.list.d/ettin-edit.sources`.
 Delete that file to stop getting updates this way.
 
-To add the repository without downloading the `.deb` first:
+To add the repository without downloading the `.deb` first, which also gets
+you the full software centre page before installing:
 
 ```sh
 sudo curl -fsSLo /usr/share/keyrings/ettin-edit-archive-keyring.gpg \
@@ -56,6 +63,67 @@ sudo curl -fsSLo /etc/apt/sources.list.d/ettin-edit.sources \
   https://tharkis.github.io/Ettin-Edit/apt/ettin-edit.sources
 sudo apt update && sudo apt install ettin-edit
 ```
+
+### Why a downloaded .deb shows "Unknown licence"
+
+If you open the `.deb` file itself in GNOME Software (the Software app on
+Zorin OS, and on many Ubuntu-based systems), the page says "Unknown licence"
+and "No software repository included". That page only reads the package's
+basic fields, which have no licence field, and it only recognises Fedora-style
+repositories, so no `.deb` can change it. The package does have the licence,
+release notes and repository, and they show once it's installed or once the
+repository is added (see above). For the full page before installing, use the
+Flatpak, or add the repository first.
+
+### Fedora and openSUSE
+
+The `.rpm` installs Ettin Edit and adds the Ettin Edit RPM repository (for
+`dnf`, and `zypper` on openSUSE) at `https://tharkis.github.io/Ettin-Edit/rpm`.
+From then on your software updater, `sudo dnf upgrade` or `sudo zypper update`
+installs new versions. The package and repository are signed; the first
+time it updates, `dnf` (or `zypper`) asks you to trust the Ettin Edit key.
+The repository's settings are in
+`/etc/yum.repos.d/ettin-edit.repo` (`/etc/zypp/repos.d/ettin-edit.repo` on
+openSUSE); delete that file to stop getting updates this way.
+
+To add the repository without downloading the `.rpm` first:
+
+```sh
+sudo rpm --import https://tharkis.github.io/Ettin-Edit/rpm/RPM-GPG-KEY-ettin-edit
+sudo curl -fsSLo /etc/yum.repos.d/ettin-edit.repo \
+  https://tharkis.github.io/Ettin-Edit/rpm/ettin-edit.repo
+sudo dnf install ettin-edit
+```
+
+### Flatpak
+
+The `.flatpak` runs Ettin Edit on the freedesktop.org runtime, which your
+system downloads from Flathub the first time (add Flathub with
+`flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`
+if you haven't). Opening the file in a software centre shows the full app
+page, licence included. Installing it also adds the Ettin Edit Flatpak
+repository, so `flatpak update` and your software centre install new
+versions. You can also install straight from the repository:
+
+```sh
+flatpak install --user https://tharkis.github.io/Ettin-Edit/flatpak/ettin-edit.flatpakref
+```
+
+The Flatpak can open any file on your computer. Git (for **Compare to Last Commit
+(Git)**), **Open Terminal Here** and plugins run on your computer itself, not in
+the sandbox, so they use the Python, Node.js, Git and terminal you have
+installed. A Flatpak keeps its settings in
+`~/.var/app/io.github.tharkis.EttinEdit/config/EttinEdit`, apart from other
+installs (copy your `~/.config/EttinEdit` there to bring them along).
+
+### AppImage
+
+The `.AppImage` is one file that runs on almost any 64-bit Linux: make it
+executable (`chmod +x ettin-edit-*.AppImage`, or tick "Allow executing" in its
+properties) and run it. Tools such as Gear Lever or AppImageLauncher add it to
+your application menu and can update it, and so can Ettin Edit itself (see
+[Updating](#updating)). Like the `.tar.gz`, it uses your system's OpenGL and
+`libxkbcommon-x11`.
 
 The `.tar.gz` needs the usual desktop libraries, which almost every desktop
 already has: OpenGL and, on X11, `libxkbcommon-x11`. On Debian or Ubuntu:
@@ -81,9 +149,10 @@ cargo run --release -- notes.txt
 
 ## Updating
 
-On Debian and Ubuntu, the `.deb`'s package repository brings updates through
-your software updater (see [above](#getting-updates-on-debian-and-ubuntu)).
-Everywhere else, and on Debian and Ubuntu too if you like, Ettin Edit updates
+On Debian, Ubuntu, Fedora and openSUSE, the package repository brings updates
+through your software updater (see [above](#getting-updates-on-debian-and-ubuntu)),
+and the Flatpak updates through `flatpak update` or your software centre.
+Everywhere else, and with the packages too if you like, Ettin Edit updates
 itself:
 
 **Help > Check for Updates…** (also on the toolbar's **Home** tab) asks GitHub
@@ -96,6 +165,9 @@ installs it:
 | --- | --- |
 | **Arch / CachyOS** package | Installs the new `.pkg.tar.zst` with `pacman -U`. Your desktop asks for your password first. |
 | **Debian / Ubuntu** package | Installs the new `.deb` with `apt-get install`. Your desktop asks for your password first. |
+| **Fedora / openSUSE** package | Installs the new `.rpm` with `dnf install` (`zypper` on openSUSE). Your desktop asks for your password first. |
+| **AppImage** | Puts the new `.AppImage` in place of the one you started. |
+| **Flatpak** | Nothing: it says updates come through your software centre or `flatpak update`. |
 | **`.tar.gz`** or Windows **`.zip`** | Replaces the `ettin-edit` program in the folder you unpacked it to. |
 | Windows **installer** | Downloads the new `setup.exe`. **Install and Restart** closes Ettin Edit, installs the update without any questions and starts Ettin Edit again. Installed for everyone, Windows asks for permission first. |
 

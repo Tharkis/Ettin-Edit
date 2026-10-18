@@ -324,7 +324,7 @@ impl UpdateCheck {
                                     ui.spinner();
                                     ui.label(t!("self-update-installing"));
                                 });
-                                if matches!(install, Install::Arch | Install::Deb) {
+                                if matches!(install, Install::Arch | Install::Deb | Install::Rpm) {
                                     ui.label(
                                         RichText::new(t!("self-update-password")).small().weak(),
                                     );
