@@ -55,13 +55,6 @@ if [ -f @KEY@ ]; then
   install -Dm644 $src/packaging/rpm/ettin-edit.repo %{buildroot}%{_sysconfdir}/zypp/repos.d/ettin-edit.repo
 fi
 
-%post
-# Trust the key that signs the repository's packages, so updates install
-# without a question.
-if [ -f %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-ettin-edit ]; then
-  rpm --import %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-ettin-edit >/dev/null 2>&1 || :
-fi
-
 %files
 %license %{_datadir}/licenses/ettin-edit/LICENSE
 %doc %{_docdir}/ettin-edit/README.md

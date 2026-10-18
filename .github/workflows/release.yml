@@ -317,12 +317,17 @@ jobs:
         run: |
           rpm -qi ettin-edit
           test "$(rpm -q --qf '%{LICENSE}' ettin-edit)" = MIT
-          # Every library the program needs is there.
-          if ldd /usr/bin/ettin-edit | grep 'not found'; then exit 1; fi
           test -f /usr/share/metainfo/io.github.tharkis.EttinEdit.metainfo.xml
+          # Every library the program needs is there ("weak version not
+          # found" only means an optional glibc function is missing).
+          libs=$(LD_TRACE_LOADED_OBJECTS=1 /usr/bin/ettin-edit)
+          echo "$libs"
+          case "$libs" in *"=> not found"*) exit 1 ;; esac
           if [ -f /etc/pki/rpm-gpg/RPM-GPG-KEY-ettin-edit ]; then
-            # The package's key was trusted on install, so its signature checks out.
-            result=$(rpm -K dist/ettin-edit-*.x86_64.rpm)
+            # With the key the package installs (dnf and zypper offer to
+            # trust it on the first update), its signature checks out.
+            rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-ettin-edit
+            result=$(rpm -K dist/ettin-edit-*.x86_64.rpm 2>&1 || true)
             echo "$result"
             case "$result" in *"signatures OK"*) ;; *) exit 1 ;; esac
           fi

@@ -80,8 +80,9 @@ Flatpak, or add the repository first.
 The `.rpm` installs Ettin Edit and adds the Ettin Edit RPM repository (for
 `dnf`, and `zypper` on openSUSE) at `https://tharkis.github.io/Ettin-Edit/rpm`.
 From then on your software updater, `sudo dnf upgrade` or `sudo zypper update`
-installs new versions. The package and repository are signed; the package
-trusts its key when it installs. The repository's settings are in
+installs new versions. The package and repository are signed; the first
+time it updates, `dnf` (or `zypper`) asks you to trust the Ettin Edit key.
+The repository's settings are in
 `/etc/yum.repos.d/ettin-edit.repo` (`/etc/zypp/repos.d/ettin-edit.repo` on
 openSUSE); delete that file to stop getting updates this way.
 
