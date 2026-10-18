@@ -4,10 +4,10 @@ name: User manual
 # touches it, and publishes it to GitHub Pages when it changes on main:
 # https://tharkis.github.io/Ettin-Edit/
 #
-# The same site carries the Ettin Edit APT repository at /apt, built from the
-# .deb files of the latest releases and signed with the APT_SIGNING_KEY secret,
-# so it's rebuilt after every release as well. Without that secret the site
-# has no /apt folder.
+# The same site carries the Ettin Edit package repositories, signed with the
+# APT_SIGNING_KEY secret and rebuilt after every release: APT at /apt and RPM
+# at /rpm from the packages of the latest releases, and Flatpak at /flatpak
+# from the latest release's bundle. Without that secret the site has none.
 
 on:
   push:
@@ -20,6 +20,8 @@ on:
       - "docs/manual/**"
       - ".github/workflows/manual.yml"
       - "packaging/debian/**"
+      - "packaging/rpm/**"
+      - "packaging/flatpak/**"
   workflow_dispatch:
   workflow_run:
     workflows: [Release]
@@ -52,9 +54,10 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Build the manual
         run: mdbook build docs/manual
-      - name: Build the APT repository
-        # The .deb files of the three latest releases that have one. Pull
-        # requests sign with a throwaway key, just to check the script works.
+      - name: Build the package repositories
+        # APT and RPM: the packages of the three latest releases that have
+        # them. Flatpak: the latest release's bundle. Pull requests sign with
+        # a throwaway key, just to check the scripts work.
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
           GH_TOKEN: ${{ github.token }}
@@ -69,18 +72,38 @@ jobs:
             APT_SIGNING_KEY=$(gpg --armor --export-secret-keys)
             export APT_SIGNING_KEY
           fi
-          sudo apt-get update -q && sudo apt-get install -y -q apt-utils
-          mkdir -p debs
-          for tag in $(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
-                         --limit 20 --json tagName --jq '.[].tagName'); do
-            [ "$(ls debs | wc -l)" -ge 3 ] && break
-            gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'ettin-edit_*_amd64.deb' --dir debs || true
+          sudo apt-get update -q
+          sudo apt-get install -y -q apt-utils appstream appstream-compose librsvg2-common \
+            createrepo-c rpm rpm2cpio cpio flatpak ostree
+          mkdir -p debs rpms flatpak
+          tags=$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
+                   --limit 20 --json tagName --jq '.[].tagName')
+          for tag in $tags; do
+            if [ "$(ls debs | wc -l)" -lt 3 ]; then
+              gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'ettin-edit_*_amd64.deb' --dir debs || true
+            fi
+            if [ "$(ls rpms | wc -l)" -lt 3 ]; then
+              gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'ettin-edit-*.x86_64.rpm' --dir rpms || true
+            fi
+            if [ -z "$(ls flatpak)" ]; then
+              gh release download "$tag" -R "$GITHUB_REPOSITORY" --pattern 'ettin-edit-*-x86_64.flatpak' --dir flatpak || true
+            fi
           done
-          ls -l debs
+          ls -l debs rpms flatpak
           if ls debs/*.deb >/dev/null 2>&1; then
             packaging/debian/build-apt-repo.sh debs docs/manual/book/apt
           else
             echo "::warning::No release has a .deb yet, so the site has no APT repository."
+          fi
+          if ls rpms/*.rpm >/dev/null 2>&1; then
+            packaging/rpm/build-rpm-repo.sh rpms docs/manual/book/rpm
+          else
+            echo "::warning::No release has an .rpm yet, so the site has no RPM repository."
+          fi
+          if ls flatpak/*.flatpak >/dev/null 2>&1; then
+            packaging/flatpak/build-flatpak-repo.sh flatpak/*.flatpak docs/manual/book/flatpak
+          else
+            echo "::warning::No release has a .flatpak yet, so the site has no Flatpak repository."
           fi
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'

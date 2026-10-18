@@ -75,9 +75,6 @@ impl Proc {
             }
             cmd.arg(main)
                 .current_dir(dir)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
                 .env("ETTIN_VERSION", env!("CARGO_PKG_VERSION"));
             match runtime {
                 Runtime::Python => {
@@ -97,6 +94,11 @@ impl Proc {
                 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
                 cmd.creation_flags(CREATE_NO_WINDOW);
             }
+            // Inside a Flatpak, on the computer's own Python or Node.js.
+            let mut cmd = crate::system::on_host(cmd);
+            cmd.stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
             match cmd.spawn() {
                 Ok(child) => return Ok(Self::start(child, program, run, events, wake)),
                 Err(e) if e.kind() == io::ErrorKind::NotFound => last_err = e,

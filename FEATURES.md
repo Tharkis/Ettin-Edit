@@ -19,6 +19,19 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.9.1: AppImage, Flatpak and RPM, and app details in software centres
+
+Requested on 2026-10-18, after the 1.9.0 `.deb` showed "Unknown licence" and "No software repository included" in Zorin OS's Software again.
+
+- [x] Fixed: Software centres based on GNOME Software (Zorin OS, Ubuntu-based systems, Fedora) build the page for a downloaded `.deb` from the package's control fields alone, and PackageKit always reports a `.deb`'s licence as unknown. The page never read the AppStream file the `.deb` has carried since 1.4, and it only recognises Fedora-style `.repo` files as a repository, so 1.4 didn't fix that page. The `.deb` still carries the same app details (checked against 1.9.0) and installs the same repository ([Installing and updating](docs/manual/src/installing.md#why-a-downloaded-deb-shows-unknown-licence))
+- [x] The APT repository now has an AppStream catalogue (DEP-11), so once it's added, software centres show Ettin Edit with its licence, screenshots, release notes and icon, and find it in search
+- [x] RPM package for Fedora and openSUSE (`ettin-edit-<version>-1.x86_64.rpm`): MIT licence, website and AppStream file, signed, and it adds a signed Ettin Edit RPM repository (dnf and zypper) at `https://tharkis.github.io/Ettin-Edit/rpm` with its own AppStream catalogue, so software updaters install new versions ([RPM](docs/manual/src/installing.md#fedora-and-opensuse))
+- [x] Flatpak (`ettin-edit-<version>-x86_64.flatpak`) on the freedesktop.org 24.08 runtime from Flathub. Opening it in a software centre shows the full app details; installing it adds the signed Ettin Edit Flatpak repository at `https://tharkis.github.io/Ettin-Edit/flatpak`, so `flatpak update` and software centres update it. Git, terminals and plugins run on the computer itself through `flatpak-spawn --host` ([Flatpak](docs/manual/src/installing.md#flatpak))
+- [x] AppImage (`ettin-edit-<version>-x86_64.AppImage`) with its AppStream file and update information, so AppImage tools such as Gear Lever can update it ([AppImage](docs/manual/src/installing.md#appimage))
+- [x] Help > Check for Updates updates the RPM (with dnf, or zypper) and the AppImage; in a Flatpak it says updates come from the software centre. Builds made for an app store (`ETTIN_UPDATES_BY=<store>` at build time) leave updates to that store
+- [x] The release workflow checks every package (`.deb`, `.rpm`, Arch, `.tar.gz`, AppImage, Flatpak, Windows `.zip`) for its licence, website, release notes, desktop file and icons (`packaging/check-packages.sh`), starts the AppImage and the Flatpak, installs the RPM on Fedora and openSUSE Leap, and builds the package repositories, so metadata can't go missing without the build failing
+- [x] New text in all four interface languages
+
 ### 1.9: Markdown Preview and Hex View finished
 
 Requested on 2026-10-16: the parts of the 1.5 Markdown Preview and Hex View that were still missing.
@@ -484,6 +497,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| Zorin OS Software (GNOME Software) still shows "Unknown licence" and "No software repository included" for a downloaded `.deb`; this page only reads the package's control fields | 1.9.1 (details in the catalogue once the repository is added; Flatpak and RPM show them up front) |
 | Word wrap on very large files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines | 1.8 |
 | Searching for `\r` or `\r\n` finds nothing with regular expressions, and line-break matches aren't highlighted in Extended mode | 1.6.1 |
 | The `.deb` doesn't tell software centres its licence or repository, so they show "Unknown License" and "No Software Repository Included" and the software updater can't update it | 1.4 |

@@ -1,0 +1,11 @@
+# The Ettin Edit package repository, added by the ettin-edit package so your
+# software updater installs new versions. Delete this file to stop updates.
+[ettin-edit]
+name=Ettin Edit
+baseurl=https://tharkis.github.io/Ettin-Edit/rpm
+type=rpm-md
+enabled=1
+autorefresh=1
+gpgcheck=1
+repo_gpgcheck=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ettin-edit

@@ -68,6 +68,16 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.9.1" date="2026-10-18">
+      <description>
+        <p>New AppImage, Flatpak and RPM (Fedora, openSUSE) downloads, each
+        with the licence, website and release notes software centres show.
+        The Flatpak and RPM add Ettin Edit's own repositories, so software
+        updaters keep them up to date, and the Debian repository now carries
+        the app details that software centres read.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.9.1</url>
+    </release>
     <release version="1.9.0" date="2026-10-16">
       <description>
         <p>Markdown Preview shows images and scrolls along with the text. Hex

@@ -3,6 +3,45 @@
 use std::path::Path;
 use std::process::Command;
 
+/// True when Ettin Edit runs inside a Flatpak sandbox.
+pub fn in_flatpak() -> bool {
+    static FLATPAK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *FLATPAK.get_or_init(|| cfg!(target_os = "linux") && Path::new("/.flatpak-info").is_file())
+}
+
+/// `cmd` as it should run: unchanged, except inside a Flatpak, where it runs
+/// on the computer itself through `flatpak-spawn --host`, since the sandbox
+/// has no terminal, git or Node.js. Its folder and environment go along.
+/// Standard input and output are set on the result, not on `cmd`.
+pub fn on_host(cmd: Command) -> Command {
+    if !in_flatpak() {
+        return cmd;
+    }
+    host_command(&cmd)
+}
+
+fn host_command(cmd: &Command) -> Command {
+    let mut host = Command::new("flatpak-spawn");
+    // --watch-bus ends the program when Ettin Edit ends.
+    host.args(["--host", "--watch-bus"]);
+    if let Some(dir) = cmd.get_current_dir() {
+        let mut arg = std::ffi::OsString::from("--directory=");
+        arg.push(dir);
+        host.arg(arg);
+    }
+    for (key, value) in cmd.get_envs() {
+        if let Some(value) = value {
+            let mut arg = std::ffi::OsString::from("--env=");
+            arg.push(key);
+            arg.push("=");
+            arg.push(value);
+            host.arg(arg);
+        }
+    }
+    host.arg(cmd.get_program()).args(cmd.get_args());
+    host
+}
+
 #[cfg(windows)]
 fn hidden(mut cmd: Command) -> Command {
     use std::os::windows::process::CommandExt;
@@ -135,7 +174,9 @@ pub fn open_terminal(dir: &Path) -> Result<(), String> {
             .map(String::from),
         );
         for term in &candidates {
-            if Command::new(term).current_dir(dir).spawn().is_ok() {
+            let mut cmd = Command::new(term);
+            cmd.current_dir(dir);
+            if on_host(cmd).spawn().is_ok() {
                 return Ok(());
             }
         }
@@ -175,6 +216,8 @@ fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     cmd.arg("-C").arg(dir).args(args);
     #[cfg(windows)]
     let mut cmd = hidden(cmd);
+    #[cfg(not(windows))]
+    let mut cmd = on_host(cmd);
     let out = cmd.output().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             t!("git-missing")
@@ -222,4 +265,29 @@ pub fn git_head_text(file: &Path) -> Result<String, String> {
         }
     })?;
     Ok(String::from_utf8_lossy(&bytes).replace("\r\n", "\n"))
+}
+
+#[cfg(test)]
+mod host_tests {
+    #[test]
+    fn host_command_carries_folder_and_environment() {
+        let mut cmd = std::process::Command::new("node");
+        cmd.arg("main.js")
+            .current_dir("/home/me/plugins/x")
+            .env("NODE_PATH", "/home/me/sdk");
+        let host = super::host_command(&cmd);
+        assert_eq!(host.get_program(), "flatpak-spawn");
+        let args: Vec<_> = host.get_args().map(|a| a.to_string_lossy()).collect();
+        assert_eq!(
+            args,
+            [
+                "--host",
+                "--watch-bus",
+                "--directory=/home/me/plugins/x",
+                "--env=NODE_PATH=/home/me/sdk",
+                "node",
+                "main.js"
+            ]
+        );
+    }
 }
