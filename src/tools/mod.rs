@@ -11,6 +11,7 @@ pub mod dtd;
 pub mod js;
 pub mod json;
 pub mod mime;
+pub mod pipe;
 pub mod sql;
 pub mod transform;
 pub mod xml;
@@ -91,6 +92,14 @@ pub fn floor_char_boundary(text: &str, mut i: usize) -> usize {
         i -= 1;
     }
     i
+}
+
+/// Formatters keep a final line break when the text had one.
+pub fn keep_final_newline(input: &str, mut output: String) -> String {
+    if input.ends_with('\n') && !output.ends_with('\n') {
+        output.push('\n');
+    }
+    output
 }
 
 #[cfg(test)]

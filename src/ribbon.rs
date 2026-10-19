@@ -129,7 +129,7 @@ fn version() -> u32 {
 
 /// The layout version this build writes. Layouts saved by older versions get
 /// the default groups added since then (see [`Layout::upgrade`]).
-pub const LAYOUT_VERSION: u32 = 3;
+pub const LAYOUT_VERSION: u32 = 4;
 
 pub const FILE_NAME: &str = "toolbar.json";
 
@@ -202,6 +202,20 @@ impl Layout {
         if self.version < 3 {
             // 3 (Ettin Edit 1.9.5): the Transform tab, after Edit.
             added |= self.add_default_tab("toolbar-tab-transform", "toolbar-tab-edit");
+        }
+        if self.version < 4 {
+            // 4 (Ettin Edit 2.0): the Recipes group, first on the Transform tab.
+            let recipes = self.add_default_group("toolbar-tab-transform", "toolbar-group-recipes");
+            added |= recipes;
+            if recipes
+                && let Some(tab) = self
+                    .tabs
+                    .iter_mut()
+                    .find(|t| t.name.id.as_deref() == Some("toolbar-tab-transform"))
+                && let Some(last) = tab.groups.pop()
+            {
+                tab.groups.insert(0, last);
+            }
         }
         self.version = self.version.max(LAYOUT_VERSION);
         added
@@ -400,6 +414,14 @@ impl Default for Layout {
                 tab(
                     "toolbar-tab-transform",
                     vec![
+                        group(
+                            "toolbar-group-recipes",
+                            vec![
+                                (Recipes, L),
+                                (ToggleRecipeRecording, S),
+                                (OpenRecipesFolder, S),
+                            ],
+                        ),
                         group(
                             "toolbar-group-command",
                             vec![(TransformDialog(DialogKind::Pipe), L)],
@@ -759,6 +781,11 @@ pub fn default_icon(action: &Action) -> &'static str {
         ExportComparePatch => ph::EXPORT,
         ToggleCompareOption(_) => ph::FUNNEL,
         ToggleMacroRecording => ph::RECORD,
+        Recipes => ph::CHEF_HAT,
+        RunRecipe(_) => ph::PLAY_CIRCLE,
+        RunRecipeOnAllTabs(_) => ph::STACK,
+        ToggleRecipeRecording => ph::RECORD,
+        OpenRecipesFolder => ph::FOLDER_OPEN,
         PlayMacro | PlaySavedMacro(_) => ph::PLAY,
         RunMacroMultiple => ph::REPEAT,
         SaveMacro => ph::FLOPPY_DISK,
@@ -907,6 +934,29 @@ mod tests {
         mine.tabs.retain(|t| !is(t, "toolbar-tab-edit"));
         mine.version = 2;
         assert!(!mine.upgrade());
+    }
+
+    #[test]
+    fn older_layouts_get_the_recipes_group_first() {
+        let is = |name: &Name, id: &str| name.id.as_deref() == Some(id);
+        let mut old = Layout {
+            version: 3,
+            ..Default::default()
+        };
+        let transform = old
+            .tabs
+            .iter()
+            .position(|t| is(&t.name, "toolbar-tab-transform"))
+            .unwrap();
+        old.tabs[transform]
+            .groups
+            .retain(|g| !is(&g.name, "toolbar-group-recipes"));
+        let mut upgraded = old.clone();
+        assert!(upgraded.upgrade());
+        let groups = &upgraded.tabs[transform].groups;
+        assert_eq!(groups.len(), old.tabs[transform].groups.len() + 1);
+        assert!(is(&groups[0].name, "toolbar-group-recipes"));
+        assert!(!upgraded.upgrade());
     }
 
     #[test]

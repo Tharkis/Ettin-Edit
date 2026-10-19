@@ -42,3 +42,12 @@ choose **Macro > Save Current Macro…** and give it a name. Saved macros:
 - are kept between sessions.
 
 **Macro > Delete Saved Macro** removes one.
+
+## Macros or recipes?
+
+A macro replays keys and commands from wherever the caret is, which suits
+edits that move through the text. When the job is turning a whole selection or
+document into something else (replace this, keep those lines, sort, convert
+to JSON), a [recipe](recipes.md) is usually the better fit: it shows a preview,
+can be edited step by step, runs on all open tabs or from the command line, and
+is a file you can share.

@@ -145,7 +145,7 @@ fn leading_number(s: &str, decimal: bool) -> Option<f64> {
     t[..end].parse().ok()
 }
 
-fn sort_lines(lines: &mut [String], kind: SortKind, desc: bool) {
+pub fn sort_lines(lines: &mut [String], kind: SortKind, desc: bool) {
     let cmp = |a: &String, b: &String| -> Ordering {
         match kind {
             SortKind::Lexical => a.cmp(b),
@@ -306,7 +306,59 @@ fn identifier_case(line: &str, kind: CaseKind) -> String {
 }
 
 /// Expands tabs to spaces, keeping the text aligned.
-fn expand_tabs(line: &str) -> String {
+/// Removes repeated lines, keeping the first; with `consecutive`, only
+/// lines equal to the one before them.
+pub fn remove_duplicates(lines: Vec<String>, consecutive: bool) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out: Vec<String> = Vec::with_capacity(lines.len());
+    for l in lines {
+        let dup = if consecutive {
+            out.last() == Some(&l)
+        } else {
+            !seen.insert(l.clone())
+        };
+        if !dup {
+            out.push(l);
+        }
+    }
+    out
+}
+
+/// Removes empty lines, and with `blank` also lines of only spaces and tabs.
+/// Leaves one empty line when nothing else is left.
+pub fn remove_empty(lines: Vec<String>, blank: bool) -> Vec<String> {
+    let out: Vec<String> = lines
+        .into_iter()
+        .filter(|l| {
+            if blank {
+                !l.trim().is_empty()
+            } else {
+                !l.is_empty()
+            }
+        })
+        .collect();
+    if out.is_empty() {
+        vec![String::new()]
+    } else {
+        out
+    }
+}
+
+pub fn trim_line(line: &str, kind: TrimKind) -> String {
+    match kind {
+        TrimKind::Trailing => line.trim_end_matches([' ', '\t']).to_owned(),
+        TrimKind::Leading => line.trim_start_matches([' ', '\t']).to_owned(),
+        TrimKind::Both => line.trim_matches([' ', '\t']).to_owned(),
+    }
+}
+
+/// Leading spaces (or, with `all`, every run of spaces that reaches a tab
+/// stop) as tabs.
+pub fn spaces_to_tabs(line: &str, all: bool) -> String {
+    compress_spaces(&expand_tabs_leading(line, all), all)
+}
+
+pub fn expand_tabs(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     let mut col = 0;
     for c in line.chars() {
@@ -668,54 +720,17 @@ impl Editor {
     /// Removes repeated lines, keeping the first; with `consecutive`, only
     /// lines equal to the one before them.
     pub fn remove_duplicate_lines(&mut self, ctx: &egui::Context, consecutive: bool) {
-        self.transform_lines(ctx, |lines| {
-            let mut seen = std::collections::HashSet::new();
-            let mut out: Vec<String> = Vec::with_capacity(lines.len());
-            for l in lines {
-                let dup = if consecutive {
-                    out.last() == Some(&l)
-                } else {
-                    !seen.insert(l.clone())
-                };
-                if !dup {
-                    out.push(l);
-                }
-            }
-            out
-        });
+        self.transform_lines(ctx, |lines| remove_duplicates(lines, consecutive));
     }
 
     /// Removes empty lines, and with `blank` also lines of only spaces and tabs.
     pub fn remove_empty_lines(&mut self, ctx: &egui::Context, blank: bool) {
-        self.transform_lines(ctx, |lines| {
-            let out: Vec<String> = lines
-                .into_iter()
-                .filter(|l| {
-                    if blank {
-                        !l.trim().is_empty()
-                    } else {
-                        !l.is_empty()
-                    }
-                })
-                .collect();
-            if out.is_empty() {
-                vec![String::new()]
-            } else {
-                out
-            }
-        });
+        self.transform_lines(ctx, |lines| remove_empty(lines, blank));
     }
 
     pub fn trim_lines(&mut self, ctx: &egui::Context, kind: TrimKind) {
         self.transform_lines(ctx, |lines| {
-            lines
-                .into_iter()
-                .map(|l| match kind {
-                    TrimKind::Trailing => l.trim_end_matches([' ', '\t']).to_owned(),
-                    TrimKind::Leading => l.trim_start_matches([' ', '\t']).to_owned(),
-                    TrimKind::Both => l.trim_matches([' ', '\t']).to_owned(),
-                })
-                .collect()
+            lines.iter().map(|l| trim_line(l, kind)).collect()
         });
     }
 
@@ -730,10 +745,7 @@ impl Editor {
 
     pub fn spaces_to_tabs(&mut self, ctx: &egui::Context, all: bool) {
         self.transform_lines(ctx, |lines| {
-            lines
-                .iter()
-                .map(|l| compress_spaces(&expand_tabs_leading(l, all), all))
-                .collect()
+            lines.iter().map(|l| spaces_to_tabs(l, all)).collect()
         });
     }
 

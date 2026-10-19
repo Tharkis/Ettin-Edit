@@ -11,6 +11,9 @@ that work on lines take every line a selection touches, so you don't have to
 select them exactly. If a command can't finish, a message says why and the
 text is left as it was.
 
+To run several of these commands one after another, again and again, save
+them as a [recipe](recipes.md).
+
 ## Filter through a command
 
 **Transform > Filter Through Command…** (<kbd>Ctrl+Alt+P</kbd>) sends the

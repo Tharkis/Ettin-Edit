@@ -12,7 +12,7 @@ use crate::tools::json::{self, JsonOp};
 use crate::tools::mime::MimeOp;
 use crate::tools::xml::{self, Outline, XmlOp};
 use crate::tools::xpath::{self, Outcome};
-use crate::tools::{ToolResult, floor_char_boundary, js, line_col};
+use crate::tools::{ToolResult, floor_char_boundary, js, keep_final_newline, line_col};
 
 /// Syntaxes that are XML for the status-bar XPath and the check on save.
 pub(super) fn is_xml(syntax: &str) -> bool {
@@ -30,14 +30,6 @@ pub(super) struct OutlineCache {
     version: u64,
     built_at: f64,
     outline: Option<Outline>,
-}
-
-/// Formatters keep a final line break when the text had one.
-fn keep_final_newline(input: &str, mut output: String) -> String {
-    if input.ends_with('\n') && !output.ends_with('\n') {
-        output.push('\n');
-    }
-    output
 }
 
 /// A value on one line, at most `max` chars.

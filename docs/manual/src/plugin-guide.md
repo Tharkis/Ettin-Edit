@@ -298,6 +298,9 @@ settings the same way, such as
 `{"Transform": {"Convert": {"from": "Json", "to": "Yaml"}}}`,
 `{"Transform": {"Hash": "Sha256"}}` or
 `{"Transform": {"FilterLines": {"pattern": "ERROR", "regex": false, "match_case": true, "keep": true}}}`.
+[Recipes](recipes.md) run by name: `{"RunRecipe": "Tidy Whitespace"}` works on
+the selections or the whole document, and `{"RunRecipeOnAllTabs": "Tidy Whitespace"}`
+on every open tab. A recipe with shell commands still asks the user first.
 The names are the ones in Ettin Edit's `src/actions.rs` and
 `src/tools/transform.rs`.
 

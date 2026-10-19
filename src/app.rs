@@ -8,6 +8,7 @@ mod menus;
 mod panels;
 mod plugins;
 mod printing;
+mod recipes;
 mod ribbon;
 mod text_tools;
 mod transform;
@@ -95,6 +96,15 @@ pub struct EttinApp {
     run_macro: RunMacroDialog,
     save_macro: SaveMacroDialog,
     recorder: Recorder,
+    /// The recipes in the recipes folder.
+    recipes: Vec<crate::recipes::Recipe>,
+    recipe_window: crate::recipe_ui::RecipeWindow,
+    /// A recipe running on a thread.
+    recipe_job: Option<recipes::RecipeJob>,
+    /// Asking before a recipe runs shell commands.
+    recipe_confirm: Option<crate::recipe_ui::CommandConfirm>,
+    /// The steps recorded so far, while a recipe is being recorded.
+    recipe_recording: Option<Vec<crate::recipes::Step>>,
     /// Session and backups; only the first Ettin Edit window keeps them.
     session: Option<SessionStore>,
     instance: Option<instance::Listener>,
@@ -239,6 +249,14 @@ impl EttinApp {
         theme_errors.extend(api_errors);
         let (toolbar, toolbar_error) = ribbon::Toolbar::load();
         theme_errors.extend(toolbar_error);
+        let recipe_list = match crate::recipes::recipes_dir() {
+            Some(dir) => {
+                let (list, errors) = crate::recipes::load_all(&dir);
+                theme_errors.extend(errors);
+                list
+            }
+            None => Vec::new(),
+        };
 
         let mut app = Self {
             docs: Vec::new(),
@@ -274,6 +292,11 @@ impl EttinApp {
             run_macro: RunMacroDialog::default(),
             save_macro: SaveMacroDialog::default(),
             recorder: Recorder::default(),
+            recipes: recipe_list,
+            recipe_window: Default::default(),
+            recipe_job: None,
+            recipe_confirm: None,
+            recipe_recording: None,
             session: None,
             instance: None,
             last_backup: 0.0,
@@ -988,6 +1011,7 @@ impl EttinApp {
         if action.recordable() {
             self.recorder.push(MacroStep::Action(action.clone()));
         }
+        self.record_recipe_step(&action);
         match action {
             Action::NewTab => self.new_tab(),
             Action::Open => self.open_dialog(),
@@ -1365,6 +1389,27 @@ impl EttinApp {
             | Action::CopyXPath => self.run_text_tool(ctx, action),
             Action::Transform(op) => self.run_transform(ctx, op),
             Action::TransformDialog(kind) => self.open_transform_dialog(kind),
+            Action::Recipes => {
+                if self.recipe_window.open {
+                    self.recipe_window.open = false;
+                } else {
+                    self.reload_recipes();
+                    let first = (!self.recipes.is_empty()).then_some(0);
+                    let keep = self.recipe_window.selected.or(first);
+                    self.recipe_window.show_window(keep);
+                }
+            }
+            Action::RunRecipe(name) => self.run_recipe(ctx, &name, false),
+            Action::RunRecipeOnAllTabs(name) => self.run_recipe(ctx, &name, true),
+            Action::ToggleRecipeRecording => self.toggle_recipe_recording(ctx),
+            Action::OpenRecipesFolder => {
+                if let Some(dir) = crate::recipes::recipes_dir() {
+                    let _ = std::fs::create_dir_all(&dir);
+                    if let Err(e) = system::open_folder(&dir) {
+                        self.errors.push(e);
+                    }
+                }
+            }
             Action::CompareTabs
             | Action::CompareWith(_)
             | Action::CompareToSaved
@@ -1730,6 +1775,8 @@ impl EttinApp {
             || self.command_palette.open
             || self.tab_picker.open
             || self.toolbar.dialog.open
+            || self.recipe_window.open
+            || self.recipe_confirm.is_some()
     }
 
     // ---------------------------------------------------------------------
@@ -3119,6 +3166,24 @@ impl EttinApp {
                         .color(palette.modified),
                 );
             }
+            if let Some(steps) = &self.recipe_recording
+                && ui
+                    .add(
+                        egui::Label::new(
+                            RichText::new(format!(
+                                "● {}",
+                                t!("recording-recipe", count = steps.len())
+                            ))
+                            .size(12.0)
+                            .color(palette.modified),
+                        )
+                        .sense(Sense::click()),
+                    )
+                    .on_hover_text(t!("recording-recipe-hover"))
+                    .clicked()
+            {
+                self.pending.push(Action::ToggleRecipeRecording);
+            }
             if read_only
                 && ui
                     .add(egui::Label::new(dim(t!("read-only-status"))).sense(Sense::click()))
@@ -3362,6 +3427,7 @@ impl EttinApp {
         }
         self.poll_pipe(ctx);
         self.transform_dialog_ui(ctx);
+        self.recipes_ui(ctx);
         if let Some(what) = self.column.ui(ctx, &palette) {
             self.column_insert(ctx, what);
             self.focus_editor = true;

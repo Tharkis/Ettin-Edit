@@ -22,7 +22,7 @@ remembers both choices.
 | --- | --- |
 | **File** | New, open, save, recent files, print, rename, workspace folders, close |
 | **Edit** | Undo, clipboard, line operations, case, comments, multi-select, completion, column editor, read-only |
-| **Transform** | Filter through a shell command, keep or remove matching lines, number lines, reflow, identifier case, JSON/YAML/TOML/XML/CSV conversion, hashes, hex and JWT |
+| **Transform** | [Recipes](recipes.md) of saved steps, filter through a shell command, keep or remove matching lines, number lines, reflow, identifier case, JSON/YAML/TOML/XML/CSV conversion, hashes, hex and JWT |
 | **Search** | Find, replace, Find in Files, marks, Go to Line, bookmarks |
 | **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode, the menu bar and toolbar |
 | **Encoding** | The encoding the file is saved in, or read it again in another one |

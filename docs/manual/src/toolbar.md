@@ -24,7 +24,7 @@ tabs, groups and buttons however you like.
 | --- | --- |
 | **Home** | File, Clipboard, Undo, Find, Tabs, Help |
 | **Edit** | Lines, Sort, Case, Comment, Blanks, Selection |
-| **Transform** | Command, Lines, Identifier Case, Convert, Encode |
+| **Transform** | Recipes, Command, Lines, Identifier Case, Convert, Encode |
 | **View** | Show, Zoom, Folding, Panels, Window, Customise |
 | **Tools** | Compare, JSON, XML, Data (CsvQuery and MIME Tools), Macros |
 
@@ -132,5 +132,6 @@ new **Help** group to the end of its **Home** tab (unless you renamed or
 removed that tab), so the Help commands can be reached while the menu bar is
 hidden. Delete the group if you don't want it. Ettin Edit 1.9.5 likewise adds
 the **Transform** tab after your **Edit** tab (unless you removed that tab);
-hide or delete it if you don't want it.
+hide or delete it if you don't want it. Ettin Edit 2.0 adds the
+[**Recipes**](recipes.md) group to the start of your **Transform** tab.
 Whether the toolbar is shown or collapsed is kept in `settings.json`.

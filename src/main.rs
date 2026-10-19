@@ -8,6 +8,7 @@ mod actions;
 mod app;
 mod bytes;
 mod char_panel;
+mod cli;
 mod compare;
 mod compare_ui;
 mod csv_query;
@@ -31,6 +32,8 @@ mod palette_ui;
 mod plugins;
 mod prefs_ui;
 mod print;
+mod recipe_ui;
+mod recipes;
 mod ribbon;
 mod ribbon_dialog;
 mod ribbon_ui;
@@ -53,9 +56,13 @@ mod user_lang;
 use std::path::PathBuf;
 
 fn main() -> eframe::Result {
+    let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    if let Some(code) = cli::run(&args) {
+        std::process::exit(code);
+    }
     let mut multi_instance = false;
     let mut files: Vec<PathBuf> = Vec::new();
-    for arg in std::env::args_os().skip(1) {
+    for arg in args {
         if arg == "--multi-instance" || arg == "-multiInst" {
             multi_instance = true;
         } else {
