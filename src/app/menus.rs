@@ -1,5 +1,5 @@
-//! The menus that are drawn in more than one place: Edit and Tools are in
-//! the menu bar and also in the editor's right-click menu.
+//! The menus that are drawn in more than one place: Edit, Transform and
+//! Tools are in the menu bar and also in the editor's right-click menu.
 
 use egui::Ui;
 
@@ -7,8 +7,19 @@ use super::EttinApp;
 use crate::actions::{self, Action};
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
 use crate::menu::{self, MenuEntry};
+use crate::tools::convert::DataFormat;
 use crate::tools::json::JsonOp;
+use crate::tools::transform::{HashKind, TransformOp};
 use crate::tools::xml::XmlOp;
+use crate::transform_ui::DialogKind;
+
+/// A menu shown in the menu bar and in the right-click menu.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum SharedMenu {
+    Edit,
+    Transform,
+    Tools,
+}
 
 /// Collects the action behind each menu item; an item's id is its index.
 pub(super) struct MenuModel<'c> {
@@ -80,6 +91,20 @@ impl<'c> MenuModel<'c> {
     }
 }
 
+/// camelCase, PascalCase, snake_case, kebab-case and CONSTANT_CASE.
+fn identifier_cases(m: &mut MenuModel) -> Vec<MenuEntry> {
+    [
+        ("case-camel", CaseKind::Camel),
+        ("case-pascal", CaseKind::Pascal),
+        ("case-snake", CaseKind::Snake),
+        ("case-kebab", CaseKind::Kebab),
+        ("case-constant", CaseKind::Constant),
+    ]
+    .into_iter()
+    .map(|(label, kind)| m.item(&crate::i18n::tr(label), Action::ConvertCase(kind)))
+    .collect()
+}
+
 fn submenu(label: &str, entries: Vec<MenuEntry>) -> MenuEntry {
     MenuEntry::Submenu {
         label: label.to_owned(),
@@ -88,24 +113,26 @@ fn submenu(label: &str, entries: Vec<MenuEntry>) -> MenuEntry {
 }
 
 impl EttinApp {
-    /// Draws the Edit or Tools menu into an open menu-bar menu.
-    pub(super) fn shared_menu(&mut self, ui: &mut Ui, tools: bool) {
+    /// Draws the Edit, Transform or Tools menu into an open menu-bar menu.
+    pub(super) fn shared_menu(&mut self, ui: &mut Ui, which: SharedMenu) {
         let ctx = ui.ctx().clone();
         let mut m = MenuModel::new(&ctx);
-        let entries = if tools {
-            self.tools_menu(&mut m)
-        } else {
-            self.edit_menu(&mut m, self.active)
+        let entries = match which {
+            SharedMenu::Edit => self.edit_menu(&mut m, self.active),
+            SharedMenu::Transform => self.transform_menu(&mut m),
+            SharedMenu::Tools => self.tools_menu(&mut m),
         };
         if let Some(action) = menu::show(ui, &entries).and_then(|id| m.action(id)) {
             self.pending.push(action);
         }
     }
 
-    /// The right-click menu of tab `index`'s editor: the Edit menu, then Tools.
+    /// The right-click menu of tab `index`'s editor: the Edit menu, then
+    /// Transform and Tools.
     pub(super) fn context_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
         let mut entries = self.edit_menu(m, index);
         entries.push(MenuEntry::Separator);
+        entries.push(submenu(&t!("menu-transform"), self.transform_menu(m)));
         entries.push(submenu(&t!("menu-tools"), self.tools_menu(m)));
         let plugins = self.plugin_commands_menu(m);
         if !plugins.is_empty() {
@@ -208,7 +235,11 @@ impl EttinApp {
                         Action::ConvertCase(CaseKind::Sentence),
                     ),
                     m.item(&t!("case-invert"), Action::ConvertCase(CaseKind::Invert)),
-                ],
+                    MenuEntry::Separator,
+                ]
+                .into_iter()
+                .chain(identifier_cases(m))
+                .collect(),
             ),
             submenu(
                 &t!("menu-comment"),
@@ -268,6 +299,75 @@ impl EttinApp {
             ),
             MenuEntry::Separator,
             m.toggle(&t!("read-only"), read_only, Action::ToggleReadOnly),
+        ]
+    }
+
+    /// The Transform menu: tools that turn text into other text.
+    pub(super) fn transform_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
+        let t = Action::Transform;
+        let lines = vec![
+            m.item(
+                &t!("keep-matching-lines-dots"),
+                Action::TransformDialog(DialogKind::FilterLines { keep: true }),
+            ),
+            m.item(
+                &t!("remove-matching-lines-dots"),
+                Action::TransformDialog(DialogKind::FilterLines { keep: false }),
+            ),
+            m.item(&t!("count-distinct-lines"), t(TransformOp::CountLines)),
+            MenuEntry::Separator,
+            m.item(
+                &t!("affix-lines-dots"),
+                Action::TransformDialog(DialogKind::AffixLines),
+            ),
+            m.item(
+                &t!("number-lines-dots"),
+                Action::TransformDialog(DialogKind::NumberLines),
+            ),
+            m.item(
+                &t!("reflow-dots"),
+                Action::TransformDialog(DialogKind::Reflow),
+            ),
+        ];
+        let mut convert = Vec::new();
+        for from in DataFormat::SOURCES {
+            let items = DataFormat::TARGETS
+                .into_iter()
+                .filter(|to| *to != from && !(from == DataFormat::Csv && *to == DataFormat::Csv))
+                .map(|to| {
+                    m.item(
+                        &t!("convert-to", from = from.name(), to = to.name()),
+                        t(TransformOp::Convert { from, to }),
+                    )
+                })
+                .collect();
+            convert.push(submenu(&t!("convert-from", format = from.name()), items));
+        }
+        let hashes = [
+            HashKind::Md5,
+            HashKind::Sha1,
+            HashKind::Sha256,
+            HashKind::Sha512,
+            HashKind::Crc32,
+        ]
+        .into_iter()
+        .map(|k| m.item(k.name(), t(TransformOp::Hash(k))))
+        .collect();
+        let encode = vec![
+            m.item(&t!("hex-encode"), t(TransformOp::HexEncode)),
+            m.item(&t!("hex-decode"), t(TransformOp::HexDecode)),
+            MenuEntry::Separator,
+            m.item(&t!("jwt-decode"), t(TransformOp::JwtDecode)),
+        ];
+        vec![
+            m.item(&t!("pipe-dots"), Action::TransformDialog(DialogKind::Pipe)),
+            MenuEntry::Separator,
+            submenu(&t!("menu-transform-lines"), lines),
+            submenu(&t!("menu-identifier-case"), identifier_cases(m)),
+            submenu(&t!("menu-convert"), convert),
+            MenuEntry::Separator,
+            submenu(&t!("menu-hash"), hashes),
+            submenu(&t!("menu-hex-jwt"), encode),
         ]
     }
 

@@ -1,15 +1,18 @@
 //! The built-in text tools: MIME Tools (Base64, URL, quoted-printable, HTML
 //! entities, SAML), JSON and JavaScript tools, XML Tools with XPath, and
-//! CsvQuery (reading delimited text and querying it with SQL).
+//! CsvQuery (reading delimited text and querying it with SQL), and the
+//! Transform menu's line tools and data conversions.
 //! Everything here works on plain strings; the app applies the results to
 //! the editor.
 
+pub mod convert;
 pub mod csv;
 pub mod dtd;
 pub mod js;
 pub mod json;
 pub mod mime;
 pub mod sql;
+pub mod transform;
 pub mod xml;
 pub mod xpath;
 pub mod xsd;
@@ -64,6 +67,23 @@ pub fn line_col(text: &str, offset: usize) -> (usize, usize) {
     let line = before.matches('\n').count() + 1;
     let line_start = before.rfind('\n').map_or(0, |i| i + 1);
     (line, before[line_start..].chars().count() + 1)
+}
+
+/// Byte offset of a 1-based line and column (in chars), as parsers report
+/// them; past the end of a line it stops at the line's end.
+pub fn line_col_to_offset(text: &str, line: usize, column: usize) -> usize {
+    let mut start = 0;
+    for _ in 1..line {
+        match text[start..].find('\n') {
+            Some(i) => start += i + 1,
+            None => return text.len(),
+        }
+    }
+    let end = text[start..].find('\n').map_or(text.len(), |i| start + i);
+    text[start..end]
+        .char_indices()
+        .nth(column.saturating_sub(1))
+        .map_or(end, |(i, _)| start + i)
 }
 
 pub fn floor_char_boundary(text: &str, mut i: usize) -> usize {

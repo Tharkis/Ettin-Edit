@@ -68,6 +68,16 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.9.5" date="2026-10-19">
+      <description>
+        <p>A new Transform menu for turning text into other text: filter it
+        through any shell command, keep or remove matching lines, count
+        distinct lines, number lines, reflow paragraphs, convert identifiers
+        to camelCase or snake_case, convert between JSON, YAML, TOML, XML,
+        CSV and Markdown tables, and work out hashes, hex and JWT contents.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v1.9.5</url>
+    </release>
     <release version="1.9.1" date="2026-10-18">
       <description>
         <p>New AppImage, Flatpak and RPM (Fedora, openSUSE) downloads, each

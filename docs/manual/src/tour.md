@@ -22,6 +22,7 @@ remembers both choices.
 | --- | --- |
 | **File** | New, open, save, recent files, print, rename, workspace folders, close |
 | **Edit** | Undo, clipboard, line operations, case, comments, multi-select, completion, column editor, read-only |
+| **Transform** | Filter through a shell command, keep or remove matching lines, number lines, reflow, identifier case, JSON/YAML/TOML/XML/CSV conversion, hashes, hex and JWT |
 | **Search** | Find, replace, Find in Files, marks, Go to Line, bookmarks |
 | **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode, the menu bar and toolbar |
 | **Encoding** | The encoding the file is saved in, or read it again in another one |
@@ -39,8 +40,8 @@ commands you use most. Right-click it to customise it, or press
 
 **Help > About Ettin Edit** shows the version you have.
 
-Right-clicking the text gives you the whole **Edit** menu, the **Tools**
-menu and your plugins' commands, so you rarely need to go up to the menu
+Right-clicking the text gives you the whole **Edit** menu, the
+**Transform** and **Tools** menus and your plugins' commands, so you rarely need to go up to the menu
 bar.
 
 ## Tabs

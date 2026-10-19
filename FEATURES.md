@@ -19,6 +19,22 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 1.9.5: The Transform menu
+
+Requested on 2026-10-19: tools for turning text into other text, without making Ettin Edit an IDE. Recipes (chaining these steps and saving them) are planned for 2.0.
+
+- [x] A new **Transform** menu (also in the right-click menu and as a **Transform** toolbar tab); every command works on the selections or the whole document as one undo step ([Transforming text](docs/manual/src/transform.md))
+- [x] Filter Through Command (<kbd>Ctrl+Alt+P</kbd>): sends the text through any shell command (`sort -u`, `jq .`, `awk`…) and puts back its output; runs in the file's folder with `$ETTIN_FILE` set, shows a Stop button while it runs, keeps the text if the command fails and shows its error output, and remembers the last 15 commands. In the Flatpak the command runs outside the sandbox
+- [x] Keep Matching Lines (<kbd>Ctrl+Alt+K</kbd>) and Remove Matching Lines, with match case and regular expressions and a live count of matching lines
+- [x] Count Distinct Lines: each different line once with how often it appears, most frequent first, in a new tab
+- [x] Add Prefix and Suffix to each line, Number Lines (start, step, separator, aligned or zero-padded, skipping empty lines) and Reflow Paragraphs to a width (keeps indentation, comment markers and list bullets)
+- [x] Identifier case: camelCase, PascalCase, snake_case, kebab-case and CONSTANT_CASE (also under Edit > Convert Case To)
+- [x] Convert between JSON, YAML, TOML, XML and CSV, and to Markdown tables, keeping key order; converting a whole document switches its language
+- [x] Hashes: MD5, SHA-1, SHA-256, SHA-512 and CRC32 of each selection, or of the whole document copied to the clipboard
+- [x] Text to Hex and Hex to Text, and Decode JWT (header and payload as JSON, with when it was issued and expires)
+- [x] Transform commands are recorded in macros with their settings (shell commands never are) and can be run by plugins with `run_action`
+- [x] New text in all four interface languages
+
 ### 1.9.1: AppImage, Flatpak and RPM, and app details in software centres
 
 Requested on 2026-10-18, after the 1.9.0 `.deb` showed "Unknown licence" and "No software repository included" in Zorin OS's Software again.
@@ -507,7 +523,9 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished). Nothing else is planned yet.
+The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
+
+- [ ] 2.0: Transform recipes. Stack Transform steps (regex replace, trim, sort, Base64, format JSON…) in a panel with a live preview, save the stack by name and run it again
 
 ### XML
 - [ ] Comment / uncomment selection, convert text to XML

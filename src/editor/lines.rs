@@ -36,6 +36,17 @@ pub enum CaseKind {
     Sentence,
     /// Swaps upper and lower case.
     Invert,
+    /// Identifier cases: each line's words joined as one name.
+    /// `camelCase`
+    Camel,
+    /// `PascalCase`
+    Pascal,
+    /// `snake_case`
+    Snake,
+    /// `kebab-case`
+    Kebab,
+    /// `CONSTANT_CASE`
+    Constant,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -194,6 +205,15 @@ pub fn convert_case(text: &str, kind: CaseKind) -> String {
             }
             out
         }
+        CaseKind::Camel
+        | CaseKind::Pascal
+        | CaseKind::Snake
+        | CaseKind::Kebab
+        | CaseKind::Constant => text
+            .split('\n')
+            .map(|line| identifier_case(line, kind))
+            .collect::<Vec<_>>()
+            .join("\n"),
         CaseKind::Sentence => {
             let mut out = String::with_capacity(text.len());
             let mut at_sentence_start = true;
@@ -215,6 +235,74 @@ pub fn convert_case(text: &str, kind: CaseKind) -> String {
             out
         }
     }
+}
+
+/// The words of an identifier or phrase: split at anything that isn't a
+/// letter or digit, and where case changes (`parseHTTPRequest` is `parse`,
+/// `HTTP`, `Request`).
+pub fn identifier_words(text: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    for part in text.split(|c: char| !c.is_alphanumeric()) {
+        let chars: Vec<char> = part.chars().collect();
+        let mut start = 0;
+        for i in 1..chars.len() {
+            let (prev, c) = (chars[i - 1], chars[i]);
+            let next_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
+            if c.is_uppercase()
+                && (prev.is_lowercase() || prev.is_numeric() || (prev.is_uppercase() && next_lower))
+            {
+                words.push(chars[start..i].iter().collect());
+                start = i;
+            }
+        }
+        if start < chars.len() {
+            words.push(chars[start..].iter().collect());
+        }
+    }
+    words
+}
+
+/// One line as an identifier, keeping the spaces around it.
+fn identifier_case(line: &str, kind: CaseKind) -> String {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return line.to_owned();
+    }
+    let lead = &line[..line.len() - line.trim_start().len()];
+    let tail = &line[lead.len() + trimmed.len()..];
+    let words = identifier_words(trimmed);
+    let capital = |w: &str| {
+        let mut c = w.chars();
+        c.next().map_or(String::new(), |f| {
+            f.to_uppercase()
+                .chain(c.flat_map(char::to_lowercase))
+                .collect()
+        })
+    };
+    let name = match kind {
+        CaseKind::Camel => words
+            .iter()
+            .enumerate()
+            .map(|(i, w)| if i == 0 { w.to_lowercase() } else { capital(w) })
+            .collect(),
+        CaseKind::Pascal => words.iter().map(|w| capital(w)).collect(),
+        CaseKind::Snake => words
+            .iter()
+            .map(|w| w.to_lowercase())
+            .collect::<Vec<_>>()
+            .join("_"),
+        CaseKind::Kebab => words
+            .iter()
+            .map(|w| w.to_lowercase())
+            .collect::<Vec<_>>()
+            .join("-"),
+        _ => words
+            .iter()
+            .map(|w| w.to_uppercase())
+            .collect::<Vec<_>>()
+            .join("_"),
+    };
+    format!("{lead}{name}{tail}")
 }
 
 /// Expands tabs to spaces, keeping the text aligned.
@@ -1059,6 +1147,21 @@ mod tests {
             "One. Two! Three"
         );
         assert_eq!(convert_case("aBc", CaseKind::Invert), "AbC");
+        assert_eq!(convert_case("user name", CaseKind::Camel), "userName");
+        assert_eq!(
+            convert_case("parseHTTPRequest2", CaseKind::Snake),
+            "parse_http_request2"
+        );
+        assert_eq!(
+            convert_case("  max-retry count\nfoo_bar", CaseKind::Constant),
+            "  MAX_RETRY_COUNT\nFOO_BAR"
+        );
+        assert_eq!(
+            convert_case("XMLHttpRequest", CaseKind::Kebab),
+            "xml-http-request"
+        );
+        assert_eq!(convert_case("some_value", CaseKind::Pascal), "SomeValue");
+        assert_eq!(convert_case("\n", CaseKind::Camel), "\n");
         let ctx = egui::Context::default();
         let mut e = ed("foo bar", vec![Selection::caret(5)]);
         e.convert_case(&ctx, CaseKind::Upper);

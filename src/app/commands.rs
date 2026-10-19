@@ -264,6 +264,8 @@ impl EttinApp {
         let mut m = MenuModel::new(ctx);
         let edit = self.edit_menu(&mut m, self.active);
         flatten(&t!("menu-edit"), &edit, &m, &mut out);
+        let transform = self.transform_menu(&mut m);
+        flatten(&t!("menu-transform"), &transform, &m, &mut out);
         let tools = self.tools_menu(&mut m);
         flatten(&t!("menu-tools"), &tools, &m, &mut out);
         for p in self.plugins.plugins.iter().filter(|p| p.is_running()) {
