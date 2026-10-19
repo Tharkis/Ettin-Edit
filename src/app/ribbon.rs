@@ -216,6 +216,8 @@ impl EttinApp {
             Action::FocusOtherView => (self.is_split(), None),
             Action::CloseWorkspace => (s.workspace.is_some(), None),
             Action::ToggleMacroRecording => on(recording),
+            Action::ToggleRecipeRecording => on(self.recipe_recording.is_some()),
+            Action::Recipes => on(self.recipe_window.open),
             Action::ToggleWordWrap => on(s.word_wrap),
             Action::ToggleLineNumbers => on(s.show_line_numbers),
             Action::ToggleCurrentLine => on(s.highlight_current_line),

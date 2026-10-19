@@ -130,6 +130,7 @@ runs on Linux and Windows only.
 
 | Command | Shortcut |
 | --- | --- |
+| Recipes > Manage Recipes… | <kbd>Ctrl+Alt+R</kbd> |
 | Filter Through Command… | <kbd>Ctrl+Alt+P</kbd> |
 | Lines > Keep Matching Lines… | <kbd>Ctrl+Alt+K</kbd> |
 

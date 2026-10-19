@@ -112,6 +112,9 @@ pub struct Settings {
     pub show_menu_bar: bool,
     /// Commands run with Transform > Filter Through Command, newest first.
     pub pipe_commands: Vec<String>,
+    /// Recipes whose shell commands may run without asking, by
+    /// [`crate::recipes::Recipe::fingerprint`].
+    pub allowed_recipes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -190,6 +193,7 @@ impl Default for Settings {
             toolbar_collapsed: false,
             show_menu_bar: true,
             pipe_commands: Vec::new(),
+            allowed_recipes: Vec::new(),
         }
     }
 }

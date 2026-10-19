@@ -188,6 +188,15 @@ pub enum Action {
     Transform(TransformOp),
     /// Opens the dialog that asks for a Transform command's settings.
     TransformDialog(crate::transform_ui::DialogKind),
+    // Recipes
+    /// Shows or hides the Recipes window.
+    Recipes,
+    /// Runs a recipe, by name, on the selections or the whole document.
+    RunRecipe(String),
+    /// Runs a recipe, by name, on every open tab.
+    RunRecipeOnAllTabs(String),
+    ToggleRecipeRecording,
+    OpenRecipesFolder,
     // CsvQuery
     ToggleCsvQuery,
     RunCsvQuery,
@@ -295,6 +304,7 @@ impl Action {
                 | Action::PluginGuide
                 | Action::CustomiseToolbar
                 | Action::TransformDialog(_)
+                | Action::Recipes
                 | Action::Transform(TransformOp::Pipe { .. })
         )
     }
@@ -343,6 +353,7 @@ impl Action {
                 | Action::SelectNextOccurrence
                 | Action::SelectAllOccurrences
                 | Action::Mime(_)
+                | Action::RunRecipe(_)
                 | Action::Transform(
                     TransformOp::FilterLines { .. }
                         | TransformOp::AffixLines { .. }
@@ -481,6 +492,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
             s(CMD_ALT, Key::K),
             Action::TransformDialog(crate::transform_ui::DialogKind::FilterLines { keep: true }),
         ),
+        (s(CMD_ALT, Key::R), Action::Recipes),
         (s(CMD_ALT, Key::D), Action::CompareTabs),
         (s(SHIFT, Key::F7), Action::PrevDifference),
         (s(NONE, Key::F7), Action::NextDifference),

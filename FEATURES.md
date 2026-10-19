@@ -19,6 +19,22 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.0: Recipes
+
+Requested on 2026-10-19: saved, replayable Transform recipes, building on the 1.9.5 Transform menu.
+
+- [x] Recipes: a named list of Transform steps that run one after another on the selections or the whole document, as one undo step; a failing step is named and the text is left alone ([Recipes](docs/manual/src/recipes.md))
+- [x] Steps: find and replace (match case, whole word, regex, extended), keep or remove matching lines, count distinct lines, prefix and suffix, number lines, reflow, sort, reverse, remove duplicates or empty lines, trim, join lines, tabs and spaces, every case and identifier case, JSON/YAML/TOML/XML/CSV/Markdown conversion, MIME Tools encodings, hashes, hex, JWT, JSON format/minify/sort keys, XML pretty print/linearize/escape/unescape, and shell commands
+- [x] Recipes window (Transform > Recipes > Manage Recipes…, <kbd>Ctrl+Alt+R</kbd>): add, switch off, reorder and edit steps with a live before-and-after preview of the active tab; new, duplicate, delete, import and export; every change is saved at once
+- [x] Record Recipe: run commands as usual and they become steps (Replace All takes the find bar's text and options)
+- [x] Run a recipe from Transform > Recipes, the toolbar's new Recipes group, the command palette or its own shortcut, or on every open tab at once
+- [x] Recipes with shell commands list the commands and ask before they run, with "don't ask again until the commands change"; a Stop button shows while a recipe takes a while
+- [x] Recipes are JSON files in the `recipes` settings folder; five samples to start from (Tidy Whitespace, Unique Sorted Lines, Count Errors and Warnings, Lines to SQL IN List, CSV to Markdown Table)
+- [x] Command line: `ettin-edit --recipe NAME [--in-place] [--allow-commands] [FILE...]` (standard input to standard output with no files) and `--list-recipes`
+- [x] Plugins run recipes with `run_action({"RunRecipe": name})` or `RunRecipeOnAllTabs`; macros record recipe runs
+- [x] Toolbar layout version 4 adds the Recipes group to the start of customised Transform tabs
+- [x] New text in all four interface languages
+
 ### 1.9.5: The Transform menu
 
 Requested on 2026-10-19: tools for turning text into other text, without making Ettin Edit an IDE. Recipes (chaining these steps and saving them) are planned for 2.0.
@@ -525,7 +541,6 @@ Features that are planned or only partly done.
 ### Planned (not yet scheduled)
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 
-- [ ] 2.0: Transform recipes. Stack Transform steps (regex replace, trim, sort, Base64, format JSON…) in a panel with a live preview, save the stack by name and run it again
 
 ### XML
 - [ ] Comment / uncomment selection, convert text to XML

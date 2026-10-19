@@ -2,18 +2,14 @@
 //! text through a shell command.
 
 use std::cell::RefCell;
-use std::io::{Read, Write};
 use std::ops::Range;
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc::{Receiver, channel};
+use std::process::Child;
 
 use super::EttinApp;
 use crate::tools::convert;
+use crate::tools::pipe::{Output, pipe_output, spawn};
 use crate::tools::transform::{self, LineMatcher, TransformOp};
 use crate::transform_ui::{DialogAction, DialogKind, MAX_COMMANDS};
-
-/// A finished command's standard output and error.
-type Output = Receiver<(Vec<u8>, Vec<u8>)>;
 
 /// A shell command running for Filter Through Command: one run per
 /// selection, one after another.
@@ -27,79 +23,6 @@ pub(super) struct PipeJob {
     child: Option<Child>,
     /// Standard output and error of the running command, read on threads.
     output: Option<Output>,
-}
-
-/// `command` as the system shell runs it, in `dir`.
-fn shell(command: &str, dir: Option<&std::path::Path>) -> Command {
-    #[cfg(windows)]
-    let mut cmd = {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let mut cmd = Command::new("cmd");
-        cmd.arg("/S").arg("/C").raw_arg(format!("\"{command}\""));
-        cmd.creation_flags(CREATE_NO_WINDOW);
-        cmd
-    };
-    #[cfg(not(windows))]
-    let mut cmd = {
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c").arg(command);
-        cmd
-    };
-    if let Some(dir) = dir {
-        cmd.current_dir(dir);
-    }
-    crate::system::on_host(cmd)
-}
-
-/// Starts `command` with `input` on its standard input.
-fn spawn(
-    command: &str,
-    dir: Option<&std::path::Path>,
-    file: Option<&std::path::Path>,
-    input: String,
-) -> Result<(Child, Output), String> {
-    let mut cmd = shell(command, dir);
-    if let Some(file) = file {
-        cmd.env("ETTIN_FILE", file);
-    }
-    let mut child = cmd
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    let mut stdin = child.stdin.take().expect("piped");
-    let mut stdout = child.stdout.take().expect("piped");
-    let mut stderr = child.stderr.take().expect("piped");
-    // Writing and reading on their own threads, so a command that answers
-    // before it has read everything can't block either side.
-    std::thread::spawn(move || {
-        let _ = stdin.write_all(input.as_bytes());
-    });
-    let errors = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = stderr.read_to_end(&mut buf);
-        buf
-    });
-    let (tx, rx) = channel();
-    std::thread::spawn(move || {
-        let mut out = Vec::new();
-        let _ = stdout.read_to_end(&mut out);
-        let err = errors.join().unwrap_or_default();
-        let _ = tx.send((out, err));
-    });
-    Ok((child, rx))
-}
-
-/// A command's output as editor text: line breaks as `\n`, and no final
-/// line break added to text that had none.
-fn pipe_output(input: &str, bytes: &[u8]) -> String {
-    let mut out = String::from_utf8_lossy(bytes).replace("\r\n", "\n");
-    if !input.ends_with('\n') && out.ends_with('\n') {
-        out.pop();
-    }
-    out
 }
 
 impl EttinApp {
@@ -445,29 +368,5 @@ impl EttinApp {
             Some(DialogAction::Stop) => self.stop_pipe(),
             None => {}
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn output_keeps_the_input_shape() {
-        assert_eq!(pipe_output("b\na", b"a\nb\n"), "a\nb");
-        assert_eq!(pipe_output("b\na\n", b"a\r\nb\r\n"), "a\nb\n");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn runs_a_command() {
-        let (mut child, rx) = spawn("tr a-z A-Z", None, None, "hello\n".into()).unwrap();
-        let (out, _) = rx.recv().unwrap();
-        assert!(child.wait().unwrap().success());
-        assert_eq!(out, b"HELLO\n");
-        let (mut child, rx) = spawn("echo oops >&2; exit 3", None, None, String::new()).unwrap();
-        let (_, err) = rx.recv().unwrap();
-        assert_eq!(child.wait().unwrap().code(), Some(3));
-        assert_eq!(err, b"oops\n");
     }
 }

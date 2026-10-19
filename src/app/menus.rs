@@ -359,7 +359,34 @@ impl EttinApp {
             MenuEntry::Separator,
             m.item(&t!("jwt-decode"), t(TransformOp::JwtDecode)),
         ];
+        let recording = self.recipe_recording.is_some();
+        let mut recipes = vec![
+            m.item(&t!("manage-recipes"), Action::Recipes),
+            m.item(
+                &crate::i18n::tr(if recording {
+                    "stop-recording-recipe"
+                } else {
+                    "record-recipe"
+                }),
+                Action::ToggleRecipeRecording,
+            ),
+            m.item(&t!("open-recipes-folder"), Action::OpenRecipesFolder),
+        ];
+        if !self.recipes.is_empty() {
+            recipes.push(MenuEntry::Separator);
+            for r in &self.recipes {
+                recipes.push(m.item(&r.name, Action::RunRecipe(r.name.clone())));
+            }
+            let all_tabs = self
+                .recipes
+                .iter()
+                .map(|r| m.item(&r.name, Action::RunRecipeOnAllTabs(r.name.clone())))
+                .collect();
+            recipes.push(MenuEntry::Separator);
+            recipes.push(submenu(&t!("run-recipe-on-all-tabs"), all_tabs));
+        }
         vec![
+            submenu(&t!("menu-recipes"), recipes),
             m.item(&t!("pipe-dots"), Action::TransformDialog(DialogKind::Pipe)),
             MenuEntry::Separator,
             submenu(&t!("menu-transform-lines"), lines),

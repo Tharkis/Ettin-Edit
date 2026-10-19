@@ -68,6 +68,17 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.0.0" date="2026-10-19">
+      <description>
+        <p>Recipes: save a list of Transform steps (find and replace, line
+        tools, case, conversions, encodings, JSON and XML formatting and shell
+        commands) under a name and run it again on a selection, on every open
+        tab or from the command line. Build recipes with a live before and
+        after preview, or record one by doing the job once. Recipes are JSON
+        files that can be shared.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.0.0</url>
+    </release>
     <release version="1.9.5" date="2026-10-19">
       <description>
         <p>A new Transform menu for turning text into other text: filter it
