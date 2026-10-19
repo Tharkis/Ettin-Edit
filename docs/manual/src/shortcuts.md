@@ -126,6 +126,13 @@ runs on Linux and Windows only.
 | Zoom Out | <kbd>Ctrl+-</kbd> |
 | Reset Zoom | <kbd>Ctrl+0</kbd> |
 
+### Transform
+
+| Command | Shortcut |
+| --- | --- |
+| Filter Through Command… | <kbd>Ctrl+Alt+P</kbd> |
+| Lines > Keep Matching Lines… | <kbd>Ctrl+Alt+K</kbd> |
+
 ### Settings
 
 | Command | Shortcut |

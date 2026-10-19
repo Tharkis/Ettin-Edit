@@ -10,6 +10,7 @@ mod plugins;
 mod printing;
 mod ribbon;
 mod text_tools;
+mod transform;
 mod views;
 mod xml_schema;
 
@@ -88,6 +89,9 @@ pub struct EttinApp {
     goto: GotoDialog,
     fif: FifDialog,
     column: ColumnDialog,
+    transform_dialog: crate::transform_ui::TransformDialog,
+    /// The command Filter Through Command is waiting for.
+    pipe: Option<transform::PipeJob>,
     run_macro: RunMacroDialog,
     save_macro: SaveMacroDialog,
     recorder: Recorder,
@@ -265,6 +269,8 @@ impl EttinApp {
             goto: GotoDialog::default(),
             fif: FifDialog::default(),
             column: ColumnDialog::default(),
+            transform_dialog: Default::default(),
+            pipe: None,
             run_macro: RunMacroDialog::default(),
             save_macro: SaveMacroDialog::default(),
             recorder: Recorder::default(),
@@ -1357,6 +1363,8 @@ impl EttinApp {
             | Action::ToggleJsonTree
             | Action::ToggleXPathPanel
             | Action::CopyXPath => self.run_text_tool(ctx, action),
+            Action::Transform(op) => self.run_transform(ctx, op),
+            Action::TransformDialog(kind) => self.open_transform_dialog(kind),
             Action::CompareTabs
             | Action::CompareWith(_)
             | Action::CompareToSaved
@@ -2175,7 +2183,12 @@ impl EttinApp {
                 ui.separator();
                 self.menu_item(ui, &t!("exit"), Action::Quit);
             });
-            ui.menu_button(t!("menu-edit"), |ui| self.shared_menu(ui, false));
+            ui.menu_button(t!("menu-edit"), |ui| {
+                self.shared_menu(ui, menus::SharedMenu::Edit)
+            });
+            ui.menu_button(t!("menu-transform"), |ui| {
+                self.shared_menu(ui, menus::SharedMenu::Transform)
+            });
             ui.menu_button(t!("menu-search"), |ui| {
                 self.menu_item(ui, &t!("find-dots"), Action::Find);
                 self.menu_item(ui, &t!("replace-dots"), Action::Replace);
@@ -2445,7 +2458,9 @@ impl EttinApp {
                     ui.add(egui::DragValue::new(&mut self.settings.edge_column).range(10..=400));
                 });
             });
-            ui.menu_button(t!("menu-tools"), |ui| self.shared_menu(ui, true));
+            ui.menu_button(t!("menu-tools"), |ui| {
+                self.shared_menu(ui, menus::SharedMenu::Tools)
+            });
             ui.menu_button(t!("menu-plugins"), |ui| self.plugins_menu(ui));
             ui.menu_button(t!("menu-macro"), |ui| self.macro_menu(ui));
             ui.menu_button(t!("menu-help"), |ui| {
@@ -3345,6 +3360,8 @@ impl EttinApp {
         if let Some(req) = self.fif.ui(ctx, &mut self.settings.search, &palette) {
             self.start_file_search(req);
         }
+        self.poll_pipe(ctx);
+        self.transform_dialog_ui(ctx);
         if let Some(what) = self.column.ui(ctx, &palette) {
             self.column_insert(ctx, what);
             self.focus_editor = true;

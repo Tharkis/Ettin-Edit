@@ -1035,7 +1035,7 @@ mod tests {
         let r = host
             .register_command(&call(
                 "commands.register",
-                json!({"id": "a", "title": "A", "shortcut": "Ctrl+Alt+K"}),
+                json!({"id": "a", "title": "A", "shortcut": "Ctrl+Alt+Y"}),
             ))
             .unwrap();
         assert_eq!(r["shortcut"], true);
@@ -1052,14 +1052,14 @@ mod tests {
         let r = host
             .register_command(&call(
                 "commands.register",
-                json!({"id": "c", "title": "C", "shortcut": "ctrl+alt+k"}),
+                json!({"id": "c", "title": "C", "shortcut": "ctrl+alt+y"}),
             ))
             .unwrap();
         assert_eq!(r["shortcut"], false);
         let r = host
             .register_command(&call(
                 "commands.register",
-                json!({"id": "a", "title": "A2", "shortcut": "Ctrl+Alt+K"}),
+                json!({"id": "a", "title": "A2", "shortcut": "Ctrl+Alt+Y"}),
             ))
             .unwrap();
         assert_eq!(r["shortcut"], true);

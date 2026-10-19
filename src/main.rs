@@ -46,6 +46,7 @@ mod text_tools_ui;
 mod theme;
 mod tools;
 mod tools_ui;
+mod transform_ui;
 mod update;
 mod user_lang;
 

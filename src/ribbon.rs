@@ -13,9 +13,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::actions::{self, Action};
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
+use crate::tools::convert::DataFormat;
 use crate::tools::json::JsonOp;
 use crate::tools::mime::MimeOp;
+use crate::tools::transform::{HashKind, TransformOp};
 use crate::tools::xml::XmlOp;
+use crate::transform_ui::DialogKind;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -126,7 +129,7 @@ fn version() -> u32 {
 
 /// The layout version this build writes. Layouts saved by older versions get
 /// the default groups added since then (see [`Layout::upgrade`]).
-pub const LAYOUT_VERSION: u32 = 2;
+pub const LAYOUT_VERSION: u32 = 3;
 
 pub const FILE_NAME: &str = "toolbar.json";
 
@@ -196,8 +199,33 @@ impl Layout {
             // can be reached while the menu bar is hidden.
             added |= self.add_default_group("toolbar-tab-home", "toolbar-group-help");
         }
+        if self.version < 3 {
+            // 3 (Ettin Edit 1.9.5): the Transform tab, after Edit.
+            added |= self.add_default_tab("toolbar-tab-transform", "toolbar-tab-edit");
+        }
         self.version = self.version.max(LAYOUT_VERSION);
         added
+    }
+
+    /// Adds a built-in tab after the built-in tab `after`. A layout without
+    /// that tab, or that has the new one already, is left alone.
+    fn add_default_tab(&mut self, tab_id: &str, after: &str) -> bool {
+        let is = |name: &Name, id: &str| name.id.as_deref() == Some(id);
+        if self.tabs.iter().any(|t| is(&t.name, tab_id)) {
+            return false;
+        }
+        let Some(at) = self.tabs.iter().position(|t| is(&t.name, after)) else {
+            return false;
+        };
+        let Some(tab) = Self::default()
+            .tabs
+            .into_iter()
+            .find(|t| is(&t.name, tab_id))
+        else {
+            return false;
+        };
+        self.tabs.insert(at + 1, tab);
+        true
     }
 
     fn add_default_group(&mut self, tab_id: &str, group_id: &str) -> bool {
@@ -239,6 +267,10 @@ fn group(id: &str, items: Vec<(Action, Size)>) -> Group {
         name: Name::builtin(id),
         items: items.iter().map(|(a, s)| Item::new(a, *s)).collect(),
     }
+}
+
+fn convert(from: DataFormat, to: DataFormat) -> Action {
+    Action::Transform(TransformOp::Convert { from, to })
 }
 
 fn tab(id: &str, groups: Vec<Group>) -> Tab {
@@ -361,6 +393,57 @@ impl Default for Layout {
                                 (SelectAllOccurrences, S),
                                 (ColumnEditor, S),
                                 (ToggleColumnMode, S),
+                            ],
+                        ),
+                    ],
+                ),
+                tab(
+                    "toolbar-tab-transform",
+                    vec![
+                        group(
+                            "toolbar-group-command",
+                            vec![(TransformDialog(DialogKind::Pipe), L)],
+                        ),
+                        group(
+                            "toolbar-group-filter",
+                            vec![
+                                (TransformDialog(DialogKind::FilterLines { keep: true }), S),
+                                (TransformDialog(DialogKind::FilterLines { keep: false }), S),
+                                (Transform(TransformOp::CountLines), S),
+                                (TransformDialog(DialogKind::AffixLines), S),
+                                (TransformDialog(DialogKind::NumberLines), S),
+                                (TransformDialog(DialogKind::Reflow), S),
+                            ],
+                        ),
+                        group(
+                            "toolbar-group-identifier-case",
+                            vec![
+                                (ConvertCase(CaseKind::Camel), S),
+                                (ConvertCase(CaseKind::Snake), S),
+                                (ConvertCase(CaseKind::Kebab), S),
+                                (ConvertCase(CaseKind::Constant), S),
+                                (ConvertCase(CaseKind::Pascal), S),
+                            ],
+                        ),
+                        group(
+                            "toolbar-group-convert",
+                            vec![
+                                (convert(DataFormat::Json, DataFormat::Yaml), S),
+                                (convert(DataFormat::Yaml, DataFormat::Json), S),
+                                (convert(DataFormat::Csv, DataFormat::Json), S),
+                                (convert(DataFormat::Json, DataFormat::Csv), S),
+                                (convert(DataFormat::Xml, DataFormat::Json), S),
+                                (convert(DataFormat::Csv, DataFormat::Markdown), S),
+                            ],
+                        ),
+                        group(
+                            "toolbar-group-encode",
+                            vec![
+                                (Transform(TransformOp::Hash(HashKind::Sha256)), S),
+                                (Transform(TransformOp::Hash(HashKind::Md5)), S),
+                                (Transform(TransformOp::JwtDecode), S),
+                                (Transform(TransformOp::HexEncode), S),
+                                (Transform(TransformOp::HexDecode), S),
                             ],
                         ),
                     ],
@@ -602,6 +685,13 @@ pub fn default_icon(action: &Action) -> &'static str {
         TabsToSpaces | SpacesToTabs { .. } => ph::TEXT_INDENT,
         ConvertCase(CaseKind::Upper) => ph::TEXT_AA,
         ConvertCase(CaseKind::Lower) => ph::TEXT_T,
+        ConvertCase(
+            CaseKind::Camel
+            | CaseKind::Pascal
+            | CaseKind::Snake
+            | CaseKind::Kebab
+            | CaseKind::Constant,
+        ) => ph::CODE_SIMPLE,
         ConvertCase(_) => ph::TEXT_A_UNDERLINE,
         ToggleLineComment => ph::CHAT_CENTERED_TEXT,
         ToggleBlockComment => ph::CODE_BLOCK,
@@ -636,6 +726,24 @@ pub fn default_icon(action: &Action) -> &'static str {
         Xml(XmlOp::XslTransform) => ph::FLOW_ARROW,
         Xml(_) => ph::BRACKETS_ANGLE,
         ToggleJsonTree => ph::TREE_VIEW,
+        TransformDialog(DialogKind::Pipe) | Transform(TransformOp::Pipe { .. }) => ph::TERMINAL,
+        TransformDialog(DialogKind::FilterLines { keep: true }) => ph::FUNNEL,
+        TransformDialog(DialogKind::FilterLines { keep: false }) => ph::FUNNEL_X,
+        Transform(TransformOp::FilterLines { .. }) => ph::FUNNEL,
+        Transform(TransformOp::CountLines) => ph::HASH,
+        TransformDialog(DialogKind::AffixLines) | Transform(TransformOp::AffixLines { .. }) => {
+            ph::BRACKETS_SQUARE
+        }
+        TransformDialog(DialogKind::NumberLines) | Transform(TransformOp::NumberLines { .. }) => {
+            ph::LIST_NUMBERS
+        }
+        TransformDialog(DialogKind::Reflow) | Transform(TransformOp::Reflow { .. }) => {
+            ph::TEXT_ALIGN_LEFT
+        }
+        Transform(TransformOp::Convert { .. }) => ph::ARROWS_LEFT_RIGHT,
+        Transform(TransformOp::Hash(_)) => ph::FINGERPRINT,
+        Transform(TransformOp::HexEncode | TransformOp::HexDecode) => ph::BINARY,
+        Transform(TransformOp::JwtDecode) => ph::KEY,
         ToggleCsvQuery | RunCsvQuery => ph::DATABASE,
         CopyCsvResults | CsvResultsToNewTab => ph::TABLE,
         ToggleXPathPanel | CopyXPath => ph::PATH,
@@ -777,6 +885,28 @@ mod tests {
         assert!(!mine.upgrade());
         assert_eq!(mine.tabs.len(), 1);
         assert!(mine.tabs[0].groups.is_empty());
+    }
+
+    #[test]
+    fn older_layouts_get_the_transform_tab() {
+        let is = |t: &Tab, id: &str| t.name.id.as_deref() == Some(id);
+        let mut old = Layout {
+            version: 2,
+            ..Default::default()
+        };
+        old.tabs.retain(|t| !is(t, "toolbar-tab-transform"));
+        old.tabs[1].visible = false; // a customisation the upgrade must keep
+        let mut upgraded = old.clone();
+        assert!(upgraded.upgrade());
+        assert_eq!(upgraded.tabs.len(), old.tabs.len() + 1);
+        assert!(is(&upgraded.tabs[1], "toolbar-tab-edit") && !upgraded.tabs[1].visible);
+        assert!(is(&upgraded.tabs[2], "toolbar-tab-transform"));
+        assert!(!upgraded.upgrade());
+        // Without the built-in Edit tab, nothing is added.
+        let mut mine = old.clone();
+        mine.tabs.retain(|t| !is(t, "toolbar-tab-edit"));
+        mine.version = 2;
+        assert!(!mine.upgrade());
     }
 
     #[test]

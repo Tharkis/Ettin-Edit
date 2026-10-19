@@ -110,6 +110,8 @@ pub struct Settings {
     /// The File, Edit, View… menu bar. When it is hidden, tapping Alt shows it
     /// until a command runs.
     pub show_menu_bar: bool,
+    /// Commands run with Transform > Filter Through Command, newest first.
+    pub pipe_commands: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -187,6 +189,7 @@ impl Default for Settings {
             show_toolbar: true,
             toolbar_collapsed: false,
             show_menu_bar: true,
+            pipe_commands: Vec::new(),
         }
     }
 }

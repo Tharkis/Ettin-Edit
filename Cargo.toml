@@ -1,6 +1,6 @@
 [package]
 name = "ettin-edit"
-version = "1.9.1"
+version = "1.9.5"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 license = "MIT"
@@ -11,7 +11,7 @@ egui = "0.36"
 syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy", "parsing", "plist-load", "yaml-load"] }
 rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 dirs = "6"
 ropey = "1"
 regex = "1"
@@ -41,6 +41,11 @@ egui-phosphor = "0.14.0"
 unicode_names2 = "4"
 tar = { version = "0.4.46", default-features = false }
 flate2 = "1.1.10"
+md-5 = "0.11"
+sha1 = "0.11"
+crc32fast = "1"
+serde_yaml_ng = "0.10.0"
+toml = { version = "1.1.8", features = ["preserve_order"] }
 
 [profile.release]
 opt-level = 3

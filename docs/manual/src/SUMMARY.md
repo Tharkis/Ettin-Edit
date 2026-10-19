@@ -19,6 +19,7 @@
 
 # Tools
 
+- [Transforming text](transform.md)
 - [JSON and JavaScript](json.md)
 - [XML Tools](xml.md)
 - [MIME Tools](mime.md)

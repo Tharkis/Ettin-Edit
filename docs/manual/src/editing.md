@@ -122,6 +122,10 @@ whole document when nothing is selected. Everything is one undo step.
 | Sentence case | <kbd>Ctrl+Alt+U</kbd> | `Hello world` |
 | iNVERT cASE | <kbd>Ctrl+Alt+Shift+U</kbd> | `hELLO wORLD` |
 
+Below them are the identifier cases (camelCase, PascalCase, snake_case,
+kebab-case and CONSTANT_CASE), which turn each line into one name; see
+[Identifier case](transform.md#identifier-case).
+
 ## Comments
 
 **Edit > Comment > Toggle Line Comment** (<kbd>Ctrl+Q</kbd>) comments out the

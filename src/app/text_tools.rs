@@ -101,10 +101,22 @@ impl EttinApp {
     /// Runs `f` on each selection, or on the whole text when nothing is
     /// selected, and replaces it with the result as one undo step. Nothing
     /// changes if any part fails. Returns true if the text changed.
-    fn transform(
+    pub(super) fn transform(
         &mut self,
         ctx: &egui::Context,
         what: &str,
+        f: impl Fn(&str) -> ToolResult,
+    ) -> bool {
+        let targets = self.docs[self.active].editor.tool_targets();
+        self.transform_ranges(ctx, what, targets, f)
+    }
+
+    /// [`Self::transform`] over the given ranges of the text.
+    pub(super) fn transform_ranges(
+        &mut self,
+        ctx: &egui::Context,
+        what: &str,
+        targets: Vec<std::ops::Range<usize>>,
         f: impl Fn(&str) -> ToolResult,
     ) -> bool {
         let editor = &self.docs[self.active].editor;
@@ -114,7 +126,7 @@ impl EttinApp {
         }
         let whole = !editor.selections.has_selection();
         let mut edits = Vec::new();
-        for range in editor.tool_targets() {
+        for range in targets {
             let text = editor.buffer.slice_string(range.clone());
             match f(&text) {
                 Ok(new) => {

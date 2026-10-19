@@ -293,8 +293,13 @@ document raises an error.
 `"SelectAll"`, `"Save"`, `"FindNext"` or `"ToggleWordWrap"`. Commands that
 need options take an object, such as
 `{"SortLines": {"kind": "IgnoreCase", "desc": false}}` or
-`{"ConvertCase": "Upper"}`. The names are the ones in Ettin Edit's
-`src/actions.rs`.
+`{"ConvertCase": "Upper"}`. [Transform](transform.md) commands take their
+settings the same way, such as
+`{"Transform": {"Convert": {"from": "Json", "to": "Yaml"}}}`,
+`{"Transform": {"Hash": "Sha256"}}` or
+`{"Transform": {"FilterLines": {"pattern": "ERROR", "regex": false, "match_case": true, "keep": true}}}`.
+The names are the ones in Ettin Edit's `src/actions.rs` and
+`src/tools/transform.rs`.
 
 ### Translating your plugin
 

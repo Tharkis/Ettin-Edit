@@ -9,7 +9,7 @@ tabs, groups and buttons however you like.
 
 ## Using it
 
-- Click a tab name (**Home**, **Edit**, **View**, **Tools**) to show its buttons.
+- Click a tab name (**Home**, **Edit**, **Transform**, **View**, **Tools**) to show its buttons.
 - Hover over a button to see where its command is in the menus and its
   shortcut.
 - Buttons for commands that turn something on or off, such as **Word Wrap**,
@@ -24,6 +24,7 @@ tabs, groups and buttons however you like.
 | --- | --- |
 | **Home** | File, Clipboard, Undo, Find, Tabs, Help |
 | **Edit** | Lines, Sort, Case, Comment, Blanks, Selection |
+| **Transform** | Command, Lines, Identifier Case, Convert, Encode |
 | **View** | Show, Zoom, Folding, Panels, Window, Customise |
 | **Tools** | Compare, JSON, XML, Data (CsvQuery and MIME Tools), Macros |
 
@@ -129,5 +130,7 @@ get the default toolbar, including any new buttons later versions add.
 A toolbar you have customised keeps your changes; Ettin Edit 1.7 adds only the
 new **Help** group to the end of its **Home** tab (unless you renamed or
 removed that tab), so the Help commands can be reached while the menu bar is
-hidden. Delete the group if you don't want it.
+hidden. Delete the group if you don't want it. Ettin Edit 1.9.5 likewise adds
+the **Transform** tab after your **Edit** tab (unless you removed that tab);
+hide or delete it if you don't want it.
 Whether the toolbar is shown or collapsed is kept in `settings.json`.

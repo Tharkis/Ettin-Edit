@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
 use crate::tools::json::JsonOp;
 use crate::tools::mime::MimeOp;
+use crate::tools::transform::TransformOp;
 use crate::tools::xml::XmlOp;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -183,6 +184,10 @@ pub enum Action {
     Json(JsonOp),
     Xml(XmlOp),
     ToggleJsonTree,
+    // Transform
+    Transform(TransformOp),
+    /// Opens the dialog that asks for a Transform command's settings.
+    TransformDialog(crate::transform_ui::DialogKind),
     // CsvQuery
     ToggleCsvQuery,
     RunCsvQuery,
@@ -289,6 +294,8 @@ impl Action {
                 | Action::LanguageGuide
                 | Action::PluginGuide
                 | Action::CustomiseToolbar
+                | Action::TransformDialog(_)
+                | Action::Transform(TransformOp::Pipe { .. })
         )
     }
 
@@ -336,6 +343,17 @@ impl Action {
                 | Action::SelectNextOccurrence
                 | Action::SelectAllOccurrences
                 | Action::Mime(_)
+                | Action::Transform(
+                    TransformOp::FilterLines { .. }
+                        | TransformOp::AffixLines { .. }
+                        | TransformOp::NumberLines { .. }
+                        | TransformOp::Reflow { .. }
+                        | TransformOp::Convert { .. }
+                        | TransformOp::Hash(_)
+                        | TransformOp::HexEncode
+                        | TransformOp::HexDecode
+                        | TransformOp::JwtDecode
+                )
                 | Action::Json(JsonOp::Format | JsonOp::Minify | JsonOp::SortKeys)
                 | Action::Xml(
                     XmlOp::PrettyPrint
@@ -455,6 +473,14 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD_ALT, Key::N), Action::Json(JsonOp::Minify)),
         (s(CMD_ALT, Key::J), Action::ToggleJsonTree),
         (s(CMD_ALT, Key::Q), Action::ToggleCsvQuery),
+        (
+            s(CMD_ALT, Key::P),
+            Action::TransformDialog(crate::transform_ui::DialogKind::Pipe),
+        ),
+        (
+            s(CMD_ALT, Key::K),
+            Action::TransformDialog(crate::transform_ui::DialogKind::FilterLines { keep: true }),
+        ),
         (s(CMD_ALT, Key::D), Action::CompareTabs),
         (s(SHIFT, Key::F7), Action::PrevDifference),
         (s(NONE, Key::F7), Action::NextDifference),
