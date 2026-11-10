@@ -48,7 +48,9 @@ the toolbar than in the menus: **Transform > Filter Through Command…** is
 
 On first launch Ettin Edit opens at 80 % of your screen (at most 1400×900,
 at least 1100×720), so the default tabs fit without shrinking on most
-screens. After that it remembers the size you leave it at.
+screens. After that it remembers the size you leave it at. If you quit with
+the window maximized, it opens maximized again; un-maximizing it then gives
+the first-launch size.
 
 ### The default tabs
 

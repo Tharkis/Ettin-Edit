@@ -81,6 +81,8 @@ pub struct EttinApp {
     /// First launch (no saved window size): size the window to the monitor
     /// once its size is known.
     size_window: bool,
+    /// Maximizes a window saved maximized without a flicker (issue #30).
+    startup_window: crate::startup_window::StartupWindow,
     /// Alt is down: true while nothing else has been pressed with it.
     alt_tap: Option<bool>,
     /// Where the menu bar was last drawn.
@@ -289,6 +291,7 @@ impl EttinApp {
             app_icon: None,
             menu_peek: false,
             size_window: cc.storage.is_none_or(|s| s.get_string("window").is_none()),
+            startup_window: crate::startup_window::StartupWindow::new(),
             alt_tap: None,
             menu_rect: None,
             quitting: false,
@@ -3589,8 +3592,9 @@ impl EttinApp {
 }
 
 impl eframe::App for EttinApp {
-    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        self.startup_window.update(&ctx, frame);
         self.apply_style(&ctx);
         self.first_window_size(&ctx);
         self.poll_instance(&ctx);
