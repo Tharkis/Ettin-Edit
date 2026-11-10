@@ -2,6 +2,9 @@
 
 use std::sync::mpsc::{Receiver, channel};
 
+/// The width of the Preferences window.
+const PREFS_WIDTH: f32 = 680.0;
+
 use egui::{Id, RichText, ScrollArea, Ui};
 
 use crate::document::LineEnding;
@@ -120,8 +123,10 @@ impl PrefsDialog {
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
-            .default_size([640.0, 460.0])
-            .min_width(520.0)
+            .default_size([PREFS_WIDTH, 460.0])
+            // One width for every section, so the window doesn't jump.
+            .min_width(PREFS_WIDTH)
+            .max_width(PREFS_WIDTH)
             .show(ctx, |ui| {
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {

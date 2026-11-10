@@ -15,8 +15,36 @@ tabs, groups and buttons however you like.
 - Buttons for commands that turn something on or off, such as **Word Wrap**,
   are outlined while it's on. Buttons for commands that can't run right now,
   such as **Undo** with nothing to undo, are greyed out.
-- When the window is too narrow for a tab, scroll its buttons sideways with
-  <kbd>Shift</kbd> and the mouse wheel.
+- When the window is too narrow for a tab, its groups shrink to fit (see
+  below), so every button stays one click away.
+
+### When the window is narrow
+
+The toolbar never scrolls and never cuts a label off. When a tab's groups
+don't fit, they shrink one step at a time, starting with the group on the
+right:
+
+1. **Small:** large buttons become small ones, three to a column.
+2. **Icons only:** small buttons lose their labels. Hover over one to see its
+   name and shortcut. A group whose buttons share one icon skips this step.
+3. **Collapsed:** the whole group becomes one button with the group's name
+   and a ▾. Click it for a menu of the group's commands, with the same ticks
+   and greyed-out entries the buttons would show.
+
+When every group is as small as it gets and the tab still doesn't fit, the
+groups on the right move behind a **»** button at the end of the toolbar.
+Its menu lists them, each with its commands. Widen the window and the groups
+come back, largest first.
+
+<p><img class="screenshot" src="images/toolbar-narrow.png" alt="The Transform tab in a narrow window: Lines, Identifier Case, Convert and Encode are collapsed into dropdown buttons"></p>
+
+This works for a toolbar you've customised too. Some labels are shorter on
+the toolbar than in the menus: **Transform > Filter Through Command…** is
+**Filter Command**.
+
+On first launch Ettin Edit opens at 80 % of your screen (at most 1400×900,
+at least 1100×720), so the default tabs fit without shrinking on most
+screens. After that it remembers the size you leave it at.
 
 ### The default tabs
 

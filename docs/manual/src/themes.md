@@ -56,8 +56,11 @@ doing.
   a rule deletes it.
 - **Save** writes the changes to the theme's file. **Save As New Theme…**
   saves them as a new theme with a name you choose, leaving the original
-  alone. **Discard Changes** goes back to the theme as it was saved, and
-  closing the window without saving does the same.
+  alone. **Discard Changes** goes back to the theme as it was saved.
+- Closing the window with unsaved changes asks first: **Save** keeps them,
+  **Discard** puts the theme back as it was saved, and **Cancel** leaves the
+  window open. It says how many settings you changed. With no changes it
+  just closes.
 
 ### Scopes
 

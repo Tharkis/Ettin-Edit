@@ -278,8 +278,8 @@ json-minify = Minimieren
 json-validate = JSON validieren
 json-sort-keys = JSON-Schlüssel sortieren
 json-tree = JSON-Baum
-xml-pretty-print = Formatieren
-xml-pretty-print-attributes = Formatieren, Attribute in neuen Zeilen
+xml-pretty-print = XML formatieren
+xml-pretty-print-attributes = XML formatieren, Attribute in neuen Zeilen
 xml-linearize = Linearisieren
 xml-check-syntax = Syntax prüfen
 xml-check-on-save = Syntax beim Speichern prüfen
@@ -346,7 +346,15 @@ plugins-running = { $count ->
 }
 sample-install-failed = Das Beispiel-Plugin { $name } konnte nicht in { $folder } installiert werden: { $error }
 samples-already-installed = Die Beispiel-Plugins sind bereits im Plugin-Ordner.
-samples-installed = { $names } installiert. Sie finden sie im Menü Plugins.
+plugin-enabled = Aktiviert
+plugin-adds = Fügt hinzu:
+plugin-search-installed = Installierte Plugins durchsuchen
+plugins-only-samples = Bisher sind nur die Beispiel-Plugins aufgeführt. Selbst ein Plugin geschrieben?
+plugins-submit-link = Im Verzeichnis einreichen
+samples-installed = { $count ->
+    [one] 1 Plugin installiert.
+   *[other] { $count } Plugins installiert.
+} Sie finden sie im Menü Plugins.
 no-plugin-commands = Keine Plugin-Befehle
 
 ## Text tools (src/app/text_tools.rs)
@@ -615,17 +623,26 @@ style-whitespace = Leerraum-Symbole
 style-search-matches = Suchtreffer
 style-accent = Akzent (Tabs, Schaltflächen, Faltung)
 unset-colour = Diese Farbe nicht festlegen
+style-bold = Fett
+style-italic = Kursiv
+style-underline = Unterstrichen
 set-colour = Festlegen
 choose-colour = Farbe wählen
 theme-read-failed = Die Design-Datei konnte nicht gelesen werden: { $error }
 theme-colours = Designfarben
 theme-label = Design:
 discard-changes = Änderungen verwerfen
+discard = Verwerfen
 save-as-new-theme = Als neues Design speichern…
 new-theme-name = Name des neuen Designs:
 new-theme-name-hint = Name für das neue Design
 theme-name-taken = Ein Design mit diesem Namen gibt es schon
-theme-colours-hint = Änderungen wirken sofort. Speichern behält sie; Schließen ohne Speichern verwirft sie.
+theme-colours-hint = Änderungen wirken sofort. Speichern behält sie; beim Schließen fragt das Fenster, ob sie gespeichert werden sollen.
+theme-save-before-closing = Änderungen an „{ $name }“ vor dem Schließen speichern?
+theme-changes-count = { $count ->
+    [one] 1 Einstellung geändert.
+   *[other] { $count } Einstellungen geändert.
+} Verwerfen stellt sie wieder her.
 style-editor = Editor
 style-syntax = Syntax
 rule-filter-hint = Regelname oder Scope, etwa string oder keyword
@@ -858,6 +875,7 @@ self-update-failed = Ettin Edit konnte nicht aktualisiert werden.
 back = Zurück
 forward = Vor
 search-manual = Handbuch durchsuchen
+clear-search = Suche leeren
 open-on-web = Im Web öffnen
 web-manual-failed = Das Web-Handbuch konnte nicht geöffnet werden: { $error }
 open-url-failed = { $url } konnte nicht geöffnet werden: { $error }
@@ -1024,6 +1042,9 @@ toolbar-collapse-menu = Symbolleiste einklappen
 toolbar-collapse = Symbolleiste einklappen
 toolbar-expand = Schaltflächen der Symbolleiste anzeigen
 toolbar-hide = Symbolleiste ausblenden
+toolbar-more = Weitere Befehle
+toolbar-hidden-groups = AUSGEBLENDETE GRUPPEN
+toolbar-filter-command = Befehlsfilter
 menu-bar-show = Menüleiste
 menu-bar-hide = Menüleiste ausblenden
 menu-bar-show-again = Menüleiste einblenden

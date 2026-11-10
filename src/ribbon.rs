@@ -813,6 +813,14 @@ pub fn default_icon(action: &Action) -> &'static str {
 }
 
 /// A menu label as a button label: without the "…" that says a dialog opens.
+/// A shorter toolbar label for a command whose menu label is long.
+pub fn short_label(action: &Action) -> Option<String> {
+    match action {
+        Action::TransformDialog(DialogKind::Pipe) => Some(t!("toolbar-filter-command")),
+        _ => None,
+    }
+}
+
 pub fn button_label(label: &str) -> String {
     label
         .trim_end_matches('…')

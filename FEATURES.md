@@ -19,12 +19,27 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.0.1: Fit and finish
+
+Requested on 2026-11-10: the first release of the UX plan, from the 2.0.0 UX review (items R1, R7, R11, R21 and R26).
+
+- [x] The toolbar fits the window: groups shrink from the right, from large buttons to small ones, to icons only, to one dropdown per group; groups that still don't fit go behind a **»** button. No more sideways scrolling or cut-off labels ([The toolbar](docs/manual/src/toolbar.md#when-the-window-is-narrow))
+- [x] Shorter toolbar label: Filter Through Command… is **Filter Command** on the toolbar
+- [x] First launch opens at 80 % of the screen (at most 1400×900, at least 1100×720); a saved size still wins
+- [x] Screen readers (AccessKit: AT-SPI on Linux, UI Automation on Windows): icon-only buttons have names, toggles say whether they're on, and Tab reaches the toolbar with a visible focus outline ([Accessibility](docs/manual/src/accessibility.md))
+- [x] Theme Colours asks Save / Discard / Cancel when closed with unsaved changes, and says how many settings changed
+- [x] Manage Plugins: each plugin lists its commands and their shortcuts, an **Enabled** tick box, a search box on Installed, a note with a link to the new "Submitting a plugin to the index" section while the index only has the samples, a count after Install Sample Plugins, and the window opens centred
+- [x] Preferences keeps one width; Theme Colours and the Shortcut Mapper open in front of it
+- [x] Status bar labels all start with a capital ("Length", "Lines")
+- [x] XML Pretty Print is now **Format XML**, like JSON's Format; saved shortcuts, toolbars and recipes keep working
+- [x] New text in all four interface languages
+
 ### 2.0: Recipes
 
 Requested on 2026-10-19: saved, replayable Transform recipes, building on the 1.9.5 Transform menu.
 
 - [x] Recipes: a named list of Transform steps that run one after another on the selections or the whole document, as one undo step; a failing step is named and the text is left alone ([Recipes](docs/manual/src/recipes.md))
-- [x] Steps: find and replace (match case, whole word, regex, extended), keep or remove matching lines, count distinct lines, prefix and suffix, number lines, reflow, sort, reverse, remove duplicates or empty lines, trim, join lines, tabs and spaces, every case and identifier case, JSON/YAML/TOML/XML/CSV/Markdown conversion, MIME Tools encodings, hashes, hex, JWT, JSON format/minify/sort keys, XML pretty print/linearize/escape/unescape, and shell commands
+- [x] Steps: find and replace (match case, whole word, regex, extended), keep or remove matching lines, count distinct lines, prefix and suffix, number lines, reflow, sort, reverse, remove duplicates or empty lines, trim, join lines, tabs and spaces, every case and identifier case, JSON/YAML/TOML/XML/CSV/Markdown conversion, MIME Tools encodings, hashes, hex, JWT, JSON format/minify/sort keys, Format XML/linearize/escape/unescape, and shell commands
 - [x] Recipes window (Transform > Recipes > Manage Recipes…, <kbd>Ctrl+Alt+R</kbd>): add, switch off, reorder and edit steps with a live before-and-after preview of the active tab; new, duplicate, delete, import and export; every change is saved at once
 - [x] Record Recipe: run commands as usual and they become steps (Replace All takes the find bar's text and options)
 - [x] Run a recipe from Transform > Recipes, the toolbar's new Recipes group, the command palette or its own shortcut, or on every open tab at once
@@ -347,7 +362,7 @@ surrounding behaviour.
 - [x] XPath panel (Ctrl+Alt+Shift+E): full XPath 1.0 with every core function plus `ends-with`, `lower-case` and `upper-case`; node results jump to the text, other results show the value; recent expressions
 - [x] Current XPath on the status bar (click to copy), kept while you are still typing unclosed tags
 - [x] Auto-close tags in XML and HTML (skips HTML void elements like `<br>`); Tools > XML Tools > Close Tags Automatically
-- [x] Shortcuts: Ctrl+Alt+M format JSON/JS, Ctrl+Alt+N minify, Ctrl+Alt+Shift+B pretty print XML, Ctrl+Alt+Shift+L linearize, Ctrl+Alt+Shift+M check XML, Ctrl+Alt+Shift+P copy XPath
+- [x] Shortcuts: Ctrl+Alt+M format JSON/JS, Ctrl+Alt+N minify, Ctrl+Alt+Shift+B Format XML, Ctrl+Alt+Shift+L linearize, Ctrl+Alt+Shift+M check XML, Ctrl+Alt+Shift+P copy XPath
 
 ### 0.6.1: Context menu
 
@@ -498,7 +513,7 @@ are original implementations, available from the Tools menu without installing a
 - [x] HTML entity encode / decode
 
 ### XML Tools
-- [x] Pretty print XML (indented) and pretty print "attributes on new lines"
+- [x] Format XML (indented; called Pretty Print before 2.0.1) and Format XML "attributes on new lines"
 - [x] Linearize XML (remove formatting)
 - [x] Check XML syntax (well-formedness) with error line and column
 - [x] Automatic syntax check on save (optional)
@@ -529,6 +544,8 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| At the default window size the toolbar's Transform, View and Tools tabs ran off the right edge and had to be scrolled sideways | 2.0.1 |
+| Closing Theme Colours with unsaved changes threw them away without asking | 2.0.1 |
 | Zorin OS Software (GNOME Software) still shows "Unknown licence" and "No software repository included" for a downloaded `.deb`; this page only reads the package's control fields | 1.9.1 (details in the catalogue once the repository is added; Flatpak and RPM show them up front) |
 | Word wrap on very large files: resizing the window re-measures every line, which takes a moment on files with hundreds of thousands of lines | 1.8 |
 | Searching for `\r` or `\r\n` finds nothing with regular expressions, and line-break matches aren't highlighted in Extended mode | 1.6.1 |
@@ -539,6 +556,8 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
+The UX plan from the 2.0.0 review continues: 2.0.2 Find it faster (Convert to, palette ranking, recipe shortcuts), 2.1 Transform first (one Transform menu, simpler menus and Home tab), 2.2 Try before you apply (previews, suggestion bar, welcome tab), 2.3 Plugins as transforms, 2.4 Settings in one place, 2.5 Themes and languages.
+
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 
 

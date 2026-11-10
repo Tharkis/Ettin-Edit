@@ -30,14 +30,16 @@ fn focus_and_select_all(ui: &Ui, response: &egui::Response, len: usize) {
 }
 
 /// A small on/off button for a search option.
-fn option_toggle(ui: &mut Ui, label: &str, on: &mut bool, tip: &str) -> bool {
-    let response = ui
-        .add(
+pub(crate) fn option_toggle(ui: &mut Ui, label: &str, on: &mut bool, tip: &str) -> bool {
+    let response = crate::a11y::toggle(
+        ui.add(
             egui::Button::new(RichText::new(label).monospace().size(12.5))
                 .selected(*on)
                 .min_size(Vec2::new(26.0, 22.0)),
-        )
-        .on_hover_text(tip);
+        ),
+        *on,
+        tip,
+    );
     if response.clicked() {
         *on = !*on;
         return true;
@@ -46,9 +48,11 @@ fn option_toggle(ui: &mut Ui, label: &str, on: &mut bool, tip: &str) -> bool {
 }
 
 pub fn icon_button(ui: &mut Ui, label: &str, tip: &str) -> bool {
-    ui.add(egui::Button::new(RichText::new(label).size(14.0)).min_size(Vec2::new(26.0, 22.0)))
-        .on_hover_text(tip)
-        .clicked()
+    crate::a11y::name(
+        ui.add(egui::Button::new(RichText::new(label).size(14.0)).min_size(Vec2::new(26.0, 22.0))),
+        tip,
+    )
+    .clicked()
 }
 
 // -------------------------------------------------------------------------

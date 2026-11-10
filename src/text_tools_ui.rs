@@ -199,19 +199,11 @@ impl JsonTree {
                     self.open = false;
                 }
                 if let Ok(doc) = &self.doc {
-                    if ui
-                        .small_button("⊟")
-                        .on_hover_text(t!("collapse-all"))
-                        .clicked()
-                    {
+                    if crate::a11y::name(ui.small_button("⊟"), &t!("collapse-all")).clicked() {
                         self.expanded.clear();
                         self.expanded.insert(0);
                     }
-                    if ui
-                        .small_button("⊞")
-                        .on_hover_text(t!("expand-all"))
-                        .clicked()
-                    {
+                    if crate::a11y::name(ui.small_button("⊞"), &t!("expand-all")).clicked() {
                         self.expanded = (0..doc.nodes.len())
                             .filter(|&i| !doc.nodes[i].children.is_empty())
                             .collect();

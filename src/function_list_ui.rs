@@ -102,11 +102,7 @@ impl FunctionList {
         ui.horizontal(|ui| {
             ui.label(RichText::new(t!("function-list")).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button("⊙")
-                    .on_hover_text(t!("show-caret-symbol"))
-                    .clicked()
-                {
+                if crate::a11y::name(ui.small_button("⊙"), &t!("show-caret-symbol")).clicked() {
                     self.follow = true;
                 }
             });

@@ -68,6 +68,18 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.0.1" date="2026-11-10">
+      <description>
+        <p>Fit and finish: the toolbar shrinks its groups to fit a narrow
+        window instead of scrolling, with a » menu for groups that still don't
+        fit, and the window opens at a size that suits the screen. Screen
+        readers can name every button, including icon-only ones. Theme
+        Colours asks before throwing away unsaved changes. Manage Plugins
+        lists each plugin's commands and shortcuts and has a search box. XML
+        Pretty Print is now called Format XML.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.0.1</url>
+    </release>
     <release version="2.0.0" date="2026-10-19">
       <description>
         <p>Recipes: save a list of Transform steps (find and replace, line

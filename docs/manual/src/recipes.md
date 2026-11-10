@@ -73,7 +73,7 @@ Typing, moving the caret and other commands aren't recorded; use a
 | Convert Case To | UPPERCASE, lowercase, Title Case, Sentence case, iNVERT cASE, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE |
 | Convert | Between JSON, YAML, TOML, XML and CSV, and to Markdown tables |
 | Encode and Hash | Every [MIME Tools](mime.md) encoding and decoding, MD5, SHA-1, SHA-256, SHA-512, CRC32, Text to Hex, Hex to Text, Decode JWT |
-| JSON and XML | JSON Format, Minify and Sort Keys; XML Pretty Print (with or without attributes on their own lines), Linearize, Escape and Unescape |
+| JSON and XML | JSON Format, Minify and Sort Keys; Format XML (with or without attributes on their own lines), Linearize, Escape and Unescape |
 | Command | Filter Through Command: any shell command, as in [Transform](transform.md#filter-through-a-command) |
 
 A few steps behave a little differently inside a recipe, because a recipe

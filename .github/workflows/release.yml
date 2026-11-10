@@ -78,7 +78,11 @@ jobs:
   linux:
     name: Linux build
     needs: version
-    runs-on: ubuntu-latest
+    # Pinned: the binary needs the glibc it was built against, so build on an
+    # older Ubuntu (ubuntu-latest moved to glibc 2.43, which openSUSE Leap,
+    # Debian 12 and Ubuntu 24.04 don't have). Its rpm also signs packages the
+    # way the check job expects.
+    runs-on: ubuntu-24.04
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -235,7 +239,7 @@ jobs:
     # Every package must carry its licence, website, release notes, desktop
     # file and icons, and the AppImage and Flatpak must start.
     needs: [version, linux, arch, windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       VERSION: ${{ needs.version.outputs.version }}
       # Packages add the update repositories when they were signed: always on

@@ -152,7 +152,7 @@ runs on Linux and Windows only.
 | JSON and JavaScript > Format | <kbd>Ctrl+Alt+M</kbd> |
 | JSON and JavaScript > Minify | <kbd>Ctrl+Alt+N</kbd> |
 | JSON and JavaScript > JSON Tree | <kbd>Ctrl+Alt+J</kbd> |
-| XML Tools > Pretty Print | <kbd>Ctrl+Alt+Shift+B</kbd> |
+| XML Tools > Format XML | <kbd>Ctrl+Alt+Shift+B</kbd> |
 | XML Tools > Linearize | <kbd>Ctrl+Alt+Shift+L</kbd> |
 | XML Tools > Check Syntax | <kbd>Ctrl+Alt+Shift+M</kbd> |
 | XML Tools > XPath Panel | <kbd>Ctrl+Alt+Shift+E</kbd> |

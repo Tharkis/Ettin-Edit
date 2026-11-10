@@ -569,7 +569,9 @@ impl ManualWindow {
                             .hint_text(t!("search-manual"))
                             .desired_width(220.0),
                     );
-                    if !nav.search.is_empty() && ui.small_button("×").clicked() {
+                    if !nav.search.is_empty()
+                        && crate::a11y::name(ui.small_button("×"), &t!("clear-search")).clicked()
+                    {
                         nav.search.clear();
                     }
                     let file = book.pages[nav.page].file;

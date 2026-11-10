@@ -23,6 +23,8 @@ pub enum ManagerAction {
     InstallSamples,
     ShowLog,
     ShowGuide,
+    /// The plugin guide's section on submitting a plugin to the index.
+    ShowSubmitGuide,
     /// Read the plugin index again.
     RefreshIndex,
     /// Install or update a plugin from the index, by id.
@@ -59,6 +61,8 @@ pub fn manager(ctx: &egui::Context, open: &mut bool, view: ManagerView) -> Vec<M
     egui::Window::new(t!("menu-plugins"))
         .id(Id::new("plugin-manager"))
         .open(open)
+        .pivot(egui::Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
         .default_size([640.0, 500.0])
         .resizable(true)
         .collapsible(false)
@@ -101,7 +105,7 @@ pub fn manager(ctx: &egui::Context, open: &mut bool, view: ManagerView) -> Vec<M
             let mut dismiss = false;
             if let Some(error) = &store.error {
                 ui.horizontal(|ui| {
-                    if ui.small_button("✕").on_hover_text(t!("dismiss")).clicked() {
+                    if crate::a11y::name(ui.small_button("✕"), &t!("dismiss")).clicked() {
                         dismiss = true;
                     }
                     ui.add(
@@ -172,6 +176,17 @@ fn installed_tab(
     palette: &Palette,
     actions: &mut Vec<ManagerAction>,
 ) {
+    if !host.plugins.is_empty() {
+        ui.horizontal(|ui| {
+            ui.label(t!("filter-hint"));
+            ui.add(
+                egui::TextEdit::singleline(&mut store.installed_filter)
+                    .hint_text(t!("plugin-search-installed"))
+                    .desired_width(260.0),
+            );
+        });
+        ui.add_space(4.0);
+    }
     let footer = 96.0;
     ScrollArea::vertical()
         .id_salt("plugins-installed")
@@ -187,7 +202,16 @@ fn installed_tab(
                     actions.push(ManagerAction::InstallSamples);
                 }
             }
-            for p in &host.plugins {
+            let filter = store.installed_filter.trim().to_lowercase();
+            let shown: Vec<&super::Plugin> = host
+                .plugins
+                .iter()
+                .filter(|p| plugin_matches(p, &filter))
+                .collect();
+            if !host.plugins.is_empty() && shown.is_empty() {
+                ui.label(RichText::new(t!("no-plugins-match")).color(palette.text_dim));
+            }
+            for p in shown {
                 let version = p
                     .manifest
                     .as_ref()
@@ -299,6 +323,9 @@ fn available_tab(
                 }
             }
             IndexState::Loaded(list) => {
+                if super::store::only_samples(list) {
+                    submit_note(ui, palette, actions);
+                }
                 let shown: Vec<&IndexEntry> =
                     list.iter().filter(|e| e.matches(&store.filter)).collect();
                 if list.is_empty() {
@@ -434,6 +461,38 @@ fn available_card(
     ui.add_space(6.0);
 }
 
+/// Whether a plugin's name, description or command titles hold `filter`
+/// (lower case; empty matches everything).
+fn plugin_matches(p: &super::Plugin, filter: &str) -> bool {
+    if filter.is_empty() {
+        return true;
+    }
+    let has = |s: &str| s.to_lowercase().contains(filter);
+    has(p.name())
+        || has(&p.id)
+        || p.manifest.as_ref().is_ok_and(|m| has(&m.description))
+        || p.commands.iter().any(|c| has(&c.title))
+}
+
+/// The note on the Available tab while the index holds only the samples.
+fn submit_note(ui: &mut Ui, palette: &Palette, actions: &mut Vec<ManagerAction>) {
+    Frame::new()
+        .fill(palette.accent.gamma_multiply(0.12))
+        .stroke(egui::Stroke::new(1.0, palette.accent.gamma_multiply(0.5)))
+        .corner_radius(6.0)
+        .inner_margin(Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal_wrapped(|ui| {
+                ui.label(t!("plugins-only-samples"));
+                if ui.link(t!("plugins-submit-link")).clicked() {
+                    actions.push(ManagerAction::ShowSubmitGuide);
+                }
+            });
+        });
+    ui.add_space(6.0);
+}
+
 /// What a plugin's card in the Installed list needs besides the plugin.
 struct Card<'a> {
     pref: Option<&'a PluginPrefs>,
@@ -461,14 +520,6 @@ fn plugin_card(
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                let mut enabled = !pref.disabled;
-                if ui
-                    .checkbox(&mut enabled, "")
-                    .on_hover_text(t!("plugin-toggle-hover"))
-                    .changed()
-                {
-                    actions.push(ManagerAction::SetEnabled(p.id.clone(), enabled));
-                }
                 ui.label(RichText::new(p.name()).strong());
                 if let Ok(m) = &p.manifest {
                     if !m.version.is_empty() {
@@ -481,6 +532,15 @@ fn plugin_card(
                     );
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let mut enabled = !pref.disabled;
+                    if ui
+                        .checkbox(&mut enabled, t!("plugin-enabled"))
+                        .on_hover_text(t!("plugin-toggle-hover"))
+                        .changed()
+                    {
+                        actions.push(ManagerAction::SetEnabled(p.id.clone(), enabled));
+                    }
+                    ui.add_space(8.0);
                     let (text, color) = match &p.status {
                         Status::Running => (t!("plugin-running"), palette.accent),
                         Status::Stopped => (t!("plugin-stopped"), palette.text_dim),
@@ -504,6 +564,9 @@ fn plugin_card(
                             .color(palette.text_dim),
                     );
                 }
+            }
+            if !p.commands.is_empty() {
+                commands_line(ui, p, palette);
             }
             if let Status::Failed(why) = &p.status {
                 ui.label(RichText::new(why).color(palette.modified));
@@ -569,6 +632,39 @@ fn plugin_card(
         });
     ui.add_space(6.0);
     remove
+}
+
+/// "Adds: Word Count Ctrl+Alt+W · …": the plugin's commands and the
+/// shortcuts they run with now (after the Shortcut Mapper's changes).
+fn commands_line(ui: &mut Ui, p: &super::Plugin, palette: &Palette) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.label(
+            RichText::new(t!("plugin-adds"))
+                .small()
+                .color(palette.text_dim),
+        );
+        for (i, c) in p.commands.iter().enumerate() {
+            if i > 0 {
+                ui.label(RichText::new("·").small().color(palette.text_dim));
+            }
+            ui.label(RichText::new(&c.title).small());
+            let action = crate::actions::Action::PluginCommand {
+                plugin: p.id.clone(),
+                command: c.id.clone(),
+            };
+            if let Some(sc) = crate::actions::effective_shortcut(&action, c.shortcut) {
+                let text = ui.ctx().format_shortcut(&sc);
+                Frame::new()
+                    .stroke(egui::Stroke::new(1.0, palette.border))
+                    .corner_radius(3.0)
+                    .inner_margin(Margin::symmetric(4, 0))
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(text).monospace().size(10.5));
+                    });
+            }
+        }
+    });
 }
 
 /// The plugin log window.

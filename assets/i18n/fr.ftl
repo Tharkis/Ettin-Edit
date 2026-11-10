@@ -171,7 +171,7 @@ unpin-tab = Désépingler l'onglet
 pin-tab = Épingler l'onglet
 copy-full-path = Copier le chemin complet
 copy-file-name = Copier le nom du fichier
-status-length-lines = longueur : { $length }   lignes : { $lines }
+status-length-lines = Longueur : { $length }   Lignes : { $lines }
 click-to-copy = Cliquer pour copier
 recording-macro = Enregistrement de macro
 read-only-status = Lecture seule
@@ -278,8 +278,8 @@ json-minify = Minifier
 json-validate = Valider le JSON
 json-sort-keys = Trier les clés JSON
 json-tree = Arbre JSON
-xml-pretty-print = Mettre en forme
-xml-pretty-print-attributes = Mettre en forme, attributs sur des lignes séparées
+xml-pretty-print = Mettre en forme le XML
+xml-pretty-print-attributes = Mettre en forme le XML, attributs sur des lignes séparées
 xml-linearize = Linéariser
 xml-check-syntax = Vérifier la syntaxe
 xml-check-on-save = Vérifier la syntaxe à l'enregistrement
@@ -346,7 +346,15 @@ plugins-running = { $count ->
 }
 sample-install-failed = Impossible d'installer le module d'exemple { $name } dans { $folder } : { $error }
 samples-already-installed = Les modules d'exemple sont déjà dans le dossier des modules.
-samples-installed = { $names } installés. Retrouvez-les dans le menu Modules.
+plugin-enabled = Activé
+plugin-adds = Ajoute :
+plugin-search-installed = Rechercher dans les modules installés
+plugins-only-samples = Seuls les modules d'exemple sont listés pour l'instant. Vous avez écrit un module ?
+plugins-submit-link = Proposez-le dans l'index
+samples-installed = { $count ->
+    [one] 1 module installé.
+   *[other] { $count } modules installés.
+} Retrouvez-les dans le menu Modules.
 no-plugin-commands = Aucune commande de module
 
 ## Outils de texte (src/app/text_tools.rs)
@@ -615,17 +623,26 @@ style-whitespace = Symboles des espaces
 style-search-matches = Résultats de recherche
 style-accent = Accentuation (onglets, boutons, repliage)
 unset-colour = Ne pas définir cette couleur
+style-bold = Gras
+style-italic = Italique
+style-underline = Souligné
 set-colour = Définir
 choose-colour = Choisir une couleur
 theme-read-failed = Impossible de lire le fichier de thème : { $error }
 theme-colours = Couleurs du thème
 theme-label = Thème :
 discard-changes = Abandonner les modifications
+discard = Abandonner
 save-as-new-theme = Enregistrer comme nouveau thème…
 new-theme-name = Nom du nouveau thème :
 new-theme-name-hint = Nom du nouveau thème
 theme-name-taken = Un thème porte déjà ce nom
-theme-colours-hint = Les changements s'affichent immédiatement. Enregistrer les conserve ; fermer cette fenêtre sans enregistrer les abandonne.
+theme-colours-hint = Les changements s'affichent immédiatement. Enregistrer les conserve ; à la fermeture, la fenêtre demande s'il faut les enregistrer.
+theme-save-before-closing = Enregistrer les modifications de « { $name } » avant de fermer ?
+theme-changes-count = { $count ->
+    [one] 1 réglage modifié.
+   *[other] { $count } réglages modifiés.
+} Abandonner les rétablit.
 style-editor = Éditeur
 style-syntax = Syntaxe
 rule-filter-hint = Nom ou portée de règle, comme string ou keyword
@@ -858,6 +875,7 @@ self-update-failed = Impossible de mettre à jour Ettin Edit.
 back = Précédent
 forward = Suivant
 search-manual = Rechercher dans le manuel
+clear-search = Effacer la recherche
 open-on-web = Ouvrir sur le Web
 web-manual-failed = Impossible d'ouvrir le manuel en ligne : { $error }
 open-url-failed = Impossible d'ouvrir { $url } : { $error }
@@ -1024,6 +1042,9 @@ toolbar-collapse-menu = Réduire la barre d'outils
 toolbar-collapse = Réduire la barre d'outils
 toolbar-expand = Afficher les boutons de la barre d'outils
 toolbar-hide = Masquer la barre d'outils
+toolbar-more = Plus de commandes
+toolbar-hidden-groups = GROUPES MASQUÉS
+toolbar-filter-command = Filtre commande
 menu-bar-show = Barre de menus
 menu-bar-hide = Masquer la barre de menus
 menu-bar-show-again = Afficher la barre de menus
