@@ -421,6 +421,13 @@ pub fn to_hex(c: Color32) -> String {
 }
 
 /// Builds a theme from `.tmTheme` text, for previewing edits.
+/// Checks that `source` is a theme that can be read.
+pub fn check_source(source: &str) -> Result<(), String> {
+    ThemeSet::load_from_reader(&mut Cursor::new(source))
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 pub fn from_source(name: &str, source: &str, custom: bool) -> Result<ThemeDef, String> {
     let syntax = ThemeSet::load_from_reader(&mut Cursor::new(source)).map_err(|e| e.to_string())?;
     Ok(theme_def(name.to_owned(), syntax, custom, Some(source)))

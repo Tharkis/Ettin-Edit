@@ -134,6 +134,29 @@ pub struct Settings {
     pub welcome_shown_version: String,
     /// Open the Welcome tab every time Ettin Edit starts.
     pub show_welcome: bool,
+    /// Switch between `light_theme` and `dark_theme` with the system's
+    /// light/dark setting.
+    pub follow_system_theme: bool,
+    pub light_theme: String,
+    pub dark_theme: String,
+    /// The size of menus, buttons and dialogs, in percent (80–200).
+    pub ui_scale: u32,
+    /// Which set of default shortcuts to start from.
+    pub keymap: Keymap,
+    /// What a hash does with no selection.
+    pub hash_whole_document: HashResult,
+    /// Recipe command steps ask before they run (until the recipe changes).
+    pub recipe_commands_ask: bool,
+    /// The shell Filter Through Command and recipe command steps use, like
+    /// `bash -c`; empty is `sh -c` (`cmd /C` on Windows).
+    pub shell: String,
+    /// The indentation Format JSON, Format XML and Convert to write.
+    pub format_indent: FormatIndent,
+    /// Tab width and tabs/spaces per language (by lower-case name), over
+    /// `tab_width` and `use_spaces`.
+    pub language_overrides: BTreeMap<String, LanguageIndent>,
+    /// Look at how a file is indented when it opens and use that.
+    pub detect_indent: bool,
     /// True when these settings were read from the settings file (false on
     /// a fresh profile).
     #[serde(skip)]
@@ -149,6 +172,78 @@ pub enum ToolbarMode {
     Full,
     /// One row of small buttons.
     Simplified,
+}
+
+/// The default shortcuts to start from; the user's own changes go on top.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Keymap {
+    /// Ettin Edit's own keys, close to Notepad++.
+    #[default]
+    Ettin,
+    /// Keys from Visual Studio Code where they differ.
+    VsCode,
+}
+
+/// Where a hash of the whole document goes (with no selection).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HashResult {
+    #[default]
+    Clipboard,
+    NewTab,
+}
+
+/// The indentation formatters write.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FormatIndent {
+    /// What the document itself uses.
+    #[default]
+    Document,
+    Two,
+    Four,
+    Tab,
+}
+
+impl FormatIndent {
+    /// The indent text, or `None` to use the document's own.
+    pub fn unit(self) -> Option<&'static str> {
+        match self {
+            FormatIndent::Document => None,
+            FormatIndent::Two => Some("  "),
+            FormatIndent::Four => Some("    "),
+            FormatIndent::Tab => Some("\t"),
+        }
+    }
+}
+
+/// A language's own indentation; unset parts come from the general settings.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LanguageIndent {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tab_width: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_tabs: Option<bool>,
+}
+
+/// Languages that indent their own way out of the box.
+pub fn default_language_overrides() -> BTreeMap<String, LanguageIndent> {
+    let spaces = |w| LanguageIndent {
+        tab_width: Some(w),
+        use_tabs: Some(false),
+    };
+    let tabs = LanguageIndent {
+        tab_width: None,
+        use_tabs: Some(true),
+    };
+    BTreeMap::from([
+        ("json".to_owned(), spaces(2)),
+        ("yaml".to_owned(), spaces(2)),
+        ("makefile".to_owned(), tabs.clone()),
+        ("go".to_owned(), tabs),
+    ])
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -238,6 +333,17 @@ impl Default for Settings {
             dismissed_suggestions: Vec::new(),
             welcome_shown_version: String::new(),
             show_welcome: false,
+            follow_system_theme: false,
+            light_theme: "Ettin Light".to_owned(),
+            dark_theme: "Ettin Dark".to_owned(),
+            ui_scale: 100,
+            keymap: Keymap::Ettin,
+            hash_whole_document: HashResult::Clipboard,
+            recipe_commands_ask: true,
+            shell: String::new(),
+            format_indent: FormatIndent::Document,
+            language_overrides: default_language_overrides(),
+            detect_indent: true,
             loaded_from_file: false,
         }
     }
@@ -303,40 +409,55 @@ pub fn themes_dir() -> Option<PathBuf> {
     config_dir().map(|d| d.join("themes"))
 }
 
-fn settings_path() -> Option<PathBuf> {
-    config_dir().map(|d| d.join("settings.json"))
+/// The settings file's name, in [`config_dir`].
+pub const FILE_NAME: &str = "settings.json";
+
+pub fn settings_path() -> Option<PathBuf> {
+    config_dir().map(|d| d.join(FILE_NAME))
 }
 
 impl Settings {
     pub fn load() -> Self {
         settings_path()
             .and_then(|p| fs::read_to_string(p).ok())
-            .and_then(|s| serde_json::from_str::<Self>(&s).ok())
-            .map(|mut s| {
-                if let Some(name) = renamed_theme(&s.theme) {
-                    s.theme = name.to_owned();
-                }
-                s.loaded_from_file = true;
-                s
-            })
+            .and_then(|s| Self::from_json(&s).ok())
             .unwrap_or_default()
     }
 
+    /// Reads settings from the text of a settings file.
+    pub fn from_json(text: &str) -> Result<Self, String> {
+        let mut s = serde_json::from_str::<Self>(text).map_err(|e| e.to_string())?;
+        if let Some(name) = renamed_theme(&s.theme) {
+            s.theme = name.to_owned();
+        }
+        s.loaded_from_file = true;
+        Ok(s)
+    }
+
+    /// The settings as the settings file holds them.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_default()
+    }
+
+    /// Writes the settings file, unless it already holds these settings.
     pub fn save(&self) {
         let Some(path) = settings_path() else { return };
         if let Some(dir) = path.parent() {
             let _ = fs::create_dir_all(dir);
         }
-        match serde_json::to_string_pretty(self) {
-            Ok(json) => {
-                if let Err(e) = fs::write(&path, json) {
-                    eprintln!(
-                        "ettin-edit: could not save settings to {}: {e}",
-                        path.display()
-                    );
-                }
-            }
-            Err(e) => eprintln!("ettin-edit: could not serialise settings: {e}"),
+        let json = self.to_json();
+        if json.is_empty() {
+            return;
+        }
+        if fs::read(&path).is_ok_and(|old| old == json.as_bytes()) {
+            crate::watch::note_write(&path, json.as_bytes());
+            return;
+        }
+        if let Err(e) = crate::watch::write(&path, &json) {
+            eprintln!(
+                "ettin-edit: could not save settings to {}: {e}",
+                path.display()
+            );
         }
     }
 

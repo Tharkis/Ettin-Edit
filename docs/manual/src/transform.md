@@ -109,7 +109,9 @@ tab or on the clipboard ([Result goes to](#result-goes-to)). Press
 that reads standard input and writes standard output works: `sort -u`,
 `jq .`, `column -t`, `awk '{print $2}'`, `python3 -c "…"` and so on.
 
-- On Linux the command runs with `sh -c`; on Windows with `cmd /C`.
+- On Linux the command runs with `sh -c`; on Windows with `cmd /C`. To use
+  another shell, such as `bash -c` or `pwsh -Command`, set **Shell for
+  commands** in [Preferences > Transform](preferences.md#transform).
 - It runs in the file's folder (your home folder for a new tab), and the
   environment variable `ETTIN_FILE` holds the file's path.
 - The text goes to the command as UTF-8 with `\n` line breaks, and its output
@@ -279,8 +281,10 @@ How each format maps to the others:
 
 - With a selection, each selection is replaced by its hash.
 - With nothing selected, the hash of the whole document is copied to the
-  clipboard and shown, and the text is left alone. It's worked out from the
-  text in UTF-8 with the document's line endings, so for a UTF-8 file it
+  clipboard and shown, and the text is left alone. To open it in a new tab
+  instead, set **Hash with no selection** in
+  [Preferences > Transform](preferences.md#transform). It's worked out from
+  the text in UTF-8 with the document's line endings, so for a UTF-8 file it
   matches `sha256sum` and friends.
 
 Hashes are written in lower-case hex.

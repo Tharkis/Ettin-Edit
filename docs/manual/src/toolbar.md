@@ -168,9 +168,9 @@ icon beside the label, and three of them stack in a column.
 name, like `star` or `arrow`, to find one. **Use the command's icon** goes
 back to the default.
 
-Click **OK** or **Apply** to use your changes, or **Cancel** to forget them.
-**Reset to Defaults** puts back the toolbar Ettin Edit came with (press OK
-afterwards to keep it).
+Changes show on the toolbar and are saved as you make them; **Close** keeps
+them. **Undo Changes** puts the toolbar back as it was when you opened the
+window, and **Reset to Defaults** puts back the toolbar Ettin Edit came with.
 
 ## Plugin commands
 

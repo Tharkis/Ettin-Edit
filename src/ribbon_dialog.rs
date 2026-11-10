@@ -37,7 +37,7 @@ enum Drag {
 }
 
 pub enum DialogEvent {
-    /// Use and save this layout.
+    /// Use and save this layout (sent as soon as something changes).
     Save(Layout),
 }
 
@@ -45,6 +45,10 @@ pub enum DialogEvent {
 pub struct CustomiseDialog {
     pub open: bool,
     draft: Option<Layout>,
+    /// The layout when the window opened, for Undo Changes.
+    original: Option<Layout>,
+    /// The layout last sent to be saved.
+    saved: Option<Layout>,
     filter: String,
     /// The command picked in the list on the left.
     picked: Option<String>,
@@ -62,8 +66,29 @@ impl CustomiseDialog {
     pub fn show(&mut self, layout: &Layout) {
         self.open = true;
         self.draft = Some(layout.clone());
+        self.original = Some(layout.clone());
+        self.saved = Some(layout.clone());
         self.sel = None;
         self.choosing_icon = false;
+    }
+
+    /// The layout to save, when it changed since it was last saved
+    /// (changes apply as they're made).
+    fn take_change(&mut self) -> Option<DialogEvent> {
+        let draft = self.draft.as_ref()?;
+        if self.saved.as_ref() == Some(draft) {
+            return None;
+        }
+        self.saved = Some(draft.clone());
+        Some(DialogEvent::Save(draft.clone()))
+    }
+
+    /// Undo Changes: back to the layout from when the window opened.
+    fn undo_changes(&mut self) {
+        if let Some(o) = &self.original {
+            self.draft = Some(o.clone());
+            self.sel = None;
+        }
     }
 
     pub fn ui(
@@ -78,6 +103,7 @@ impl CustomiseDialog {
         }
         let mut open = true;
         let mut close = false;
+        let mut undo = false;
         egui::Window::new(t!("customise-toolbar"))
             .id(Id::new("customise-toolbar"))
             // Anchored at the top, so it grows downwards when the icon picker opens.
@@ -109,29 +135,42 @@ impl CustomiseDialog {
                 self.properties(ui, &mut draft, commands, palette);
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button(t!("toolbar-reset")).clicked() {
-                        draft = Layout::default();
-                        self.sel = None;
-                    }
+                    ui.label(RichText::new(t!("changes-apply-live")).small().weak());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(t!("cancel")).clicked() {
+                        if ui.button(t!("close")).clicked() {
                             close = true;
                         }
-                        if ui.button(t!("apply")).clicked() {
-                            events.push(DialogEvent::Save(draft.clone()));
+                        if ui
+                            .add_enabled(
+                                draft != Layout::default(),
+                                egui::Button::new(t!("toolbar-reset")),
+                            )
+                            .clicked()
+                        {
+                            draft = Layout::default();
+                            self.sel = None;
                         }
-                        if ui.button(t!("ok")).clicked() {
-                            events.push(DialogEvent::Save(draft.clone()));
-                            close = true;
+                        let changed = self.original.as_ref().is_some_and(|o| *o != draft);
+                        if ui
+                            .add_enabled(changed, egui::Button::new(t!("undo-changes")))
+                            .on_hover_text(t!("undo-changes-tip"))
+                            .clicked()
+                        {
+                            undo = true;
                         }
                     });
                 });
                 self.draft = Some(draft);
             });
+        if undo {
+            self.undo_changes();
+        }
         drag_preview(ctx, commands, self.draft.as_ref(), palette);
+        events.extend(self.take_change());
         if !open || close {
             self.open = false;
             self.draft = None;
+            self.original = None;
         }
         events
     }
@@ -924,6 +963,23 @@ fn move_node(layout: &mut Layout, from: Sel, target: Sel) -> Option<Sel> {
 
 #[cfg(test)]
 mod tests {
+    /// Changes are sent as they're made, and Undo Changes sends the layout
+    /// from when the window opened.
+    #[test]
+    fn toolbar_changes_apply_live_and_undo() {
+        let mut d = super::CustomiseDialog::default();
+        let opened = super::Layout::default();
+        d.show(&opened);
+        assert!(d.take_change().is_none());
+        d.draft.as_mut().unwrap().tabs.remove(0);
+        assert!(
+            matches!(d.take_change(), Some(super::DialogEvent::Save(l)) if l.tabs.len() + 1 == opened.tabs.len())
+        );
+        assert!(d.take_change().is_none());
+        d.undo_changes();
+        assert!(matches!(d.take_change(), Some(super::DialogEvent::Save(l)) if l == opened));
+    }
+
     use super::*;
 
     fn keys(layout: &Layout, t: usize, g: usize) -> Vec<String> {

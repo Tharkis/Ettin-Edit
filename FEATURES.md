@@ -19,6 +19,20 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.4: Settings in one place
+
+Requested on 2026-11-10: the sixth release of the UX plan (review items R11, R12, R17 and R25). One way of saving in every settings window, a Preferences window you can search, settings files that reload themselves, and an easy move to another computer.
+
+- [x] **One save model**: Preferences, Theme Colours, Customise Toolbar, the Shortcut Mapper and the Recipes window all apply and save changes as you make them. Each has **Undo Changes** (back to how things were when the window opened) and a reset to defaults where one makes sense (**Reset Section** in Preferences, **Reset** for built-in themes, **Reset to Defaults** for the toolbar). Closing keeps the changes; the 2.0.1 save prompt in Theme Colours, and the OK/Apply/Cancel buttons in Customise Toolbar, are gone ([Preferences](docs/manual/src/preferences.md#changes-apply-as-you-make-them))
+- [x] **Preferences rebuilt** (`src/prefs_ui.rs`): sections Appearance, Editing, Languages, Transform, Files and Startup, Plugins, with links to the Shortcut Mapper, Theme Colours and Customise Toolbar. **Search settings** filters across all sections by label and hidden keywords, and finds the settings that also live in menus (word wrap, whitespace, menu bar, toolbar) ([Search](docs/manual/src/preferences.md#search))
+- [x] **Appearance**: **Follow the system's light/dark setting** with a light/dark theme pair (egui's system theme, plus the desktop portal or gsettings on Linux where egui can't tell, `src/system.rs`); **Interface size** 80–200 % (egui zoom); interface language, toolbar mode and menu bar moved here
+- [x] **Languages**: per-language tab width and tabs/spaces (`language_overrides` in `settings.json`; JSON and YAML 2 spaces, Makefile and Go tabs out of the box) and **Detect indentation when a file opens** (on by default; first 1000 indented lines, `src/indent.rs`). Order: general < language < detected < View > Indent With Spaces for the tab, which is now per tab ([Languages](docs/manual/src/preferences.md#languages))
+- [x] **Transform**: Hash with no selection (clipboard or new tab), recipe command steps ask or run without asking, the shell for Filter Through Command and recipe commands (`bash -c`, `pwsh -Command`, …), JSON/XML indent (as the document, 2, 4 or a tab) ([Transform](docs/manual/src/preferences.md#transform))
+- [x] **Live reload** (`src/watch.rs`, `notify`, 300 ms debounce): `settings.json`, themes, languages, translations and recipes reload when saved while Ettin Edit runs. A broken file keeps the last good version and shows a message with the file, line and column and an **Open** button. The app's own writes are recognised by content hash, and a `settings.json` changed on disk is read before Ettin Edit saves over it ([Where settings are kept](docs/manual/src/preferences.md#where-settings-are-kept))
+- [x] **Settings > Export Settings… / Import Settings… / Open Settings Folder** (`src/settings_sync.rs`): one `.ettin-settings.zip` with settings (shortcuts included), toolbar, themes, recipes and languages; plugins listed by id and version. Import shows what's in it, what it replaces and which plugins are missing, and copies each replaced file to `backups/<date-time>` first. Paths outside those folders are refused ([Moving your settings](docs/manual/src/preferences.md#moving-your-settings-to-another-computer))
+- [x] **Keymap presets** in the Shortcut Mapper and Preferences: **Ettin (Notepad++ style)** (default) and **VS Code style** (Save As Ctrl+Shift+S, Save All Ctrl+Alt+S, Command Palette Ctrl+Shift+P, Ctrl+P tab list, Ctrl+D next occurrence, Ctrl+/ comment and more). Your own shortcuts stay on top of the preset ([Keymaps](docs/manual/src/shortcuts.md#keymaps))
+- [x] New text in all four interface languages
+
 ### 2.3: Plugins as transforms
 
 Requested on 2026-11-10: the fifth release of the UX plan (review items R5, R6, R19 and R20). A plugin's job is usually text in, text out, so plugins can now add transforms that behave exactly like the built-in ones, and writing a plugin is quicker.
@@ -638,7 +652,10 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-The UX plan from the 2.0.0 review continues: 2.4 Settings in one place, 2.5 Themes and languages.
+The UX plan from the 2.0.0 review continues: 2.5 Themes and languages (simple Theme Colours, Define Language dialog).
+
+- [ ] Live reload of plugin folders (2.4 watches settings, themes, languages, translations and recipes; plugins keep their own *Reload when its files change* switch)
+- [ ] Two-key chord shortcuts (VS Code's Ctrl+K S for Save All); VS Code style uses Ctrl+Alt+S for now
 
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 

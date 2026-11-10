@@ -250,7 +250,7 @@ impl EttinApp {
             Action::ToggleDistractionFree => on(self.distraction_free),
             Action::ToggleAutoClose => on(s.auto_close),
             Action::ToggleSmartIndent => on(s.smart_indent),
-            Action::ToggleUseSpaces => on(s.use_spaces),
+            Action::ToggleUseSpaces => on(self.doc_indent(self.active).use_spaces),
             Action::ToggleCompletion => on(s.word_completion),
             Action::ToggleLanguageCompletion => on(s.language_completion),
             Action::ToggleParameterHints => on(s.parameter_hints),

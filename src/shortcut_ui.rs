@@ -7,6 +7,7 @@ use egui::{Id, Key, KeyboardShortcut, RichText, Ui};
 
 use crate::actions::{self, Action};
 use crate::plugins::shortcut;
+use crate::settings::Keymap;
 use crate::theme::Palette;
 
 /// A command as the mapper shows it.
@@ -36,6 +37,8 @@ pub struct ShortcutMapper {
     /// from Preferences, which would otherwise stay in front).
     raise: u8,
     focus_filter: bool,
+    /// The shortcuts and keymap when the window opened, for Undo Changes.
+    opened: Option<(BTreeMap<String, Vec<String>>, Keymap)>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -49,6 +52,28 @@ struct Conflict {
     mode: Capture,
     other: Action,
     other_path: String,
+}
+
+/// The Keymap drop-down. True when it changed.
+fn keymap_picker(ui: &mut Ui, keymap: &mut Keymap) -> bool {
+    let before = *keymap;
+    let label = |k: Keymap| match k {
+        Keymap::Ettin => t!("keymap-ettin"),
+        Keymap::VsCode => t!("keymap-vs-code"),
+    };
+    ui.horizontal(|ui| {
+        ui.label(t!("keymap-label"));
+        egui::ComboBox::from_id_salt("keymap")
+            .selected_text(label(*keymap))
+            .width(200.0)
+            .show_ui(ui, |ui| {
+                for k in [Keymap::Ettin, Keymap::VsCode] {
+                    ui.selectable_value(keymap, k, label(k));
+                }
+            });
+        ui.label(RichText::new(t!("keymap-hint")).small().weak());
+    });
+    *keymap != before
 }
 
 /// The shortcuts a command has now.
@@ -156,7 +181,10 @@ pub fn used_by<'a>(
 }
 
 impl ShortcutMapper {
-    pub fn show(&mut self) {
+    pub fn show(&mut self, saved: &BTreeMap<String, Vec<String>>, keymap: Keymap) {
+        if !self.open {
+            self.opened = Some((saved.clone(), keymap));
+        }
         self.open = true;
         self.raise = 2;
         self.focus_filter = true;
@@ -185,6 +213,7 @@ impl ShortcutMapper {
         ctx: &egui::Context,
         rows: &[Row],
         saved: &mut BTreeMap<String, Vec<String>>,
+        keymap: &mut Keymap,
         palette: &Palette,
     ) -> bool {
         if !self.open {
@@ -224,6 +253,7 @@ impl ShortcutMapper {
         }
 
         let mut open = true;
+        let mut close = false;
         let shown = egui::Window::new(t!("shortcut-mapper"))
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
@@ -233,6 +263,8 @@ impl ShortcutMapper {
             .resizable(true)
             .default_size([680.0, 520.0])
             .show(ctx, |ui| {
+                changed |= keymap_picker(ui, keymap);
+                ui.add_space(2.0);
                 ui.horizontal(|ui| {
                     ui.label(t!("font-find-label"));
                     let find = ui.add(
@@ -249,6 +281,26 @@ impl ShortcutMapper {
                 changed |= self.buttons(ui, rows, saved, palette);
                 ui.separator();
                 self.table(ui, rows, saved, palette);
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(t!("changes-apply-live")).small().weak());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(t!("close")).clicked() {
+                            close = true;
+                        }
+                        let differs = self
+                            .opened
+                            .as_ref()
+                            .is_some_and(|(s, k)| s != saved || k != keymap);
+                        if ui
+                            .add_enabled(differs, egui::Button::new(t!("undo-changes")))
+                            .on_hover_text(t!("undo-changes-tip"))
+                            .clicked()
+                        {
+                            changed |= self.undo_changes(saved, keymap);
+                        }
+                    });
+                });
             });
         if self.raise > 0
             && let Some(shown) = shown
@@ -256,12 +308,29 @@ impl ShortcutMapper {
             ctx.move_to_top(shown.response.layer_id);
             self.raise -= 1;
         }
-        if !open {
+        if !open || close {
             self.open = false;
             self.capture = None;
             self.conflict = None;
+            self.opened = None;
         }
         changed
+    }
+
+    /// Puts back the shortcuts and keymap from when the window opened.
+    fn undo_changes(
+        &mut self,
+        saved: &mut BTreeMap<String, Vec<String>>,
+        keymap: &mut Keymap,
+    ) -> bool {
+        let Some((s, k)) = &self.opened else {
+            return false;
+        };
+        *saved = s.clone();
+        *keymap = *k;
+        self.capture = None;
+        self.conflict = None;
+        true
     }
 
     /// Gives the selected command `s`, replacing or adding to its shortcuts.
@@ -442,6 +511,8 @@ impl ShortcutMapper {
             .striped(true)
             .auto_shrink([false, false])
             .min_scrolled_height(340.0)
+            // A fixed height, so the window doesn't grow to fit it.
+            .max_scroll_height(340.0)
             .sense(egui::Sense::click())
             .column(egui_extras::Column::remainder().at_least(260.0).clip(true))
             .column(egui_extras::Column::exact(200.0))
@@ -491,5 +562,23 @@ impl ShortcutMapper {
                     });
                 });
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn undo_changes_restores_shortcuts_and_keymap() {
+        let mut m = ShortcutMapper::default();
+        let mut saved = BTreeMap::from([("\"Save\"".to_owned(), vec!["F12".to_owned()])]);
+        let mut keymap = Keymap::Ettin;
+        m.show(&saved, keymap);
+        saved.clear();
+        keymap = Keymap::VsCode;
+        assert!(m.undo_changes(&mut saved, &mut keymap));
+        assert_eq!(keymap, Keymap::Ettin);
+        assert_eq!(saved.len(), 1);
     }
 }

@@ -403,7 +403,6 @@ filter-xsl = XSL stylesheet
 
 ## Preferences (src/prefs_ui.rs)
 prefs-editing = Editing
-prefs-display = Display
 prefs-new-documents = New Documents
 prefs-general = Files and Startup
 preferences = Preferences
@@ -626,18 +625,15 @@ choose-colour = Choose a colour
 theme-read-failed = Couldn't read the theme file: { $error }
 theme-colours = Theme Colours
 theme-label = Theme:
-discard-changes = Discard Changes
-discard = Discard
 save-as-new-theme = Save As New Theme…
 new-theme-name = New theme name:
 new-theme-name-hint = Name for the new theme
 theme-name-taken = A theme has this name
-theme-colours-hint = Changes show at once. Save keeps them; closing this window asks whether to save them.
-theme-save-before-closing = Save the changes to “{ $name }” before closing?
+theme-colours-hint = Changes show at once and are saved as you make them. Undo Changes puts back the theme as it was when this window opened.
 theme-changes-count = { $count ->
-    [one] 1 setting changed.
-   *[other] { $count } settings changed.
-} Discarding puts them back.
+    [one] 1 setting changed since this window opened.
+   *[other] { $count } settings changed since this window opened.
+}
 style-editor = Editor
 style-syntax = Syntax
 rule-filter-hint = Rule name or scope, like string or keyword
@@ -1029,7 +1025,6 @@ close-panel = Close panel
 shortcut-settings-error = Shortcut settings: { $error }
 
 ## Toolbar (src/ribbon*.rs, src/app/ribbon.rs)
-apply = Apply
 customise-toolbar = Customise Toolbar
 customise-toolbar-dots = Customise Toolbar…
 toolbar-show = Toolbar
@@ -1468,3 +1463,80 @@ recipe-step-plugin = { $title } ({ $plugin })
 recipe-preview-stopped-plugin = The preview stops before step { $step }, which runs a plugin transform.
 reload-on-change = Reload when its files change
 reload-on-change-hover = For plugins you are writing: restarts it within a second of saving one of its files.
+
+## 2.4 Settings in one place
+changes-apply-live = Changes apply as you make them.
+undo-changes = Undo Changes
+undo-changes-tip = Put everything back as it was when this window opened
+reset-section = Reset Section
+reset-section-tip = Put the { $section } settings back to their defaults
+theme-reset-tip = Put “{ $name }” back as Ettin Edit ships it
+theme-reset-custom-tip = Only built-in themes can be reset. Undo Changes puts this theme back as it was when the window opened.
+recipes-undo-tip = Put the recipes back as they were when this window opened (recipes added since are removed)
+prefs-search-hint = Search settings
+prefs-also = ALSO
+prefs-other-windows = Other windows
+prefs-no-match = No setting matches “{ $search }”.
+prefs-appearance = Appearance
+prefs-languages = Languages
+prefs-theme = Theme
+prefs-follow-system = Follow the system's light/dark setting
+prefs-light-dark-pair = Light / dark pair
+prefs-interface = Interface
+prefs-interface-size = Interface size
+prefs-toolbar = Toolbar
+prefs-toolbar-full = Full ribbon
+prefs-toolbar-hidden = Hidden
+prefs-menu-bar = Menu bar
+prefs-tab-key = Tab key types
+prefs-detect-indent = Detect indentation when a file opens (looks at its first 1000 indented lines)
+prefs-per-language = Per-language settings
+prefs-per-language-hint = These win over the settings above. A file's own indentation wins over both when detection is on.
+prefs-default = Default
+prefs-tabs = Tabs
+prefs-spaces = Spaces
+prefs-remove-language = Remove this language's settings
+prefs-pick-language = Pick a language…
+prefs-add = Add
+prefs-hash-no-selection = Hash with no selection
+prefs-hash-clipboard = Copy the hash to the clipboard
+prefs-hash-new-tab = Open the hash in a new tab
+prefs-recipe-commands = Recipe command steps
+prefs-ask-first = Ask before running
+prefs-run-without-asking = Run without asking
+prefs-shell = Shell for commands
+prefs-shell-tip = The program and its options that run Filter Through Command and recipe command steps, like bash -c or pwsh -Command. Empty uses the system's shell.
+prefs-format-indent = JSON / XML indent
+prefs-indent-document = Same as the document
+prefs-indent-n-spaces = { $count } spaces
+prefs-settings-files = Settings files
+prefs-settings-files-hint = Export puts your settings, shortcuts, toolbar, themes, recipes and languages in one file to copy to another computer.
+keymap-label = Keymap
+keymap-ettin = Ettin (Notepad++ style)
+keymap-vs-code = VS Code style
+keymap-hint = Your own changes stay on top of the keymap.
+export-settings = Export Settings
+export-settings-dots = Export Settings…
+import-settings = Import Settings
+import-settings-dots = Import Settings…
+open-settings-folder = Open Settings Folder
+settings-file-type = Ettin Edit settings
+settings-exported = Exported { $count } files to { $file }
+settings-export-failed = Couldn't export the settings to { $file }: { $error }
+settings-import-failed = Couldn't import { $file }: { $error }
+settings-imported = Settings imported.
+settings-imported-backup = Settings imported. Your old files are in { $folder }
+import = Import
+import-from = { $file } (from Ettin Edit { $version })
+import-not-settings = this isn't a file made by Export Settings
+import-contents = Settings files: { $settings } · Themes: { $themes } · Recipes: { $recipes } · Languages: { $languages }
+import-replaces-nothing = Nothing you have now is replaced.
+import-replaces = { $count ->
+    [one] It replaces 1 file you have now:
+   *[other] It replaces { $count } files you have now:
+}
+import-backup-note = A copy of each replaced file goes to the backups folder in the settings folder first.
+import-plugins-missing = Plugins it was used with that aren't installed here: { $plugins }. Install them from Plugins > Manage Plugins.
+live-reloaded = Reloaded { $file }
+live-reload-failed = { $file } changed but could not be read: { $error }. Kept the last good version.
+live-reload-place = line { $line }, column { $column }

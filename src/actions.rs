@@ -263,6 +263,10 @@ pub enum Action {
     // Customisation and panels
     Preferences,
     ShortcutMapper,
+    /// Settings > Export Settings…: settings, themes, recipes… in one file.
+    ExportSettings,
+    ImportSettings,
+    OpenSettingsFolder,
     StyleConfigurator,
     CommandPalette,
     ToggleFunctionList,
@@ -352,6 +356,9 @@ impl Action {
                 | Action::PluginTransform { .. }
                 | Action::ShowPluginLog
                 | Action::Preferences
+                | Action::ExportSettings
+                | Action::ImportSettings
+                | Action::OpenSettingsFolder
                 | Action::ShortcutMapper
                 | Action::StyleConfigurator
                 | Action::CommandPalette
@@ -526,9 +533,74 @@ pub fn shortcuts() -> Vec<(KeyboardShortcut, Action)> {
     list
 }
 
-/// Ettin Edit's own shortcuts. A shortcut without Shift or Alt also matches
-/// with them held, so those variants must come first.
+/// The keymap preset in use (Settings > Shortcut Mapper > Keymap).
+static KEYMAP: RwLock<crate::settings::Keymap> = RwLock::new(crate::settings::Keymap::Ettin);
+
+pub fn set_keymap(keymap: crate::settings::Keymap) {
+    *KEYMAP.write().unwrap_or_else(|e| e.into_inner()) = keymap;
+}
+
+pub fn keymap() -> crate::settings::Keymap {
+    *KEYMAP.read().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The default shortcuts of the keymap in use, before the user's changes.
+/// A shortcut without Shift or Alt also matches with them held, so those
+/// variants come first.
 pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
+    preset_shortcuts(keymap())
+}
+
+/// The default shortcuts of a keymap preset.
+pub fn preset_shortcuts(keymap: crate::settings::Keymap) -> Vec<(KeyboardShortcut, Action)> {
+    let mut list = ettin_shortcuts();
+    if keymap == crate::settings::Keymap::VsCode {
+        let changes = vs_code_changes();
+        list.retain(|(_, a)| !changes.iter().any(|(c, _)| c == a));
+        for (action, keys) in changes {
+            for k in keys {
+                list.push((k, action.clone()));
+            }
+        }
+        list.sort_by_key(|(s, _)| std::cmp::Reverse(crate::plugins::shortcut::modifier_count(s)));
+    }
+    list
+}
+
+/// Where VS Code style differs from Ettin's keys: each command's shortcuts
+/// in VS Code style (an empty list has none).
+pub fn vs_code_changes() -> Vec<(Action, Vec<KeyboardShortcut>)> {
+    let s = |m, k| KeyboardShortcut::new(m, k);
+    vec![
+        (Action::SaveAs, vec![s(CMD_SHIFT, Key::S)]),
+        // VS Code's Ctrl+K S is a two-key chord, which Ettin Edit doesn't have.
+        (Action::SaveAll, vec![s(CMD_ALT, Key::S)]),
+        (
+            Action::CommandPalette,
+            vec![s(CMD_SHIFT, Key::P), s(NONE, Key::F1)],
+        ),
+        (Action::PlayMacro, vec![]),
+        (Action::TabList, vec![s(CMD, Key::P)]),
+        (Action::Print, vec![]),
+        (Action::DeleteLines, vec![s(CMD_SHIFT, Key::K)]),
+        (Action::SelectAllOccurrences, vec![s(CMD_SHIFT, Key::L)]),
+        (Action::SelectNextOccurrence, vec![s(CMD, Key::D)]),
+        (Action::Duplicate, vec![s(ALT_SHIFT, Key::ArrowDown)]),
+        (Action::MoveLinesUp, vec![s(ALT, Key::ArrowUp)]),
+        (Action::MoveLinesDown, vec![s(ALT, Key::ArrowDown)]),
+        (Action::ToggleLineComment, vec![s(CMD, Key::Slash)]),
+        (Action::ToggleBlockComment, vec![s(ALT_SHIFT, Key::A)]),
+        (Action::InsertBlankBelow, vec![s(CMD, Key::Enter)]),
+        (Action::InsertBlankAbove, vec![s(CMD_SHIFT, Key::Enter)]),
+        (Action::FoldCurrent, vec![s(CMD_SHIFT, Key::OpenBracket)]),
+        (Action::UnfoldCurrent, vec![s(CMD_SHIFT, Key::CloseBracket)]),
+        (Action::ToggleMarkdownPreview, vec![s(CMD_SHIFT, Key::V)]),
+        (Action::ToggleFolderPanel, vec![s(CMD, Key::B)]),
+    ]
+}
+
+/// Ettin Edit's own shortcuts (the Notepad++ style keymap).
+fn ettin_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
     let s = |m, k| KeyboardShortcut::new(m, k);
     vec![
         // Text tools (before the shorter combinations they contain)
@@ -685,7 +757,52 @@ pub fn command_id(action: &Action) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::Keymap;
     use crate::tools::xml::XmlOp;
+
+    /// No two commands share a shortcut in either keymap, counting the
+    /// editor's own keys.
+    #[test]
+    fn keymaps_have_no_clashes() {
+        for keymap in [Keymap::Ettin, Keymap::VsCode] {
+            let mut all = preset_shortcuts(keymap);
+            all.extend(editor_shortcuts());
+            for (i, (a, x)) in all.iter().enumerate() {
+                for (b, y) in &all[i + 1..] {
+                    assert!(
+                        !crate::plugins::shortcut::same(a, b) || x == y,
+                        "{keymap:?}: {x:?} and {y:?} share a shortcut"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn vs_code_style_changes_save_as() {
+        let find = |keymap, action: &Action| -> Vec<KeyboardShortcut> {
+            preset_shortcuts(keymap)
+                .into_iter()
+                .filter(|(_, a)| a == action)
+                .map(|(s, _)| s)
+                .collect()
+        };
+        let ctrl_shift_s = KeyboardShortcut::new(CMD_SHIFT, Key::S);
+        assert!(crate::plugins::shortcut::same(
+            &find(Keymap::VsCode, &Action::SaveAs)[0],
+            &ctrl_shift_s
+        ));
+        assert!(crate::plugins::shortcut::same(
+            &find(Keymap::Ettin, &Action::SaveAll)[0],
+            &ctrl_shift_s
+        ));
+        assert!(find(Keymap::VsCode, &Action::Print).is_empty());
+        // Every Ettin command keeps a place in the list or is listed as changed.
+        assert_eq!(
+            find(Keymap::VsCode, &Action::Find),
+            find(Keymap::Ettin, &Action::Find)
+        );
+    }
 
     /// 2.0.1 renamed Pretty Print to Format XML; the command's id stays the
     /// same so saved shortcuts, toolbars and recipes keep working.

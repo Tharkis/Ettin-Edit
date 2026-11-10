@@ -706,7 +706,7 @@ pub fn load_all(dir: &Path) -> (Vec<Recipe>, Vec<String>) {
     // it stays the same next time.
     for i in ensure_ids(&mut recipes) {
         if let Some(path) = &recipes[i].path
-            && let Err(e) = std::fs::write(path, recipes[i].to_json())
+            && let Err(e) = crate::watch::write(path, recipes[i].to_json())
         {
             errors.push(t!(
                 "recipe-save-failed",
@@ -752,7 +752,7 @@ pub fn save(recipe: &mut Recipe, dir: &Path) -> Result<(), String> {
         Some(p) => p.clone(),
         None => file_name_for(dir, &recipe.name),
     };
-    std::fs::write(&path, recipe.to_json()).map_err(|e| {
+    crate::watch::write(&path, recipe.to_json()).map_err(|e| {
         t!(
             "recipe-save-failed",
             path = path.display().to_string(),
@@ -760,6 +760,30 @@ pub fn save(recipe: &mut Recipe, dir: &Path) -> Result<(), String> {
         )
     })?;
     recipe.path = Some(path);
+    Ok(())
+}
+
+/// Puts the recipe files back as `then` had them: writes each of those
+/// recipes again and removes the files of recipes added since.
+pub fn restore(then: &[Recipe], now: &[Recipe]) -> Result<(), String> {
+    let kept: Vec<&Path> = then.iter().filter_map(|r| r.path.as_deref()).collect();
+    for r in now {
+        if let Some(path) = &r.path
+            && !kept.contains(&path.as_path())
+            && path.exists()
+        {
+            std::fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        }
+    }
+    for r in then {
+        if let Some(path) = &r.path {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            }
+            crate::watch::write(path, r.to_json())
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+        }
+    }
     Ok(())
 }
 
@@ -862,6 +886,29 @@ pub fn install_samples(dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Undo Changes in the Recipes window: edited recipes are written back
+    /// and new ones removed.
+    #[test]
+    fn restore_puts_recipe_files_back() {
+        let dir = std::env::temp_dir().join(format!("ettin-restore-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut a = Recipe::new("A");
+        save(&mut a, &dir).unwrap();
+        let then = vec![a.clone()];
+        let mut edited = a.clone();
+        edited.description = "changed".into();
+        save(&mut edited, &dir).unwrap();
+        let mut b = Recipe::new("B");
+        save(&mut b, &dir).unwrap();
+        restore(&then, &[edited, b.clone()]).unwrap();
+        let (list, errors) = load_all(&dir);
+        assert!(errors.is_empty(), "{errors:?}");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].description, "");
+        assert!(!b.path.unwrap().exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn run(steps: Vec<Step>, text: &str) -> String {
         let r = Recipe {

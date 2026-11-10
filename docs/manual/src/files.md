@@ -119,6 +119,12 @@ unsaved changes in Ettin Edit.
 bar shows **Read-only**; click it, or choose the command again, to allow
 editing.
 
+## Your settings on another computer
+
+**Settings > Export Settings…** and **Import Settings…** move your settings,
+shortcuts, toolbar, themes, recipes and languages in one file. See
+[Moving your settings to another computer](preferences.md#moving-your-settings-to-another-computer).
+
 ## Summary
 
 **View > Summary…** shows the file's full path, when it was created and

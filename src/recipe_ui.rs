@@ -28,6 +28,8 @@ pub enum RecipeEvent {
     Export(usize),
     OpenFolder,
     Reload,
+    /// Put the recipes back as they were when the window opened.
+    UndoChanges,
     Run {
         index: usize,
         all_tabs: bool,
@@ -75,6 +77,8 @@ pub struct RecipeWindow {
     preview: Option<(u64, String, Preview)>,
     /// A message for the user, such as a failed save.
     pub message: Option<String>,
+    /// The recipes changed since the window opened (Undo Changes can run).
+    pub can_undo: bool,
     /// Waiting for the selected recipe's new shortcut.
     capturing: bool,
     /// A key press taken at the start of the frame, before the editor sees it.
@@ -854,6 +858,10 @@ impl RecipeWindow {
             .sum::<f32>()
             + width(ui, &run)
             + width(ui, &all)
+            + width(
+                ui,
+                &format!("{} {}", ph::ARROW_COUNTER_CLOCKWISE, tr("undo-changes")),
+            )
             + 16.0;
         let labels = needed <= ui.available_width();
         let can_run = selected.is_some_and(|i| !recipes[i].name.trim().is_empty());
@@ -903,6 +911,21 @@ impl RecipeWindow {
                         });
                     }
                 });
+                let undo = format!("{} {}", ph::ARROW_COUNTER_CLOCKWISE, tr("undo-changes"));
+                let clicked = ui
+                    .add_enabled_ui(self.can_undo, |ui| {
+                        if labels {
+                            ui.button(undo)
+                                .on_hover_text(tr("recipes-undo-tip"))
+                                .clicked()
+                        } else {
+                            icon_button(ui, ph::ARROW_COUNTER_CLOCKWISE, &tr("recipes-undo-tip"))
+                        }
+                    })
+                    .inner;
+                if clicked {
+                    events.push(RecipeEvent::UndoChanges);
+                }
             });
         });
     }

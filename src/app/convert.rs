@@ -222,7 +222,7 @@ impl EttinApp {
         let whole = !doc.editor.selections.has_selection();
         let syntax = doc.syntax.clone();
         let from = from.or_else(|| self.read_as.get(&doc.id).copied());
-        let unit = doc.editor.indent_unit();
+        let unit = self.format_unit(self.active);
         let what = t!("convert-to-format", format = target_label(to));
         let read = RefCell::new(None);
         let changed = self.transform(ctx, &what, |t| {

@@ -48,8 +48,11 @@ don't edit it, because it is replaced each time.
 
 Each file in the folder is named after its language code, such as `pt.ftl`
 for Portuguese, `pt-BR.ftl` for Brazilian Portuguese, or `de.ftl` for
-German. After adding or changing a file, press **Reload** next to the
-language list.
+German. When you save a file there, Ettin Edit reloads it within a second
+and the menus change to match. If the file has a mistake, the last version
+that worked stays in use and a message gives the line and column, with an
+**Open** button. **Reload** next to the language list reads the folder
+again.
 
 ### Adding a language
 
@@ -59,7 +62,8 @@ language list.
    `language-name = Italiano`. That's the name shown in the list.
 3. Translate the text after each `=`. Leave the ids before the `=`, and
    anything in `{ $braces }`, as they are.
-4. Press **Reload** in Preferences and pick the language.
+4. Save the file, then pick the language in Preferences (press **Reload**
+   if it isn't listed yet).
 
 You don't have to translate everything at once. Any message the file
 doesn't have is shown in English.

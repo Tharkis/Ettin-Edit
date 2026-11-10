@@ -404,7 +404,6 @@ filter-xsl = Feuille de style XSL
 
 ## Préférences (src/prefs_ui.rs)
 prefs-editing = Édition
-prefs-display = Affichage
 prefs-new-documents = Nouveaux documents
 prefs-general = Fichiers et démarrage
 preferences = Préférences
@@ -627,18 +626,15 @@ choose-colour = Choisir une couleur
 theme-read-failed = Impossible de lire le fichier de thème : { $error }
 theme-colours = Couleurs du thème
 theme-label = Thème :
-discard-changes = Abandonner les modifications
-discard = Abandonner
 save-as-new-theme = Enregistrer comme nouveau thème…
 new-theme-name = Nom du nouveau thème :
 new-theme-name-hint = Nom du nouveau thème
 theme-name-taken = Un thème porte déjà ce nom
-theme-colours-hint = Les changements s'affichent immédiatement. Enregistrer les conserve ; à la fermeture, la fenêtre demande s'il faut les enregistrer.
-theme-save-before-closing = Enregistrer les modifications de « { $name } » avant de fermer ?
+theme-colours-hint = Les changements s'affichent immédiatement et sont enregistrés aussitôt. Annuler les modifications rétablit le thème tel qu'il était à l'ouverture de la fenêtre.
 theme-changes-count = { $count ->
-    [one] 1 réglage modifié.
-   *[other] { $count } réglages modifiés.
-} Abandonner les rétablit.
+    [one] 1 réglage modifié depuis l'ouverture.
+   *[other] { $count } réglages modifiés depuis l'ouverture.
+}
 style-editor = Éditeur
 style-syntax = Syntaxe
 rule-filter-hint = Nom ou portée de règle, comme string ou keyword
@@ -1030,7 +1026,6 @@ close-panel = Fermer le panneau
 shortcut-settings-error = Paramètres des raccourcis : { $error }
 
 ## Toolbar (src/ribbon*.rs, src/app/ribbon.rs)
-apply = Appliquer
 customise-toolbar = Personnaliser la barre d'outils
 customise-toolbar-dots = Personnaliser la barre d'outils…
 toolbar-show = Barre d'outils
@@ -1469,3 +1464,80 @@ recipe-step-plugin = { $title } ({ $plugin })
 recipe-preview-stopped-plugin = L'aperçu s'arrête avant l'étape { $step }, qui lance une transformation de module.
 reload-on-change = Recharger quand ses fichiers changent
 reload-on-change-hover = Pour les modules que vous écrivez : le relance moins d'une seconde après l'enregistrement d'un de ses fichiers.
+
+## 2.4 Les réglages au même endroit
+changes-apply-live = Les changements s'appliquent immédiatement.
+undo-changes = Annuler les modifications
+undo-changes-tip = Tout remettre comme à l'ouverture de cette fenêtre
+reset-section = Réinitialiser la section
+reset-section-tip = Remettre les réglages { $section } à leurs valeurs par défaut
+theme-reset-tip = Remettre « { $name } » tel qu'Ettin Edit le fournit
+theme-reset-custom-tip = Seuls les thèmes fournis peuvent être réinitialisés. Annuler les modifications remet ce thème tel qu'il était à l'ouverture de la fenêtre.
+recipes-undo-tip = Remettre les recettes comme à l'ouverture de cette fenêtre (les recettes ajoutées depuis sont supprimées)
+prefs-search-hint = Rechercher un réglage
+prefs-also = AUSSI
+prefs-other-windows = Autres fenêtres
+prefs-no-match = Aucun réglage ne correspond à « { $search } ».
+prefs-appearance = Apparence
+prefs-languages = Langages
+prefs-theme = Thème
+prefs-follow-system = Suivre le mode clair/sombre du système
+prefs-light-dark-pair = Paire claire / sombre
+prefs-interface = Interface
+prefs-interface-size = Taille de l'interface
+prefs-toolbar = Barre d'outils
+prefs-toolbar-full = Ruban complet
+prefs-toolbar-hidden = Masquée
+prefs-menu-bar = Barre de menus
+prefs-tab-key = La touche Tab insère
+prefs-detect-indent = Détecter l'indentation à l'ouverture d'un fichier (examine ses 1000 premières lignes indentées)
+prefs-per-language = Réglages par langage
+prefs-per-language-hint = Ils l'emportent sur les réglages ci-dessus. Quand la détection est active, l'indentation du fichier l'emporte sur les deux.
+prefs-default = Par défaut
+prefs-tabs = Tabulations
+prefs-spaces = Espaces
+prefs-remove-language = Supprimer les réglages de ce langage
+prefs-pick-language = Choisir un langage…
+prefs-add = Ajouter
+prefs-hash-no-selection = Hachage sans sélection
+prefs-hash-clipboard = Copier le hachage dans le presse-papiers
+prefs-hash-new-tab = Ouvrir le hachage dans un nouvel onglet
+prefs-recipe-commands = Étapes de commande des recettes
+prefs-ask-first = Demander avant d'exécuter
+prefs-run-without-asking = Exécuter sans demander
+prefs-shell = Shell des commandes
+prefs-shell-tip = Le programme et ses options qui exécutent Filtrer par une commande et les étapes de commande des recettes, comme bash -c ou pwsh -Command. Vide utilise le shell du système.
+prefs-format-indent = Indentation JSON / XML
+prefs-indent-document = Comme le document
+prefs-indent-n-spaces = { $count } espaces
+prefs-settings-files = Fichiers de réglages
+prefs-settings-files-hint = Exporter place vos réglages, raccourcis, barre d'outils, thèmes, recettes et langages dans un seul fichier à copier sur un autre ordinateur.
+keymap-label = Raccourcis
+keymap-ettin = Ettin (style Notepad++)
+keymap-vs-code = Style VS Code
+keymap-hint = Vos propres changements s'ajoutent par-dessus.
+export-settings = Exporter les réglages
+export-settings-dots = Exporter les réglages…
+import-settings = Importer les réglages
+import-settings-dots = Importer les réglages…
+open-settings-folder = Ouvrir le dossier des réglages
+settings-file-type = Réglages d'Ettin Edit
+settings-exported = { $count } fichiers exportés vers { $file }
+settings-export-failed = Impossible d'exporter les réglages vers { $file } : { $error }
+settings-import-failed = Impossible d'importer { $file } : { $error }
+settings-imported = Réglages importés.
+settings-imported-backup = Réglages importés. Vos anciens fichiers sont dans { $folder }
+import = Importer
+import-from = { $file } (depuis Ettin Edit { $version })
+import-not-settings = ce fichier n'a pas été créé par Exporter les réglages
+import-contents = Fichiers de réglages : { $settings } · Thèmes : { $themes } · Recettes : { $recipes } · Langages : { $languages }
+import-replaces-nothing = Aucun de vos fichiers actuels n'est remplacé.
+import-replaces = { $count ->
+    [one] Il remplace 1 de vos fichiers actuels :
+   *[other] Il remplace { $count } de vos fichiers actuels :
+}
+import-backup-note = Une copie de chaque fichier remplacé est d'abord placée dans le dossier backups du dossier des réglages.
+import-plugins-missing = Modules utilisés avec ces réglages et absents ici : { $plugins }. Installez-les depuis Modules > Gérer les modules.
+live-reloaded = { $file } rechargé
+live-reload-failed = { $file } a changé mais ne peut pas être lu : { $error }. La dernière version valide reste utilisée.
+live-reload-place = ligne { $line }, colonne { $column }

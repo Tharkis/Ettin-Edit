@@ -405,7 +405,6 @@ filter-xsl = Hoja de estilo XSL
 
 ## Preferences (src/prefs_ui.rs)
 prefs-editing = Edición
-prefs-display = Visualización
 prefs-new-documents = Documentos nuevos
 prefs-general = Archivos e inicio
 preferences = Preferencias
@@ -628,18 +627,15 @@ choose-colour = Elige un color
 theme-read-failed = No se pudo leer el archivo del tema: { $error }
 theme-colours = Colores del tema
 theme-label = Tema:
-discard-changes = Descartar cambios
-discard = Descartar
 save-as-new-theme = Guardar como tema nuevo…
 new-theme-name = Nombre del tema nuevo:
 new-theme-name-hint = Nombre para el tema nuevo
 theme-name-taken = Ya hay un tema con este nombre
-theme-colours-hint = Los cambios se ven al instante. Guardar los conserva; al cerrar esta ventana se pregunta si quiere guardarlos.
-theme-save-before-closing = ¿Guardar los cambios en «{ $name }» antes de cerrar?
+theme-colours-hint = Los cambios se ven al instante y se guardan en el momento. Deshacer cambios devuelve el tema a como estaba al abrir esta ventana.
 theme-changes-count = { $count ->
-    [one] 1 ajuste cambiado.
-   *[other] { $count } ajustes cambiados.
-} Descartar los restablece.
+    [one] 1 ajuste cambiado desde que se abrió.
+   *[other] { $count } ajustes cambiados desde que se abrió.
+}
 style-editor = Editor
 style-syntax = Sintaxis
 rule-filter-hint = Nombre o ámbito de la regla, como string o keyword
@@ -1031,7 +1027,6 @@ close-panel = Cerrar panel
 shortcut-settings-error = Configuración de atajos: { $error }
 
 ## Toolbar (src/ribbon*.rs, src/app/ribbon.rs)
-apply = Aplicar
 customise-toolbar = Personalizar barra de herramientas
 customise-toolbar-dots = Personalizar barra de herramientas…
 toolbar-show = Barra de herramientas
@@ -1470,3 +1465,80 @@ recipe-step-plugin = { $title } ({ $plugin })
 recipe-preview-stopped-plugin = La vista previa se detiene antes del paso { $step }, que ejecuta una transformación de complemento.
 reload-on-change = Recargar cuando cambien sus archivos
 reload-on-change-hover = Para complementos que estás escribiendo: lo reinicia en menos de un segundo tras guardar uno de sus archivos.
+
+## 2.4 Los ajustes en un solo lugar
+changes-apply-live = Los cambios se aplican al momento.
+undo-changes = Deshacer cambios
+undo-changes-tip = Dejarlo todo como estaba al abrir esta ventana
+reset-section = Restablecer sección
+reset-section-tip = Devolver los ajustes de { $section } a sus valores predeterminados
+theme-reset-tip = Dejar «{ $name }» como viene con Ettin Edit
+theme-reset-custom-tip = Solo se pueden restablecer los temas incluidos. Deshacer cambios deja este tema como estaba al abrir la ventana.
+recipes-undo-tip = Dejar las recetas como estaban al abrir esta ventana (se quitan las añadidas desde entonces)
+prefs-search-hint = Buscar ajustes
+prefs-also = ADEMÁS
+prefs-other-windows = Otras ventanas
+prefs-no-match = Ningún ajuste coincide con «{ $search }».
+prefs-appearance = Apariencia
+prefs-languages = Lenguajes
+prefs-theme = Tema
+prefs-follow-system = Seguir el modo claro/oscuro del sistema
+prefs-light-dark-pair = Par claro / oscuro
+prefs-interface = Interfaz
+prefs-interface-size = Tamaño de la interfaz
+prefs-toolbar = Barra de herramientas
+prefs-toolbar-full = Cinta completa
+prefs-toolbar-hidden = Oculta
+prefs-menu-bar = Barra de menús
+prefs-tab-key = La tecla Tab escribe
+prefs-detect-indent = Detectar la sangría al abrir un archivo (mira sus primeras 1000 líneas con sangría)
+prefs-per-language = Ajustes por lenguaje
+prefs-per-language-hint = Tienen prioridad sobre los ajustes de arriba. Con la detección activada, la sangría del propio archivo tiene prioridad sobre ambos.
+prefs-default = Predeterminado
+prefs-tabs = Tabulaciones
+prefs-spaces = Espacios
+prefs-remove-language = Quitar los ajustes de este lenguaje
+prefs-pick-language = Elegir un lenguaje…
+prefs-add = Añadir
+prefs-hash-no-selection = Hash sin selección
+prefs-hash-clipboard = Copiar el hash al portapapeles
+prefs-hash-new-tab = Abrir el hash en una pestaña nueva
+prefs-recipe-commands = Pasos de comando en recetas
+prefs-ask-first = Preguntar antes de ejecutar
+prefs-run-without-asking = Ejecutar sin preguntar
+prefs-shell = Shell para comandos
+prefs-shell-tip = El programa y sus opciones que ejecutan Filtrar con un comando y los pasos de comando de las recetas, como bash -c o pwsh -Command. Vacío usa el shell del sistema.
+prefs-format-indent = Sangría de JSON / XML
+prefs-indent-document = Igual que el documento
+prefs-indent-n-spaces = { $count } espacios
+prefs-settings-files = Archivos de ajustes
+prefs-settings-files-hint = Exportar guarda sus ajustes, atajos, barra de herramientas, temas, recetas y lenguajes en un solo archivo para llevarlo a otro equipo.
+keymap-label = Teclas
+keymap-ettin = Ettin (estilo Notepad++)
+keymap-vs-code = Estilo VS Code
+keymap-hint = Sus propios cambios se aplican encima.
+export-settings = Exportar ajustes
+export-settings-dots = Exportar ajustes…
+import-settings = Importar ajustes
+import-settings-dots = Importar ajustes…
+open-settings-folder = Abrir la carpeta de ajustes
+settings-file-type = Ajustes de Ettin Edit
+settings-exported = { $count } archivos exportados a { $file }
+settings-export-failed = No se pudieron exportar los ajustes a { $file }: { $error }
+settings-import-failed = No se pudo importar { $file }: { $error }
+settings-imported = Ajustes importados.
+settings-imported-backup = Ajustes importados. Sus archivos anteriores están en { $folder }
+import = Importar
+import-from = { $file } (de Ettin Edit { $version })
+import-not-settings = este archivo no lo creó Exportar ajustes
+import-contents = Archivos de ajustes: { $settings } · Temas: { $themes } · Recetas: { $recipes } · Lenguajes: { $languages }
+import-replaces-nothing = No se sustituye nada de lo que tiene ahora.
+import-replaces = { $count ->
+    [one] Sustituye 1 archivo que tiene ahora:
+   *[other] Sustituye { $count } archivos que tiene ahora:
+}
+import-backup-note = Antes se guarda una copia de cada archivo sustituido en la carpeta backups de la carpeta de ajustes.
+import-plugins-missing = Complementos con los que se usaron y que no están instalados aquí: { $plugins }. Instálelos desde Complementos > Administrar complementos.
+live-reloaded = { $file } recargado
+live-reload-failed = { $file } cambió pero no se puede leer: { $error }. Se sigue usando la última versión válida.
+live-reload-place = línea { $line }, columna { $column }

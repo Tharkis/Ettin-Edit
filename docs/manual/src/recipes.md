@@ -62,10 +62,12 @@ its steps on the right. Double-click a recipe to run it.
 
 <p><img class="screenshot" src="images/recipes-sample.png" alt="The Recipes window with Count Errors and Warnings selected: Preview input is set to Sample text, Show output after is Step 2, the sample pane holds INFO a, ERROR b, WARN c and the After step 2 pane shows ERROR b and WARN c"></p>
 
-Every change is saved straight away. The buttons along the bottom make a
+Every change is saved straight away. **Undo Changes** puts every recipe
+back as it was when you opened the window (recipes added since are removed,
+and deleted ones come back). The other buttons along the bottom make a
 **New** recipe, **Duplicate**, **Delete**, **Export…** or **Import…** one,
-open the recipes **Folder**, and **Reload** it after you've changed files
-there yourself. **Run** and **Run on All Tabs** on the right run the recipe
+and open the recipes **Folder**. Changes you make to the files there yourself
+show up within a second; **Reload** reads the folder again at once. **Run** and **Run on All Tabs** on the right run the recipe
 you're looking at. (If a translation makes the labels too long to fit, the
 buttons show only their icons; point at one to see what it does.)
 
@@ -132,6 +134,10 @@ asks before it runs and lists the commands. Tick **Don't ask again for this
 recipe until its commands change** to skip the question next time; if anyone
 changes a command or the recipe's name, it asks again. A recipe with commands
 has a terminal sign after its name in the Recipes window.
+
+If you write your own recipes and trust them, set **Recipe command steps** to
+**Run without asking** in [Preferences > Transform](preferences.md#transform).
+The shell they run with is **Shell for commands** in the same place.
 
 While a recipe takes more than a moment, a message shows it with a **Stop**
 button. Stopping leaves the text as it was.

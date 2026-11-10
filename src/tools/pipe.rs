@@ -11,10 +11,62 @@ use std::time::Duration;
 /// A finished command's standard output and error.
 pub type Output = Receiver<(Vec<u8>, Vec<u8>)>;
 
-/// `command` as the system shell runs it, in `dir`.
+/// The shell set in Preferences, like `bash -c`; empty uses the system's.
+static SHELL: std::sync::RwLock<String> = std::sync::RwLock::new(String::new());
+
+pub fn set_shell(shell: &str) {
+    *SHELL.write().unwrap_or_else(|e| e.into_inner()) = shell.trim().to_owned();
+}
+
+/// The shell's program and the arguments before the command, from a
+/// setting like `bash -c` or `"C:\Program Files\PowerShell\7\pwsh.exe" -Command`.
+pub fn shell_words(setting: &str) -> Option<(String, Vec<String>)> {
+    let setting = setting.trim();
+    if setting.is_empty() {
+        return None;
+    }
+    let (program, rest) = match setting.strip_prefix('"') {
+        Some(quoted) => {
+            let end = quoted.find('"')?;
+            (quoted[..end].to_owned(), &quoted[end + 1..])
+        }
+        None => match setting.split_once(char::is_whitespace) {
+            Some((p, rest)) => (p.to_owned(), rest),
+            None => (setting.to_owned(), ""),
+        },
+    };
+    Some((
+        program,
+        rest.split_whitespace().map(str::to_owned).collect(),
+    ))
+}
+
+/// `command` as the shell runs it, in `dir`.
 pub fn shell(command: &str, dir: Option<&std::path::Path>) -> Command {
+    let custom = shell_words(&SHELL.read().unwrap_or_else(|e| e.into_inner()));
+    let mut cmd = match custom {
+        Some((program, args)) => {
+            let mut cmd = Command::new(program);
+            cmd.args(args).arg(command);
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x0800_0000);
+            }
+            cmd
+        }
+        None => system_shell(command),
+    };
+    if let Some(dir) = dir {
+        cmd.current_dir(dir);
+    }
+    crate::system::on_host(cmd)
+}
+
+/// `sh -c` (`cmd /C` on Windows).
+fn system_shell(command: &str) -> Command {
     #[cfg(windows)]
-    let mut cmd = {
+    let cmd = {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let mut cmd = Command::new("cmd");
@@ -23,15 +75,12 @@ pub fn shell(command: &str, dir: Option<&std::path::Path>) -> Command {
         cmd
     };
     #[cfg(not(windows))]
-    let mut cmd = {
+    let cmd = {
         let mut cmd = Command::new("sh");
         cmd.arg("-c").arg(command);
         cmd
     };
-    if let Some(dir) = dir {
-        cmd.current_dir(dir);
-    }
-    crate::system::on_host(cmd)
+    cmd
 }
 
 /// Starts `command` with `input` on its standard input.
@@ -133,6 +182,22 @@ pub fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_shell_setting() {
+        assert_eq!(shell_words("  "), None);
+        assert_eq!(
+            shell_words("bash -c"),
+            Some(("bash".to_owned(), vec!["-c".to_owned()]))
+        );
+        assert_eq!(
+            shell_words(r#""C:\Program Files\pwsh.exe" -NoProfile -Command"#),
+            Some((
+                r"C:\Program Files\pwsh.exe".to_owned(),
+                vec!["-NoProfile".to_owned(), "-Command".to_owned()]
+            ))
+        );
+    }
 
     #[test]
     fn output_keeps_the_input_shape() {

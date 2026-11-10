@@ -291,3 +291,83 @@ mod host_tests {
         );
     }
 }
+
+/// Whether the desktop asks for dark windows: `Some(true)` for dark,
+/// `Some(false)` for light, `None` when it doesn't say. For Linux desktops
+/// whose window system doesn't report it (X11): asks the desktop portal
+/// (GNOME, KDE and others), then GNOME's own setting. Blocks briefly; call
+/// it off the UI thread.
+pub fn desktop_prefers_dark() -> Option<bool> {
+    #[cfg(target_os = "linux")]
+    {
+        let run = |program: &str, args: &[&str]| -> Option<String> {
+            let out = Command::new(program)
+                .args(args)
+                .stdin(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .output()
+                .ok()?;
+            out.status
+                .success()
+                .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+        };
+        if let Some(out) = run(
+            "gdbus",
+            &[
+                "call",
+                "--session",
+                "--timeout",
+                "1",
+                "--dest",
+                "org.freedesktop.portal.Desktop",
+                "--object-path",
+                "/org/freedesktop/portal/desktop",
+                "--method",
+                "org.freedesktop.portal.Settings.Read",
+                "org.freedesktop.appearance",
+                "color-scheme",
+            ],
+        ) && let Some(answer) = portal_color_scheme(&out)
+        {
+            return Some(answer);
+        }
+        if let Some(out) = run(
+            "gsettings",
+            &["get", "org.gnome.desktop.interface", "color-scheme"],
+        ) {
+            if out.contains("dark") {
+                return Some(true);
+            }
+            if out.contains("light") || out.contains("default") {
+                return Some(false);
+            }
+        }
+        None
+    }
+    #[cfg(not(target_os = "linux"))]
+    None
+}
+
+/// Reads the portal's answer, like `(<<uint32 1>>,)`: 1 is dark, 2 light,
+/// 0 no preference.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn portal_color_scheme(out: &str) -> Option<bool> {
+    let n = out
+        .split(|c: char| !c.is_ascii_digit())
+        .rfind(|s| !s.is_empty())?;
+    match n {
+        "1" => Some(true),
+        "2" => Some(false),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod theme_tests {
+    #[test]
+    fn reads_the_portal_answer() {
+        assert_eq!(super::portal_color_scheme("(<<uint32 1>>,)\n"), Some(true));
+        assert_eq!(super::portal_color_scheme("(<uint32 2>,)"), Some(false));
+        assert_eq!(super::portal_color_scheme("(<<uint32 0>>,)"), None);
+    }
+}

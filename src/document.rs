@@ -140,6 +140,10 @@ pub struct Document {
     pub mixed_line_endings: bool,
     /// The built-in Welcome tab rather than a document.
     pub welcome: bool,
+    /// How the file was indented when it was read.
+    pub detected_indent: Option<crate::indent::Detected>,
+    /// Tabs or spaces picked for this tab with View > Indent with Spaces.
+    pub own_indent: Option<bool>,
 }
 
 impl Document {
@@ -164,6 +168,8 @@ impl Document {
             binary_from_text: false,
             mixed_line_endings: false,
             welcome: false,
+            detected_indent: None,
+            own_indent: None,
         }
     }
 
@@ -181,6 +187,7 @@ impl Document {
 
         let mut doc = Self::new_untitled(id, 0);
         doc.mixed_line_endings = mixed;
+        doc.detected_indent = crate::indent::detect(&text);
         doc.path = Some(path.to_path_buf());
         doc.editor = Editor::new(&text);
         doc.line_ending = line_ending;
@@ -223,6 +230,7 @@ impl Document {
             encoding.unwrap_or_else(|| TextEncoding::detect(&bytes, Some(self.encoding)));
         let (text, line_ending, lossy, mixed) = decode(&bytes, encoding);
         self.mixed_line_endings = mixed;
+        self.detected_indent = crate::indent::detect(&text);
         self.editor.reload_text(&text);
         self.editor.buffer.mark_saved();
         self.encoding = encoding;

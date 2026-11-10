@@ -190,7 +190,7 @@ impl EttinApp {
     }
 
     pub(super) fn run_text_tool(&mut self, ctx: &egui::Context, action: Action) {
-        let unit = self.docs[self.active].editor.indent_unit();
+        let unit = self.format_unit(self.active);
         match action {
             Action::Mime(op) => {
                 self.transform(ctx, &t!("menu-mime-tools"), |t| {

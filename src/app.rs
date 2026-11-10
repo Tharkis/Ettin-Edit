@@ -13,6 +13,7 @@ mod plugins;
 mod printing;
 mod recipes;
 mod ribbon;
+mod settings_live;
 mod suggest;
 mod text_tools;
 mod transform;
@@ -184,6 +185,12 @@ pub struct EttinApp {
     char_panel: crate::char_panel::CharPanel,
     /// The tabbed toolbar under the menu bar.
     toolbar: ribbon::Toolbar,
+    /// Notices settings files edited while Ettin Edit runs.
+    watcher: Option<crate::watch::Watcher>,
+    theme_probe: settings_live::SystemThemeProbe,
+    import_confirm: Option<settings_live::ImportConfirm>,
+    /// The recipes when the Recipes window opened, for Undo Changes.
+    recipes_opened: Option<Vec<crate::recipes::Recipe>>,
 }
 
 /// Seconds between backups of unsaved changes.
@@ -231,12 +238,28 @@ impl EttinApp {
                         }
                     }
                 }
-                StyleEvent::Save { name, source } => {
+                StyleEvent::Write { name, source } => {
                     let Some(dir) = settings::themes_dir() else {
                         continue;
                     };
                     let path = theme::theme_path(&dir, &name);
-                    match std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, source))
+                    if let Err(e) = std::fs::create_dir_all(&dir)
+                        .and_then(|_| crate::watch::write(&path, source))
+                    {
+                        self.errors.push(t!(
+                            "theme-save-failed",
+                            path = path.display().to_string(),
+                            error = e.to_string()
+                        ));
+                    }
+                }
+                StyleEvent::SaveAsNew { name, source } => {
+                    let Some(dir) = settings::themes_dir() else {
+                        continue;
+                    };
+                    let path = theme::theme_path(&dir, &name);
+                    match std::fs::create_dir_all(&dir)
+                        .and_then(|_| crate::watch::write(&path, source))
                     {
                         Ok(()) => {
                             self.reload_themes();
@@ -249,7 +272,6 @@ impl EttinApp {
                         )),
                     }
                 }
-                StyleEvent::Discard => self.reload_themes(),
                 StyleEvent::Switch(name) => {
                     self.run(ctx, Action::SetTheme(name.clone()));
                     let source = self.theme_source(&name);
@@ -380,7 +402,30 @@ impl EttinApp {
             hex_views: HashMap::new(),
             char_panel: Default::default(),
             toolbar,
+            watcher: None,
+            theme_probe: Default::default(),
+            import_confirm: None,
+            recipes_opened: None,
         };
+        if let Some(dir) = settings::config_dir() {
+            let ctx = cc.egui_ctx.clone();
+            let (watcher, error) = crate::watch::Watcher::start(
+                &dir,
+                std::sync::Arc::new(move || ctx.request_repaint()),
+            );
+            if let Some(e) = error {
+                eprintln!("ettin-edit: settings files won't reload by themselves: {e}");
+            }
+            app.watcher = Some(watcher);
+        }
+        // For testing the import window without a file dialog.
+        #[cfg(debug_assertions)]
+        if let Some(path) = std::env::var_os("ETTIN_IMPORT_SETTINGS") {
+            app.open_settings_import(PathBuf::from(path));
+        }
+        // The interface size is a setting; Ctrl+Plus zooms the text instead.
+        cc.egui_ctx.options_mut(|o| o.zoom_with_keyboard = false);
+        crate::tools::pipe::set_shell(&app.settings.shell);
         if let Some(dir) = app.settings.workspace.clone() {
             app.folders.set_root(&dir);
         }
@@ -392,6 +437,7 @@ impl EttinApp {
             app.errors.push(e);
         }
         crate::editor::layout::set_tab_width(app.settings.tab_width);
+        actions::set_keymap(app.settings.keymap);
         let shortcut_errors = actions::set_overrides(&app.settings.shortcuts);
         app.errors.extend(shortcut_errors);
         app.migrate_recipe_refs();
@@ -1056,8 +1102,37 @@ impl EttinApp {
     // ---------------------------------------------------------------------
     // Actions
 
+    /// The indentation the document at `index` uses (see [`crate::indent::effective`]).
+    pub(super) fn doc_indent(&self, index: usize) -> crate::indent::Indent {
+        match self.docs.get(index) {
+            Some(doc) => crate::indent::effective(
+                &self.settings,
+                &doc.syntax,
+                doc.detected_indent,
+                doc.own_indent,
+            ),
+            None => crate::indent::effective(&self.settings, "", None, None),
+        }
+    }
+
+    /// The indentation formatters write in the document at `index`: the
+    /// Transform preference, or the document's own.
+    pub(super) fn format_unit(&self, index: usize) -> String {
+        if let Some(unit) = self.settings.format_indent.unit() {
+            return unit.to_owned();
+        }
+        let indent = self.doc_indent(index);
+        if indent.use_spaces {
+            " ".repeat(indent.tab_width)
+        } else {
+            "\t".to_owned()
+        }
+    }
+
     fn run(&mut self, ctx: &egui::Context, action: Action) {
         let focus_editor = action.focuses_editor();
+        // Commands work on the active tab, with its tab width.
+        crate::editor::layout::set_tab_width(self.doc_indent(self.active).tab_width);
         if action == Action::ReplaceAll {
             // Keep the text and options, so the macro can become a recipe.
             self.recorder.push(MacroStep::ReplaceAll {
@@ -1186,6 +1261,7 @@ impl EttinApp {
             }
             Action::SetTheme(name) => {
                 if let Some(i) = self.themes.iter().position(|t| t.name == name) {
+                    self.theme_picked(&name);
                     self.theme_idx = i;
                     self.settings.theme = name;
                     self.apply_style(ctx);
@@ -1331,11 +1407,15 @@ impl EttinApp {
             Action::ExportHtml => self.print(true),
             Action::ToggleUpdateCheck => self.settings.check_updates = !self.settings.check_updates,
             Action::Preferences => {
-                self.prefs.show();
+                self.prefs.show(&self.settings);
                 drop_focus(ctx);
             }
+            Action::ExportSettings => self.export_settings(ctx),
+            Action::ImportSettings => self.import_settings(),
+            Action::OpenSettingsFolder => self.open_settings_folder(),
             Action::ShortcutMapper => {
-                self.shortcut_mapper.show();
+                self.shortcut_mapper
+                    .show(&self.settings.shortcuts, self.settings.keymap);
                 drop_focus(ctx);
             }
             Action::StyleConfigurator => {
@@ -1673,7 +1753,12 @@ impl EttinApp {
             }
             Action::ToggleAutoClose => self.settings.auto_close = !self.settings.auto_close,
             Action::ToggleSmartIndent => self.settings.smart_indent = !self.settings.smart_indent,
-            Action::ToggleUseSpaces => self.settings.use_spaces = !self.settings.use_spaces,
+            Action::ToggleUseSpaces => {
+                let spaces = self.doc_indent(self.active).use_spaces;
+                if let Some(doc) = self.docs.get_mut(self.active) {
+                    doc.own_indent = Some(!spaces);
+                }
+            }
             Action::ToggleCompletion => {
                 self.settings.word_completion = !self.settings.word_completion
             }
@@ -2542,7 +2627,7 @@ impl EttinApp {
                 self.toggle_item(
                     ui,
                     &t!("indent-with-spaces"),
-                    s.use_spaces,
+                    self.doc_indent(self.active).use_spaces,
                     Action::ToggleUseSpaces,
                 );
                 self.toggle_item(
@@ -2587,6 +2672,10 @@ impl EttinApp {
                     ui.label(t!("long-line-column"));
                     ui.add(egui::DragValue::new(&mut self.settings.edge_column).range(10..=400));
                 });
+                ui.separator();
+                self.menu_item(ui, &t!("export-settings-dots"), Action::ExportSettings);
+                self.menu_item(ui, &t!("import-settings-dots"), Action::ImportSettings);
+                self.menu_item(ui, &t!("open-settings-folder"), Action::OpenSettingsFolder);
             });
             ui.menu_button(t!("menu-help"), |ui| {
                 self.menu_item(ui, &t!("welcome"), Action::Welcome);
@@ -3017,12 +3106,19 @@ impl EttinApp {
             return false;
         };
         doc.editor.set_api(api);
+        let indent = crate::indent::effective(
+            &self.settings,
+            &doc.syntax,
+            doc.detected_indent,
+            doc.own_indent,
+        );
+        crate::editor::layout::set_tab_width(indent.tab_width);
         let syntax = self.highlighter.syntax(&doc.syntax);
         let s = &self.settings;
         doc.editor.opts = EditOptions {
             auto_close: s.auto_close,
             smart_indent: s.smart_indent,
-            use_spaces: s.use_spaces,
+            use_spaces: indent.use_spaces,
             completion: s.word_completion && !self.recorder.is_recording(),
             language_completion: s.language_completion && !self.recorder.is_recording(),
             parameter_hints: s.parameter_hints && !self.recorder.is_recording(),
@@ -3427,33 +3523,37 @@ impl EttinApp {
         if let Some(e) = self.manual.ui(ctx, &palette) {
             self.errors.push(e);
         }
-        let languages = self.languages.clone();
-        for event in self.prefs.ui(ctx, &mut self.settings, &languages, &palette) {
-            match event {
-                crate::prefs_ui::PrefsEvent::Font(font) => {
-                    match crate::fonts::install(ctx, &font) {
-                        Ok(()) => self.settings.editor_font = font,
-                        Err(e) => {
+        if self.prefs.open {
+            use crate::prefs_ui::PrefsEvent;
+            let languages = self.languages.clone();
+            let themes: Vec<String> = self.themes.iter().map(|t| t.name.clone()).collect();
+            let before = self.settings.clone();
+            let events = self
+                .prefs
+                .ui(ctx, &mut self.settings, &languages, &themes, &palette);
+            self.apply_settings(ctx, &before);
+            for event in events {
+                match event {
+                    PrefsEvent::Shortcuts => self.pending.push(Action::ShortcutMapper),
+                    PrefsEvent::Styles => self.pending.push(Action::StyleConfigurator),
+                    PrefsEvent::Toolbar => self.pending.push(Action::CustomiseToolbar),
+                    PrefsEvent::ReloadTranslations => {
+                        let errors = crate::i18n::set_language(&self.settings.ui_language);
+                        self.errors.extend(errors);
+                        self.toolbar.refresh();
+                    }
+                    PrefsEvent::TranslationsFolder => {
+                        if let Err(e) = crate::i18n::open_translations_folder() {
                             self.errors.push(e);
-                            let _ = crate::fonts::install(ctx, &self.settings.editor_font);
                         }
                     }
-                }
-                crate::prefs_ui::PrefsEvent::Shortcuts => self.pending.push(Action::ShortcutMapper),
-                crate::prefs_ui::PrefsEvent::Styles => self.pending.push(Action::StyleConfigurator),
-                crate::prefs_ui::PrefsEvent::Toolbar => self.pending.push(Action::CustomiseToolbar),
-                crate::prefs_ui::PrefsEvent::Language => {
-                    let errors = crate::i18n::set_language(&self.settings.ui_language);
-                    self.errors.extend(errors);
-                }
-                crate::prefs_ui::PrefsEvent::TranslationsFolder => {
-                    if let Err(e) = crate::i18n::open_translations_folder() {
-                        self.errors.push(e);
-                    }
+                    PrefsEvent::ExportSettings => self.pending.push(Action::ExportSettings),
+                    PrefsEvent::ImportSettings => self.pending.push(Action::ImportSettings),
+                    PrefsEvent::SettingsFolder => self.pending.push(Action::OpenSettingsFolder),
                 }
             }
         }
-        crate::editor::layout::set_tab_width(self.settings.tab_width);
+        self.import_dialog(ctx);
         if self.style_editor.open {
             let names: Vec<(String, bool)> = self
                 .themes
@@ -3498,10 +3598,14 @@ impl EttinApp {
         }
         if self.shortcut_mapper.open {
             let rows = self.shortcut_rows(ctx);
-            if self
-                .shortcut_mapper
-                .ui(ctx, &rows, &mut self.settings.shortcuts, &palette)
-            {
+            if self.shortcut_mapper.ui(
+                ctx,
+                &rows,
+                &mut self.settings.shortcuts,
+                &mut self.settings.keymap,
+                &palette,
+            ) {
+                actions::set_keymap(self.settings.keymap);
                 let errors = actions::set_overrides(&self.settings.shortcuts);
                 self.errors.extend(errors);
             }
@@ -3674,6 +3778,7 @@ impl eframe::App for EttinApp {
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.startup_window.update(&ctx, frame);
+        self.settings_frame(&ctx);
         self.apply_style(&ctx);
         self.first_window_size(&ctx);
         self.poll_instance(&ctx);
@@ -3840,6 +3945,16 @@ impl eframe::App for EttinApp {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {
         if !self.quitting {
             self.write_backups();
+        }
+        if let Some(path) = settings::settings_path()
+            && crate::watch::changed_since_own_write(&path)
+        {
+            // settings.json was edited outside the app and not read yet:
+            // read it now when quitting, else leave it for the reload.
+            if !self.quitting {
+                return;
+            }
+            self.catch_up_settings_file(None);
         }
         self.settings.save();
     }

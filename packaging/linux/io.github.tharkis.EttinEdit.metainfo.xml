@@ -68,6 +68,23 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.4.0" date="2026-11-10">
+      <description>
+        <p>Settings in one place: a Preferences window you can search, changes
+        that apply at once, settings files that reload themselves, and an easy
+        move to another computer.</p>
+        <ul>
+          <li>Preferences has a search box and new Appearance, Languages and Transform sections</li>
+          <li>Every settings window applies changes at once and has Undo Changes</li>
+          <li>Follow the desktop's light or dark mode, and set the interface size</li>
+          <li>Per-language indentation, and files keep the indentation they already use</li>
+          <li>Settings, themes, languages, translations and recipes reload when you save them</li>
+          <li>Settings &gt; Export Settings and Import Settings move everything in one file</li>
+          <li>A VS Code style keymap in the Shortcut Mapper</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.4.0</url>
+    </release>
     <release version="2.3.0" date="2026-11-10">
       <description>
         <p>Plugins as transforms: plugins can add transforms that work just

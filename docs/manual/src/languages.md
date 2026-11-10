@@ -35,10 +35,16 @@ folder:
 
 Language > Open Languages Folder opens it (and creates it the first time).
 Language > New Language… puts a commented template there and opens it.
-Ettin Edit reads the folder when it starts; after adding or changing a file,
-choose Language > Reload Languages to use it straight away.
+Ettin Edit reads the folder when it starts, and while it runs it notices
+when you add or save a file there and reloads it within a second, so tabs in
+that language are coloured again straight away. Language > Reload Languages
+reads the whole folder again.
 
-- A file that cannot be loaded is skipped. Ettin Edit tells you which file it
+- When a file you save has a mistake, Ettin Edit keeps the version that
+  worked before and shows a message with the file, the line and an **Open**
+  button.
+
+- A file that cannot be loaded at start-up is skipped. Ettin Edit tells you which file it
   was and why; the other files still load.
 - A language with the same name as a built-in one replaces it. For example, a
   file with `"name": "Python"` takes over `.py` files.
@@ -146,6 +152,14 @@ loads it as it is.
   Sublime Text features (such as `extends` or `branch_point`) may not load.
 
 Only use grammars whose licence lets you use them.
+
+## Indentation
+
+Each language can have its own tab width and tabs-or-spaces, set under
+[Preferences > Languages](preferences.md#languages). Out of the box JSON and
+YAML use 2 spaces, and Makefiles and Go use tabs. When **Detect indentation
+when a file opens** is on (the default), a file that's already indented a
+clear way keeps its own style.
 
 ## Colours
 
