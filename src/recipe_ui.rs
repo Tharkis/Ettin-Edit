@@ -1,7 +1,7 @@
 //! Transform > Recipes: the window that lists, edits, previews and runs
 //! recipes, and the question asked before a recipe runs shell commands.
 
-use egui::{Align, Color32, Id, Layout, Margin, RichText, Ui, Vec2};
+use egui::{Align, Color32, Id, Key, KeyboardShortcut, Layout, Margin, RichText, Ui, Vec2};
 use egui_phosphor::regular as ph;
 
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
@@ -32,6 +32,21 @@ pub enum RecipeEvent {
         index: usize,
         all_tabs: bool,
     },
+    /// Give the recipe this shortcut (`None` takes its shortcut away).
+    /// With `force`, take it from the command that has it now.
+    SetShortcut {
+        index: usize,
+        shortcut: Option<KeyboardShortcut>,
+        force: bool,
+    },
+}
+
+/// A picked shortcut that another command already uses.
+pub struct ShortcutConflict {
+    pub index: usize,
+    pub shortcut: KeyboardShortcut,
+    /// The other command's menu path.
+    pub other: String,
 }
 
 /// The text the preview starts from.
@@ -60,6 +75,19 @@ pub struct RecipeWindow {
     preview: Option<(u64, String, Preview)>,
     /// A message for the user, such as a failed save.
     pub message: Option<String>,
+    /// Waiting for the selected recipe's new shortcut.
+    capturing: bool,
+    /// A key press taken at the start of the frame, before the editor sees it.
+    grabbed: Option<Result<KeyboardShortcut, String>>,
+    /// The picked shortcut is in use; asking whether to move it.
+    pub conflict: Option<ShortcutConflict>,
+    shortcut_error: Option<String>,
+    /// The search box at the top of Add Step, and the highlighted match.
+    step_query: String,
+    step_pick: usize,
+    focus_step_search: bool,
+    /// The selected recipe's shortcut, as menus show it.
+    shortcut_text: Option<String>,
 }
 
 fn tr(id: &str) -> String {
@@ -226,6 +254,15 @@ pub fn step_label(step: &Step) -> String {
         }
         Step::Reflow { width } => t!("recipe-step-reflow", width = *width),
         Step::Convert { from, to } => t!("convert-to", from = from.name(), to = to.name()),
+        Step::ConvertTo { to, from: None } => {
+            t!("convert-to-format", format = target_name(*to))
+        }
+        Step::ConvertTo {
+            to,
+            from: Some(from),
+        } => {
+            t!("convert-to", from = from.name(), to = target_name(*to))
+        }
         Step::Hash { kind } => t!("recipe-step-hash", kind = kind.name()),
         Step::HexEncode => tr("hex-encode"),
         Step::HexDecode => tr("hex-decode"),
@@ -255,6 +292,14 @@ pub fn step_label(step: &Step) -> String {
         Step::Json { kind } => json_label(*kind),
         Step::Xml { kind } => xml_label(*kind),
         Step::Command { command } => t!("recipe-step-command", command = short(command)),
+    }
+}
+
+/// A target format's name: "Markdown table" for Markdown.
+fn target_name(f: DataFormat) -> String {
+    match f {
+        DataFormat::Markdown => tr("convert-markdown-table"),
+        f => f.name().to_owned(),
     }
 }
 
@@ -315,14 +360,10 @@ fn catalog() -> Vec<(String, Vec<Step>)> {
         Step::TabsToSpaces,
         Step::SpacesToTabs { all: false },
     ];
-    let mut convert = Vec::new();
-    for from in DataFormat::SOURCES {
-        for to in DataFormat::TARGETS {
-            if to != from {
-                convert.push(Step::Convert { from, to });
-            }
-        }
-    }
+    let convert = DataFormat::TARGETS
+        .iter()
+        .map(|&to| Step::ConvertTo { to, from: None })
+        .collect();
     let mut encode: Vec<Step> = MIME_OPS.iter().map(|&kind| Step::Mime { kind }).collect();
     encode.extend(HASHES.iter().map(|&kind| Step::Hash { kind }));
     encode.extend([Step::HexEncode, Step::HexDecode, Step::JwtDecode]);
@@ -345,7 +386,7 @@ fn catalog() -> Vec<(String, Vec<Step>)> {
             tr("menu-convert-case"),
             CASES.iter().map(|&kind| Step::Case { kind }).collect(),
         ),
-        (tr("menu-convert"), convert),
+        (tr("menu-convert-to"), convert),
         (tr("recipe-group-encode"), encode),
         (tr("recipe-group-format"), formats),
         (
@@ -355,6 +396,22 @@ fn catalog() -> Vec<(String, Vec<Step>)> {
             }],
         ),
     ]
+}
+
+/// The steps whose name (or group) has every word of `query`, in catalog
+/// order, with their group's name.
+fn search_steps(groups: Vec<(String, Vec<Step>)>, query: &str) -> Vec<(String, Step)> {
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    let mut out = Vec::new();
+    for (group, steps) in groups {
+        for step in steps {
+            let hay = format!("{} {}", catalog_label(&step), group).to_lowercase();
+            if words.iter().all(|w| hay.contains(w)) {
+                out.push((group.clone(), step));
+            }
+        }
+    }
+    out
 }
 
 /// A drop-down list; true when the value changed.
@@ -503,6 +560,24 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
                 combo(ui, id.with("to"), to, &targets)
             });
         }
+        Step::ConvertTo { to, from } => {
+            let mut sources = vec![(None, tr("read-as-auto"))];
+            sources.extend(
+                DataFormat::SOURCES
+                    .iter()
+                    .map(|f| (Some(*f), f.name().to_owned())),
+            );
+            let targets: Vec<_> = DataFormat::TARGETS
+                .iter()
+                .map(|f| (*f, target_name(*f)))
+                .collect();
+            changed |= labelled(ui, &tr("menu-read-as"), |ui| {
+                combo(ui, id.with("from"), from, &sources)
+            });
+            changed |= labelled(ui, &tr("recipe-convert-to"), |ui| {
+                combo(ui, id.with("to"), to, &targets)
+            });
+        }
         Step::Hash { kind } => {
             let options: Vec<_> = HASHES.iter().map(|k| (*k, k.name().to_owned())).collect();
             changed |= combo(ui, id.with("hash"), kind, &options);
@@ -625,12 +700,29 @@ impl RecipeWindow {
         self.preview = None;
     }
 
+    /// While waiting for a shortcut, takes this frame's key presses so
+    /// nothing else acts on them. Call before anything else reads input.
+    pub fn grab_keys(&mut self, ctx: &egui::Context) {
+        if !self.open || !self.capturing {
+            return;
+        }
+        if ctx.input(|i| i.key_pressed(Key::Escape) && i.modifiers.is_none()) {
+            self.capturing = false;
+        } else if let Some(result) = crate::shortcut_ui::captured(ctx) {
+            self.grabbed = Some(result);
+        }
+        crate::shortcut_ui::swallow_keys(ctx);
+    }
+
+    /// Draws the window. `shortcut` is the selected recipe's shortcut, as
+    /// shown in menus.
     pub fn ui(
         &mut self,
         ctx: &egui::Context,
         palette: &Palette,
         recipes: &mut [Recipe],
         input: &PreviewInput,
+        shortcut: Option<&str>,
     ) -> Vec<RecipeEvent> {
         let mut events = Vec::new();
         if !self.open {
@@ -639,6 +731,24 @@ impl RecipeWindow {
         if self.selected.is_some_and(|i| i >= recipes.len()) {
             self.selected = None;
         }
+        if self.capturing
+            && let Some(result) = self.grabbed.take()
+        {
+            self.capturing = false;
+            match (result, self.selected) {
+                (Ok(s), Some(index)) => {
+                    self.shortcut_error = None;
+                    events.push(RecipeEvent::SetShortcut {
+                        index,
+                        shortcut: Some(s),
+                        force: false,
+                    });
+                }
+                (Err(e), _) => self.shortcut_error = Some(e),
+                _ => {}
+            }
+        }
+        self.shortcut_text = shortcut.map(str::to_owned);
         let mut open = true;
         egui::Window::new(tr("recipes-title"))
             .id(Id::new("recipes-window"))
@@ -647,11 +757,11 @@ impl RecipeWindow {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .fixed_size([860.0, 560.0])
+            .fixed_size([860.0, 590.0])
             .show(ctx, |ui| {
                 ui.horizontal_top(|ui| {
                     ui.allocate_ui_with_layout(
-                        Vec2::new(210.0, 560.0),
+                        Vec2::new(210.0, 540.0),
                         Layout::top_down(Align::Min),
                         |ui| self.list_ui(ui, palette, recipes, &mut events),
                     );
@@ -664,11 +774,144 @@ impl RecipeWindow {
                         }
                     });
                 });
+                ui.separator();
+                self.bottom_bar(ui, recipes, &mut events);
             });
         if !open {
             self.open = false;
+            self.capturing = false;
+            self.conflict = None;
         }
         events
+    }
+
+    /// New, Duplicate, Delete… on the left and Run on the right. The
+    /// buttons have text labels; when they don't fit (a long translation),
+    /// they show only their icons, with the labels as tooltips.
+    fn bottom_bar(&mut self, ui: &mut Ui, recipes: &[Recipe], events: &mut Vec<RecipeEvent>) {
+        #[derive(Clone, Copy)]
+        enum Do {
+            New,
+            Duplicate,
+            Delete,
+            Export,
+            Import,
+            Folder,
+            Reload,
+        }
+        let selected = self.selected.filter(|i| *i < recipes.len());
+        let buttons = [
+            (ph::PLUS, "recipe-new-short", "recipe-new", true, Do::New),
+            (
+                ph::COPY,
+                "recipe-duplicate",
+                "recipe-duplicate",
+                selected.is_some(),
+                Do::Duplicate,
+            ),
+            (
+                ph::TRASH,
+                "recipe-delete-dots",
+                "recipe-delete-dots",
+                selected.is_some(),
+                Do::Delete,
+            ),
+            (
+                ph::EXPORT,
+                "recipe-export-short",
+                "recipe-export",
+                selected.is_some(),
+                Do::Export,
+            ),
+            (
+                ph::DOWNLOAD_SIMPLE,
+                "recipe-import-short",
+                "recipe-import",
+                true,
+                Do::Import,
+            ),
+            (
+                ph::FOLDER_OPEN,
+                "recipe-folder",
+                "open-recipes-folder",
+                true,
+                Do::Folder,
+            ),
+            (
+                ph::ARROW_CLOCKWISE,
+                "recipe-reload",
+                "reload-recipes",
+                true,
+                Do::Reload,
+            ),
+        ];
+        let run = format!("{} {}", ph::PLAY, tr("run"));
+        let all = tr("recipe-run-all-tabs");
+        let pad = ui.spacing().button_padding.x * 2.0 + ui.spacing().item_spacing.x;
+        let width = |ui: &Ui, text: &str| {
+            let font = egui::TextStyle::Button.resolve(ui.style());
+            ui.fonts_mut(|f| f.layout_no_wrap(text.to_owned(), font, Color32::WHITE))
+                .size()
+                .x
+                + pad
+        };
+        let needed: f32 = buttons
+            .iter()
+            .map(|(icon, label, ..)| width(ui, &format!("{icon} {}", tr(label))))
+            .sum::<f32>()
+            + width(ui, &run)
+            + width(ui, &all)
+            + 16.0;
+        let labels = needed <= ui.available_width();
+        let can_run = selected.is_some_and(|i| !recipes[i].name.trim().is_empty());
+        ui.horizontal(|ui| {
+            for (icon, label, tip, enabled, what) in buttons {
+                let clicked = ui
+                    .add_enabled_ui(enabled, |ui| {
+                        if labels {
+                            ui.button(format!("{icon} {}", tr(label)))
+                                .on_hover_text(tr(tip))
+                                .clicked()
+                        } else {
+                            icon_button(ui, icon, &tr(tip))
+                        }
+                    })
+                    .inner;
+                if !clicked {
+                    continue;
+                }
+                match what {
+                    Do::New => events.push(RecipeEvent::New),
+                    Do::Duplicate => events.extend(selected.map(RecipeEvent::Duplicate)),
+                    Do::Delete => self.confirm_delete = true,
+                    Do::Export => events.extend(selected.map(RecipeEvent::Export)),
+                    Do::Import => events.push(RecipeEvent::Import),
+                    Do::Folder => events.push(RecipeEvent::OpenFolder),
+                    Do::Reload => events.push(RecipeEvent::Reload),
+                }
+            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.add_enabled_ui(can_run, |ui| {
+                    let Some(index) = selected else {
+                        return;
+                    };
+                    let run = egui::Button::new(RichText::new(run).strong())
+                        .fill(ui.visuals().selection.bg_fill);
+                    if ui.add(run).clicked() {
+                        events.push(RecipeEvent::Run {
+                            index,
+                            all_tabs: false,
+                        });
+                    }
+                    if ui.button(all).clicked() {
+                        events.push(RecipeEvent::Run {
+                            index,
+                            all_tabs: true,
+                        });
+                    }
+                });
+            });
+        });
     }
 
     fn list_ui(
@@ -680,8 +923,8 @@ impl RecipeWindow {
     ) {
         egui::ScrollArea::vertical()
             .id_salt("recipe-list")
-            .max_height(420.0)
-            .min_scrolled_height(420.0)
+            .max_height(470.0)
+            .min_scrolled_height(470.0)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if recipes.is_empty() {
@@ -730,35 +973,188 @@ impl RecipeWindow {
                     self.confirm_delete = false;
                 }
             });
-            return;
+        }
+    }
+
+    /// Shortcut: the recipe's shortcut with Set… and Clear, then its id.
+    fn shortcut_row(
+        &mut self,
+        ui: &mut Ui,
+        palette: &Palette,
+        index: usize,
+        id: &str,
+        shortcut: Option<&str>,
+        events: &mut Vec<RecipeEvent>,
+    ) {
+        ui.horizontal(|ui| {
+            ui.add_sized([90.0, 20.0], egui::Label::new(tr("shortcut")));
+            let shown = if self.capturing {
+                RichText::new(tr("press-shortcut")).color(palette.accent)
+            } else {
+                match shortcut {
+                    Some(s) => RichText::new(s).monospace(),
+                    None => RichText::new(tr("recipe-no-shortcut")).color(palette.text_dim),
+                }
+            };
+            egui::Frame::new()
+                .fill(ui.visuals().extreme_bg_color)
+                .corner_radius(4)
+                .inner_margin(Margin::symmetric(6, 3))
+                .show(ui, |ui| {
+                    ui.set_min_width(170.0);
+                    ui.label(shown);
+                });
+            if !self.capturing && ui.button(tr("set-shortcut")).clicked() {
+                self.capturing = true;
+                self.conflict = None;
+                self.shortcut_error = None;
+            }
+            if ui
+                .add_enabled(
+                    shortcut.is_some() && !self.capturing,
+                    egui::Button::new(tr("recipe-clear-shortcut")),
+                )
+                .clicked()
+            {
+                events.push(RecipeEvent::SetShortcut {
+                    index,
+                    shortcut: None,
+                    force: false,
+                });
+            }
+        });
+        if let Some(c) = &self.conflict
+            && c.index == index
+        {
+            let text = t!(
+                "shortcut-in-use",
+                shortcut = ui.ctx().format_shortcut(&c.shortcut),
+                command = c.other.clone()
+            );
+            let mut decided = None;
+            egui::Frame::new()
+                .fill(palette.find_hit)
+                .corner_radius(4)
+                .inner_margin(6)
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(text);
+                        if ui.button(tr("move-it-here")).clicked() {
+                            decided = Some(true);
+                        }
+                        if ui.button(tr("cancel")).clicked() {
+                            decided = Some(false);
+                        }
+                    });
+                });
+            if let Some(take) = decided {
+                let c = self.conflict.take().expect("checked above");
+                if take {
+                    events.push(RecipeEvent::SetShortcut {
+                        index,
+                        shortcut: Some(c.shortcut),
+                        force: true,
+                    });
+                }
+            }
+        }
+        if let Some(e) = &self.shortcut_error {
+            ui.label(RichText::new(e).color(palette.modified).size(12.0));
         }
         ui.horizontal(|ui| {
-            if icon_button(ui, ph::PLUS, &tr("recipe-new")) {
-                events.push(RecipeEvent::New);
+            ui.add_space(94.0);
+            ui.label(
+                RichText::new(t!("recipe-id", id = id.to_owned()))
+                    .size(12.0)
+                    .color(palette.text_dim),
+            )
+            .on_hover_text(tr("recipe-id-hint"));
+        });
+    }
+
+    /// Add Step's menu: a search box over every step, or the steps by
+    /// group while the box is empty. Returns the step picked.
+    fn add_step_menu(&mut self, ui: &mut Ui, palette: &Palette) -> Option<Step> {
+        let edit = ui.add(
+            egui::TextEdit::singleline(&mut self.step_query)
+                .id(Id::new("recipe-step-search"))
+                .hint_text(tr("recipe-step-search"))
+                .desired_width(260.0),
+        );
+        if std::mem::take(&mut self.focus_step_search) {
+            edit.request_focus();
+        }
+        if edit.changed() {
+            self.step_pick = 0;
+        }
+        let query = self.step_query.trim().to_lowercase();
+        let groups = catalog();
+        if query.is_empty() {
+            let mut picked = None;
+            for (group, steps) in groups {
+                ui.menu_button(group, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(420.0)
+                        .show(ui, |ui| {
+                            for step in steps {
+                                if ui.button(catalog_label(&step)).clicked() {
+                                    picked = Some(step);
+                                }
+                            }
+                        });
+                });
             }
-            ui.add_enabled_ui(self.selected.is_some(), |ui| {
-                if icon_button(ui, ph::COPY, &tr("recipe-duplicate")) {
-                    events.extend(self.selected.map(RecipeEvent::Duplicate));
+            if picked.is_some() {
+                ui.close();
+            }
+            return picked;
+        }
+        let found = search_steps(groups, &query);
+        if ui.input(|i| i.key_pressed(Key::ArrowDown)) {
+            self.step_pick = (self.step_pick + 1).min(found.len().saturating_sub(1));
+        }
+        if ui.input(|i| i.key_pressed(Key::ArrowUp)) {
+            self.step_pick = self.step_pick.saturating_sub(1);
+        }
+        let mut picked = None;
+        if ui.input(|i| i.key_pressed(Key::Enter)) {
+            picked = found.get(self.step_pick).map(|(_, s)| s.clone());
+        }
+        egui::ScrollArea::vertical()
+            .max_height(320.0)
+            .show(ui, |ui| {
+                if found.is_empty() {
+                    ui.label(RichText::new(tr("nothing-matches")).color(palette.text_dim));
                 }
-                if icon_button(ui, ph::TRASH, &tr("recipe-delete-dots")) {
-                    self.confirm_delete = true;
-                }
-                if icon_button(ui, ph::EXPORT, &tr("recipe-export")) {
-                    events.extend(self.selected.map(RecipeEvent::Export));
+                let mut last_group = "";
+                for (i, (group, step)) in found.iter().enumerate() {
+                    if group != last_group {
+                        ui.label(
+                            RichText::new(group.to_uppercase())
+                                .size(11.0)
+                                .color(palette.text_dim),
+                        );
+                        last_group = group;
+                    }
+                    let r = ui.add(
+                        egui::Button::selectable(i == self.step_pick, catalog_label(step))
+                            .min_size(Vec2::new(260.0, 0.0)),
+                    );
+                    if i == self.step_pick
+                        && ui
+                            .input(|i| i.key_pressed(Key::ArrowDown) || i.key_pressed(Key::ArrowUp))
+                    {
+                        r.scroll_to_me(None);
+                    }
+                    if r.clicked() {
+                        picked = Some(step.clone());
+                    }
                 }
             });
-            if icon_button(ui, ph::DOWNLOAD_SIMPLE, &tr("recipe-import")) {
-                events.push(RecipeEvent::Import);
-            }
-        });
-        ui.horizontal(|ui| {
-            if icon_button(ui, ph::FOLDER_OPEN, &tr("open-recipes-folder")) {
-                events.push(RecipeEvent::OpenFolder);
-            }
-            if icon_button(ui, ph::ARROW_CLOCKWISE, &tr("reload-recipes")) {
-                events.push(RecipeEvent::Reload);
-            }
-        });
+        if picked.is_some() {
+            ui.close();
+        }
+        picked
     }
 
     fn recipe_ui(
@@ -804,6 +1200,8 @@ impl RecipeWindow {
                     .size(12.0),
             );
         }
+        let shortcut = self.shortcut_text.clone();
+        self.shortcut_row(ui, palette, index, &recipe.id, shortcut.as_deref(), events);
         ui.horizontal(|ui| {
             ui.add_sized([90.0, 20.0], egui::Label::new(tr("recipe-description")));
             changed |= ui
@@ -824,8 +1222,8 @@ impl RecipeWindow {
         let count = recipe.steps.len();
         egui::ScrollArea::vertical()
             .id_salt(("recipe-steps", index))
-            .max_height(200.0)
-            .min_scrolled_height(200.0)
+            .max_height(180.0)
+            .min_scrolled_height(180.0)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if count == 0 {
@@ -939,34 +1337,29 @@ impl RecipeWindow {
             }
             changed = true;
         }
-        ui.menu_button(format!("{} {}", ph::PLUS, tr("recipe-add-step")), |ui| {
-            for (group, steps) in catalog() {
-                ui.menu_button(group, |ui| {
-                    egui::ScrollArea::vertical()
-                        .max_height(420.0)
-                        .show(ui, |ui| {
-                            for step in steps {
-                                if ui.button(catalog_label(&step)).clicked() {
-                                    let needs_settings = matches!(
-                                        step,
-                                        Step::Replace { .. }
-                                            | Step::FilterLines { .. }
-                                            | Step::AffixLines { .. }
-                                            | Step::Command { .. }
-                                    );
-                                    recipe.steps.push(RecipeStep::from(step));
-                                    if needs_settings {
-                                        self.expanded = Some(recipe.steps.len() - 1);
-                                        self.focus_step = true;
-                                    }
-                                    changed = true;
-                                    ui.close();
-                                }
-                            }
-                        });
-                });
-            }
+        let add = ui.menu_button(format!("{} {}", ph::PLUS, tr("recipe-add-step")), |ui| {
+            self.add_step_menu(ui, palette)
         });
+        if add.response.clicked() {
+            self.step_query.clear();
+            self.step_pick = 0;
+            self.focus_step_search = true;
+        }
+        if let Some(Some(step)) = add.inner {
+            let needs_settings = matches!(
+                step,
+                Step::Replace { .. }
+                    | Step::FilterLines { .. }
+                    | Step::AffixLines { .. }
+                    | Step::Command { .. }
+            );
+            recipe.steps.push(RecipeStep::from(step));
+            if needs_settings {
+                self.expanded = Some(recipe.steps.len() - 1);
+                self.focus_step = true;
+            }
+            changed = true;
+        }
 
         // The preview: the recipe run on the text, without its commands.
         ui.add_space(6.0);
@@ -1036,31 +1429,6 @@ impl RecipeWindow {
         if let Some(m) = &self.message {
             ui.label(RichText::new(m).color(palette.modified).size(12.0));
         }
-        ui.add_space(4.0);
-        ui.allocate_ui_with_layout(
-            Vec2::new(ui.available_width(), 26.0),
-            Layout::right_to_left(Align::Center),
-            |ui| {
-                let can_run = !recipe.name.trim().is_empty();
-                ui.add_enabled_ui(can_run, |ui| {
-                    if ui
-                        .button(RichText::new(format!("{} {}", ph::PLAY, tr("run"))).strong())
-                        .clicked()
-                    {
-                        events.push(RecipeEvent::Run {
-                            index,
-                            all_tabs: false,
-                        });
-                    }
-                    if ui.button(tr("recipe-run-all-tabs")).clicked() {
-                        events.push(RecipeEvent::Run {
-                            index,
-                            all_tabs: true,
-                        });
-                    }
-                });
-            },
-        );
         if changed && !recipes[index].name.trim().is_empty() {
             events.push(RecipeEvent::Changed(index));
         }

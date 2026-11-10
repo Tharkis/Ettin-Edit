@@ -209,6 +209,19 @@ press <kbd>Enter</kbd> or click a tab to switch to it.
 ## Command palette
 
 **View > Command Palette…** (<kbd>F1</kbd>) lists every command in every menu,
-your saved macros and your plugins' commands, each with its shortcut. Type a
-few letters of any words in its name, in any order, then press
-<kbd>Enter</kbd>.
+your recipes, your saved macros and your plugins' commands, each with its
+shortcut. Type a few letters of any words in its name, in any order, then
+press <kbd>Enter</kbd>.
+
+Each command shows its name first and, dimmer and smaller, where it is: the
+menu (*Tools › JSON and JavaScript*), *Recipe · 3 steps*, or *Plugin · name*.
+The list is in this order:
+
+1. Commands you used recently (the last 20, newest first), marked *recent*.
+2. Commands whose name starts with what you typed.
+3. Commands with a word in the name that starts with it.
+4. Commands whose name contains it.
+5. Commands where only the menu path matches.
+
+Commands that can't run in this tab (such as **Convert to JSON** on a tab that
+is already JSON) are dimmed, marked *not for this tab* and listed last.

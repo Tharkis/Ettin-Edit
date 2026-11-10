@@ -1,7 +1,7 @@
 //! Running a recipe from the command line, without opening a window:
 //!
 //! ```text
-//! ettin-edit --recipe NAME [--allow-commands] [--in-place] [FILE...]
+//! ettin-edit --recipe NAME-OR-ID [--allow-commands] [--in-place] [FILE...]
 //! ettin-edit --list-recipes
 //! ```
 //!
@@ -67,7 +67,7 @@ fn parse(args: &[OsString]) -> Option<Result<Request, String>> {
     }))
 }
 
-/// A recipe by name from the recipes folder, or from a recipe file.
+/// A recipe by name or id from the recipes folder, or from a recipe file.
 fn find_recipe(name: &str) -> Result<Recipe, String> {
     let path = Path::new(name);
     if path.extension().is_some_and(|e| e == "json") && path.is_file() {
@@ -126,7 +126,7 @@ pub fn run(args: &[OsString]) -> Option<i32> {
         Err(e) => {
             eprintln!("ettin-edit: {e}");
             eprintln!(
-                "usage: ettin-edit --recipe NAME [--allow-commands] [--in-place] [FILE...]\n       ettin-edit --list-recipes"
+                "usage: ettin-edit --recipe NAME-OR-ID [--allow-commands] [--in-place] [FILE...]\n       ettin-edit --list-recipes"
             );
             return Some(USAGE);
         }

@@ -1117,7 +1117,6 @@ toolbar-group-customise = Personnaliser
 menu-transform = Transformer
 menu-transform-lines = Lignes
 menu-identifier-case = Casse des identifiants
-menu-convert = Convertir
 menu-hash = Empreinte
 menu-hex-jwt = Hex et JWT
 pipe-dots = Filtrer par une commande…
@@ -1132,7 +1131,6 @@ number-lines = Numéroter les lignes
 number-lines-dots = Numéroter les lignes…
 reflow = Reformater les paragraphes
 reflow-dots = Reformater les paragraphes…
-convert-from = Depuis { $format }
 convert-to = { $from } vers { $to }
 case-camel = camelCase
 case-pascal = PascalCase
@@ -1267,3 +1265,41 @@ recipe-changed-tabs = « { $name } » a modifié { $count } onglets.
 recipe-no-change = « { $name } » n'a rien changé.
 recipe-read-failed = Impossible de lire la recette { $path } : { $error }
 recipe-save-failed = Impossible d'enregistrer la recette { $path } : { $error }
+
+## 2.0.2 : Convertir en, Lire comme
+menu-convert-to = Convertir en
+menu-read-as = Lire comme
+convert-to-format = Convertir en { $format }
+convert-markdown-table = Tableau Markdown
+convert-reading = Lecture de l'onglet…
+convert-reading-as = Cet onglet est lu comme { $format }
+convert-not-data = Ni JSON, ni YAML, ni TOML, ni XML, ni CSV
+convert-unknown-format = Impossible de reconnaître le format de ce texte. Choisissez-en un dans Transformer › Convertir en › Lire comme.
+converted-to = Converti en { $to } (lu comme { $from })
+read-as-auto = Automatique
+read-as-auto-format = Automatique ({ $format })
+read-as-named = Lire comme { $format }
+toolbar-convert-to = En { $format }
+## 2.0.2 : palette de commandes
+palette-recipe = Recette · { $steps ->
+    [one] 1 étape
+   *[other] { $steps } étapes
+}
+palette-plugin = Module · { $name }
+palette-not-for-tab = pas pour cet onglet
+palette-tag-recent = récent
+palette-tag-recipe = recette
+palette-tag-plugin = module
+## 2.0.2 : fenêtre Recettes
+recipe-new-short = Nouvelle
+recipe-export-short = Exporter…
+recipe-import-short = Importer…
+recipe-folder = Dossier
+recipe-reload = Recharger
+recipe-no-shortcut = Aucun
+recipe-clear-shortcut = Effacer
+recipe-id = id { $id }
+recipe-id-hint = Les raccourcis et les boutons de la barre d'outils utilisent cet id : ils continuent de fonctionner si vous renommez la recette.
+recipe-step-search = Rechercher une étape…
+json-format-named = Formater le JSON
+json-minify-named = Minifier le JSON

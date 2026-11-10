@@ -52,7 +52,7 @@ screens. After that it remembers the size you leave it at.
 | --- | --- |
 | **Home** | File, Clipboard, Undo, Find, Tabs, Help |
 | **Edit** | Lines, Sort, Case, Comment, Blanks, Selection |
-| **Transform** | Recipes, Command, Lines, Identifier Case, Convert, Encode |
+| **Transform** | Recipes, Command, Lines, Identifier Case, Convert (To JSON, To YAML, To TOML, To XML, To CSV, To Markdown table), Encode |
 | **View** | Show, Zoom, Folding, Panels, Window, Customise |
 | **Tools** | Compare, JSON, XML, Data (CsvQuery and MIME Tools), Macros |
 
@@ -162,4 +162,7 @@ hidden. Delete the group if you don't want it. Ettin Edit 1.9.5 likewise adds
 the **Transform** tab after your **Edit** tab (unless you removed that tab);
 hide or delete it if you don't want it. Ettin Edit 2.0 adds the
 [**Recipes**](recipes.md) group to the start of your **Transform** tab.
+Ettin Edit 2.0.2 turns old "JSON to YAML" style buttons into **To YAML** style
+[Convert to](transform.md#converting-data) buttons (keeping your labels and
+icons), and moves recipe buttons from the recipe's name to its id.
 Whether the toolbar is shown or collapsed is kept in `settings.json`.

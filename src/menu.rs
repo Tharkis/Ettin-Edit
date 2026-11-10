@@ -14,6 +14,10 @@ pub enum MenuEntry {
         id: usize,
     },
     Separator,
+    /// A line of dim text that says something about the items below it.
+    Heading(String),
+    /// A heading with a spinner, while something is being worked out.
+    Busy(String),
     Submenu {
         label: String,
         entries: Vec<MenuEntry>,
@@ -45,6 +49,15 @@ pub fn show(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
             }
             MenuEntry::Separator => {
                 ui.separator();
+            }
+            MenuEntry::Heading(text) => {
+                ui.label(egui::RichText::new(text.to_uppercase()).small().weak());
+            }
+            MenuEntry::Busy(text) => {
+                ui.horizontal(|ui| {
+                    ui.add(egui::Spinner::new().size(12.0));
+                    ui.label(egui::RichText::new(text).weak());
+                });
             }
             MenuEntry::Submenu { label, entries } => {
                 if let Some(id) = ui

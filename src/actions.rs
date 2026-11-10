@@ -188,12 +188,16 @@ pub enum Action {
     Transform(TransformOp),
     /// Opens the dialog that asks for a Transform command's settings.
     TransformDialog(crate::transform_ui::DialogKind),
+    /// Transform > Convert to > Read as: the format the active tab is read
+    /// as, or `None` to tell from the text.
+    SetReadAs(Option<crate::tools::convert::DataFormat>),
     // Recipes
     /// Shows or hides the Recipes window.
     Recipes,
-    /// Runs a recipe, by name, on the selections or the whole document.
+    /// Runs a recipe, by id (or, from before 2.0.2, by name), on the
+    /// selections or the whole document.
     RunRecipe(String),
-    /// Runs a recipe, by name, on every open tab.
+    /// Runs a recipe, by id (or name), on every open tab.
     RunRecipeOnAllTabs(String),
     ToggleRecipeRecording,
     OpenRecipesFolder,
@@ -360,6 +364,7 @@ impl Action {
                         | TransformOp::NumberLines { .. }
                         | TransformOp::Reflow { .. }
                         | TransformOp::Convert { .. }
+                        | TransformOp::ConvertTo { .. }
                         | TransformOp::Hash(_)
                         | TransformOp::HexEncode
                         | TransformOp::HexDecode

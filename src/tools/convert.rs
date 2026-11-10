@@ -74,6 +74,124 @@ pub fn convert(text: &str, from: DataFormat, to: DataFormat, indent: &str) -> To
     Ok(out)
 }
 
+impl DataFormat {
+    /// The format a highlighting language stands for, if it is a data format.
+    pub fn from_language(language: &str) -> Option<Self> {
+        match language.to_ascii_lowercase().as_str() {
+            "json" => Some(DataFormat::Json),
+            "yaml" => Some(DataFormat::Yaml),
+            "toml" => Some(DataFormat::Toml),
+            "xml" => Some(DataFormat::Xml),
+            "csv" | "tsv" => Some(DataFormat::Csv),
+            _ => None,
+        }
+    }
+}
+
+/// Works out which format `text` is in, for Convert to. A tab whose
+/// language is a data format is read as that format. Otherwise the parsers
+/// are tried in the order JSON, XML, TOML, YAML, CSV and the first that
+/// reads the text wins. YAML and CSV read almost anything, so YAML only
+/// counts when it gives a mapping (with plain keys) or a list, and CSV when
+/// at least two lines have the same number of separators.
+pub fn detect(text: &str, language: &str) -> Option<DataFormat> {
+    if let Some(format) = DataFormat::from_language(language) {
+        return Some(format);
+    }
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if (trimmed.starts_with('{') || trimmed.starts_with('['))
+        && serde_json::from_str::<serde::de::IgnoredAny>(trimmed).is_ok()
+    {
+        return Some(DataFormat::Json);
+    }
+    if trimmed.starts_with('<') && super::xml::parse_strict(trimmed).is_ok() {
+        return Some(DataFormat::Xml);
+    }
+    if let Ok(table) = trimmed.parse::<toml::Table>()
+        && !table.is_empty()
+    {
+        return Some(DataFormat::Toml);
+    }
+    if looks_like_yaml(text) {
+        return Some(DataFormat::Yaml);
+    }
+    if looks_like_csv(text) {
+        return Some(DataFormat::Csv);
+    }
+    None
+}
+
+fn looks_like_yaml(text: &str) -> bool {
+    use serde_yaml_ng::Value as Y;
+    let Ok(value) = serde_yaml_ng::from_str::<Y>(text) else {
+        return false;
+    };
+    let marked = text.trim_start().starts_with("---");
+    match value {
+        Y::Sequence(items) => !items.is_empty(),
+        // Prose with a colon in it reads as a mapping too, but its "keys"
+        // are phrases; real YAML keys rarely have spaces in them.
+        Y::Mapping(map) => {
+            !map.is_empty()
+                && (marked
+                    || map.keys().all(|k| match k {
+                        Y::String(s) => !s.chars().any(char::is_whitespace),
+                        _ => true,
+                    }))
+        }
+        _ => false,
+    }
+}
+
+/// Separators counted outside double quotes on one line.
+fn separators(line: &str, sep: char) -> usize {
+    let mut quoted = false;
+    let mut count = 0;
+    for c in line.chars() {
+        if c == '"' {
+            quoted = !quoted;
+        } else if c == sep && !quoted {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn looks_like_csv(text: &str) -> bool {
+    let lines: Vec<&str> = text
+        .lines()
+        .map(|l| l.trim_end_matches('\r'))
+        .filter(|l| !l.trim().is_empty())
+        .take(200)
+        .collect();
+    if lines.len() < 2 {
+        return false;
+    }
+    [',', '\t', ';', '|'].into_iter().any(|sep| {
+        let first = separators(lines[0], sep);
+        first >= 1 && lines.iter().all(|l| separators(l, sep) == first)
+    })
+}
+
+/// Converts `text` to `to`, reading it as `from` or, when that is `None`,
+/// as the format [`detect`] finds. Returns the new text and the format it
+/// was read as.
+pub fn convert_to(
+    text: &str,
+    from: Option<DataFormat>,
+    to: DataFormat,
+    language: &str,
+    indent: &str,
+) -> Result<(String, DataFormat), ToolError> {
+    let Some(from) = from.or_else(|| detect(text, language)) else {
+        return Err(ToolError::new(t!("convert-unknown-format")));
+    };
+    Ok((convert(text, from, to, indent)?, from))
+}
+
 pub fn read(text: &str, format: DataFormat) -> Result<Value, ToolError> {
     match format {
         DataFormat::Json => serde_json::from_str(text).map_err(|e| {
@@ -669,6 +787,53 @@ mod tests {
         );
         let out = convert(r#"{"a b": 1, "2x": "<&>"}"#, Json, Xml, " ").unwrap();
         assert!(out.contains("<root>\n <a_b>1</a_b>\n <_2x>&lt;&amp;&gt;</_2x>\n</root>"));
+    }
+
+    #[test]
+    fn detects_formats() {
+        assert_eq!(detect("{\"a\": [1, 2]}\n", ""), Some(Json));
+        assert_eq!(detect("[1, 2, 3]", ""), Some(Json));
+        assert_eq!(detect("<a><b>1</b></a>", ""), Some(Xml));
+        assert_eq!(
+            detect("name = \"x\"\n[server]\nport = 80\n", ""),
+            Some(Toml)
+        );
+        assert_eq!(detect("name: x\nitems:\n  - 1\n  - 2\n", ""), Some(Yaml));
+        assert_eq!(detect("- a\n- b\n", ""), Some(Yaml));
+        assert_eq!(detect("id,name\n1,\"Lee, Bo\"\n2,Ann\n", ""), Some(Csv));
+        assert_eq!(detect("a\tb\n1\t2\n", ""), Some(Csv));
+        // Prose, logs and empty text are none of them.
+        assert_eq!(
+            detect(
+                "The quick brown fox.\nIt jumps over the lazy dog, twice.\n",
+                ""
+            ),
+            None
+        );
+        assert_eq!(
+            detect(
+                "2024-05-01 12:00:01 INFO Server started\n2024-05-01 12:00:02 ERROR Disk full: /var\n",
+                ""
+            ),
+            None
+        );
+        assert_eq!(detect("Note that: this is prose\n", ""), None);
+        assert_eq!(detect("", ""), None);
+        assert_eq!(detect("   \n", ""), None);
+        assert_eq!(detect("42", ""), None);
+        // The tab's language wins.
+        assert_eq!(detect("anything", "YAML"), Some(Yaml));
+        assert_eq!(detect("{}", "Plain Text"), Some(Json));
+    }
+
+    #[test]
+    fn convert_to_reads_the_detected_format() {
+        let (out, from) = convert_to("{\"a\": 1}\n", None, Yaml, "", "  ").unwrap();
+        assert_eq!((out.as_str(), from), ("a: 1\n", Json));
+        // Read as overrides detection.
+        let (out, from) = convert_to("a: 1\n", Some(Yaml), Json, "", "  ").unwrap();
+        assert_eq!((out.as_str(), from), ("{\n  \"a\": 1\n}\n", Yaml));
+        assert!(convert_to("just words", None, Json, "", "  ").is_err());
     }
 
     #[test]

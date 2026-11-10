@@ -92,6 +92,7 @@ pub(super) fn step_for(
             },
             TransformOp::Reflow { width } => Step::Reflow { width },
             TransformOp::Convert { from, to } => Step::Convert { from, to },
+            TransformOp::ConvertTo { to, from } => Step::ConvertTo { to, from },
             TransformOp::Hash(kind) => Step::Hash { kind },
             TransformOp::HexEncode => Step::HexEncode,
             TransformOp::HexDecode => Step::HexDecode,
@@ -126,7 +127,67 @@ pub(super) fn step_for(
     })
 }
 
+/// The command key `key` should become now that recipes have ids: a
+/// shortcut or toolbar button saved before 2.0.2 names its recipe, and gets
+/// that recipe's id instead. `None` when it needs no change.
+pub(super) fn migrated_recipe_key(key: &str, recipes: &[Recipe]) -> Option<String> {
+    let action: Action = serde_json::from_str(key).ok()?;
+    let (name, all_tabs) = match action {
+        Action::RunRecipe(n) => (n, false),
+        Action::RunRecipeOnAllTabs(n) => (n, true),
+        _ => return None,
+    };
+    if recipes.iter().any(|r| r.id == name) {
+        return None;
+    }
+    let id = recipes::find(recipes, &name)?.id.clone();
+    let action = if all_tabs {
+        Action::RunRecipeOnAllTabs(id)
+    } else {
+        Action::RunRecipe(id)
+    };
+    Some(crate::actions::command_key(&action))
+}
+
 impl EttinApp {
+    /// Points shortcuts and toolbar buttons that name a recipe at its id.
+    pub(super) fn migrate_recipe_refs(&mut self) {
+        let keys: Vec<String> = self.settings.shortcuts.keys().cloned().collect();
+        let mut shortcuts = false;
+        for key in keys {
+            if let Some(new) = migrated_recipe_key(&key, &self.recipes)
+                && let Some(list) = self.settings.shortcuts.remove(&key)
+            {
+                self.settings.shortcuts.entry(new).or_insert(list);
+                shortcuts = true;
+            }
+        }
+        if shortcuts {
+            let errors = crate::actions::set_overrides(&self.settings.shortcuts);
+            self.errors.extend(errors);
+        }
+        let mut toolbar = false;
+        for item in self
+            .toolbar
+            .layout
+            .tabs
+            .iter_mut()
+            .flat_map(|t| t.groups.iter_mut())
+            .flat_map(|g| g.items.iter_mut())
+        {
+            if let Some(new) = migrated_recipe_key(&item.command, &self.recipes) {
+                item.command = new;
+                toolbar = true;
+            }
+        }
+        if toolbar {
+            self.toolbar.refresh();
+            if let Err(e) = self.toolbar.layout.save() {
+                self.errors.push(e);
+            }
+        }
+    }
+
     /// Reads the recipes folder again, keeping the selected recipe selected.
     pub(super) fn reload_recipes(&mut self) {
         let selected = self
@@ -140,6 +201,7 @@ impl EttinApp {
         let (list, errors) = recipes::load_all(&dir);
         self.errors.extend(errors);
         self.recipes = list;
+        self.migrate_recipe_refs();
         self.recipe_window.selected = selected.and_then(|p| {
             self.recipes
                 .iter()
@@ -174,6 +236,11 @@ impl EttinApp {
     fn add_recipe(&mut self, mut recipe: Recipe) {
         recipe.path = None;
         recipe.name = self.unused_recipe_name(recipe.name.trim());
+        // A copy (Duplicate, or importing a recipe that is already here)
+        // gets its own id, so shortcuts stay with the original.
+        if recipe.id.trim().is_empty() || self.recipes.iter().any(|r| r.id == recipe.id) {
+            recipe.id = recipes::new_id(&recipe.name);
+        }
         self.recipes.push(recipe);
         let index = self.recipes.len() - 1;
         self.save_recipe(index);
@@ -200,12 +267,21 @@ impl EttinApp {
         if self.recipe_recording.is_none() {
             return;
         }
-        let step = step_for(
+        let mut step = step_for(
             action,
             &self.find_bar.find,
             &self.find_bar.replace,
             &self.settings.search,
         );
+        // Converting a tab whose format was picked with Read as keeps that
+        // choice in the recipe.
+        if let Some(Step::ConvertTo {
+            from: from @ None, ..
+        }) = &mut step
+            && let Some(doc) = self.docs.get(self.active)
+        {
+            *from = self.read_as.get(&doc.id).copied();
+        }
         if let (Some(steps), Some(step)) = (&mut self.recipe_recording, step) {
             steps.push(step);
         }
@@ -491,9 +567,23 @@ impl EttinApp {
             selection,
             indent: &indent,
         };
-        let events = self
+        let shortcut = self
             .recipe_window
-            .ui(ctx, &palette, &mut self.recipes, &input);
+            .selected
+            .and_then(|i| self.recipes.get(i))
+            .and_then(|r| {
+                crate::actions::all_shortcuts()
+                    .into_iter()
+                    .find(|(_, a)| *a == Action::RunRecipe(r.id.clone()))
+            })
+            .map(|(s, _)| ctx.format_shortcut(&s));
+        let events = self.recipe_window.ui(
+            ctx,
+            &palette,
+            &mut self.recipes,
+            &input,
+            shortcut.as_deref(),
+        );
         for event in events {
             match event {
                 RecipeEvent::Changed(i) => self.save_recipe(i),
@@ -517,13 +607,63 @@ impl EttinApp {
                 RecipeEvent::Export(i) => self.export_recipe(i),
                 RecipeEvent::OpenFolder => self.run(ctx, Action::OpenRecipesFolder),
                 RecipeEvent::Reload => self.reload_recipes(),
+                RecipeEvent::SetShortcut {
+                    index,
+                    shortcut,
+                    force,
+                } => self.set_recipe_shortcut(ctx, index, shortcut, force),
                 RecipeEvent::Run { index, all_tabs } => {
-                    if let Some(name) = self.recipes.get(index).map(|r| r.name.clone()) {
-                        self.run_recipe(ctx, &name, all_tabs);
+                    if let Some(id) = self.recipes.get(index).map(|r| r.id.clone()) {
+                        self.run_recipe(ctx, &id, all_tabs);
                     }
                 }
             }
         }
+    }
+
+    /// Gives a recipe a shortcut (or takes it away), checking first that no
+    /// other command uses it; with `force`, the other command loses it.
+    fn set_recipe_shortcut(
+        &mut self,
+        ctx: &egui::Context,
+        index: usize,
+        shortcut: Option<egui::KeyboardShortcut>,
+        force: bool,
+    ) {
+        use crate::shortcut_ui::{current, store, used_by};
+        let Some(id) = self.recipes.get(index).map(|r| r.id.clone()) else {
+            return;
+        };
+        let action = Action::RunRecipe(id);
+        let rows = self.shortcut_rows(ctx);
+        let defaults = rows
+            .iter()
+            .find(|r| r.action == action)
+            .map(|r| r.defaults.clone())
+            .unwrap_or_default();
+        let saved = &mut self.settings.shortcuts;
+        let list: Vec<egui::KeyboardShortcut> = shortcut.into_iter().collect();
+        if let Some(s) = shortcut
+            && let Some(other) = used_by(&rows, saved, &action, &s)
+        {
+            if !force {
+                self.recipe_window.conflict = Some(crate::recipe_ui::ShortcutConflict {
+                    index,
+                    shortcut: s,
+                    other: other.path.clone(),
+                });
+                return;
+            }
+            let rest: Vec<_> = current(other, saved)
+                .into_iter()
+                .filter(|c| !crate::plugins::shortcut::same(c, &s))
+                .collect();
+            store(saved, &other.defaults, &other.action, &rest);
+        }
+        store(saved, &defaults, &action, &list);
+        let errors = crate::actions::set_overrides(&self.settings.shortcuts);
+        self.errors.extend(errors);
+        self.toolbar.refresh();
     }
 
     fn import_recipe(&mut self) {
@@ -583,6 +723,39 @@ impl EttinApp {
 mod tests {
     use super::*;
     use crate::editor::lines::TrimKind;
+
+    #[test]
+    fn shortcuts_by_name_move_to_the_id() {
+        let mut r = Recipe::new("Clean API dump");
+        r.id = "clean-api-dump-7f3a".into();
+        let recipes = vec![r];
+        let old = crate::actions::command_key(&Action::RunRecipe("Clean API dump".into()));
+        assert_eq!(
+            migrated_recipe_key(&old, &recipes),
+            Some(r#"{"RunRecipe":"clean-api-dump-7f3a"}"#.into())
+        );
+        let all = crate::actions::command_key(&Action::RunRecipeOnAllTabs("clean api dump".into()));
+        assert_eq!(
+            migrated_recipe_key(&all, &recipes),
+            Some(r#"{"RunRecipeOnAllTabs":"clean-api-dump-7f3a"}"#.into())
+        );
+        // Already an id, another command, or a recipe that is gone: as is.
+        let new = crate::actions::command_key(&Action::RunRecipe("clean-api-dump-7f3a".into()));
+        assert_eq!(migrated_recipe_key(&new, &recipes), None);
+        assert_eq!(migrated_recipe_key(r#""Save""#, &recipes), None);
+        let gone = crate::actions::command_key(&Action::RunRecipe("Gone".into()));
+        assert_eq!(migrated_recipe_key(&gone, &recipes), None);
+
+        // Renaming keeps the shortcut and the toolbar button: both use the
+        // id, which still finds the recipe.
+        let mut recipes = recipes;
+        recipes[0].name = "Scrub API dump".into();
+        assert_eq!(migrated_recipe_key(&new, &recipes), None);
+        assert_eq!(
+            recipes::find(&recipes, "clean-api-dump-7f3a").map(|r| r.name.as_str()),
+            Some("Scrub API dump")
+        );
+    }
 
     #[test]
     fn recording_turns_commands_into_steps() {

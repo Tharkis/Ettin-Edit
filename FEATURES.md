@@ -19,6 +19,23 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.0.2: Find it faster
+
+Requested on 2026-11-10: the second release of the UX plan (review items R3, R8 and the first half of R16). The commands people want are one step away.
+
+- [x] **Transform > Convert to ▸ JSON / YAML / TOML / XML / CSV / Markdown table** replaces Convert > From X > X to Y. Ettin Edit works out which format the selection (or tab) is in: the tab's language if it is a data format, otherwise the first of JSON, XML, TOML, YAML and CSV that reads it (YAML only as a mapping with plain keys or a list, CSV only with two or more lines with the same number of separators) ([Transform](docs/manual/src/transform.md#converting-data))
+- [x] The menu's heading says what it read ("Reading this tab as JSON"); the current format and, for text that isn't data, every target are greyed out; the status bar says *Converted to YAML (read as JSON)*
+- [x] **Convert to > Read as ▸ Auto / JSON / YAML / TOML / XML / CSV** overrides the guess for that tab
+- [x] Detection is worked out once per edit; files over 2 MB are read on a thread when the menu opens, with a **Reading this tab…** line if it takes more than 50 ms. The toolbar only checks texts up to 256 KB so typing stays quick
+- [x] The toolbar's Convert group has **To JSON … To Markdown table**; customised toolbars have their old "X to Y" buttons turned into the new ones (layout version 5)
+- [x] Recipes: a new **Convert to** step (`convert_to`, Read as Auto or a format). Recipe files from 2.0.0 with the old Convert step still load and run
+- [x] Command palette ranking: used recently (last 20, kept in the settings) → name starts with the query → a word in the name starts with it → name contains it → only the menu path matches. Ties go to the shorter name ([Command palette](docs/manual/src/view.md#command-palette))
+- [x] The palette shows each command's name first with the menu path after it, smaller and dim; every recipe (*Recipe · N steps*) and plugin command (*Plugin · name*) is listed; commands that can't run in this tab are dimmed, marked *not for this tab* and listed last
+- [x] Recipes have a stable **id** (name slug + 4 hex digits), written on first save and added to older files when they're read. Menus, shortcuts and toolbar buttons use it, so renaming a recipe keeps its shortcut and button; shortcuts and buttons saved by name are moved to the id on start-up ([Recipes](docs/manual/src/recipes.md))
+- [x] `--recipe` on the command line takes a recipe's name or id
+- [x] Recipes window: a **Shortcut** field with **Set…** and **Clear** (with the Shortcut Mapper's "already used by" check and Move It Here), the recipe's id under it, a search box at the top of **Add Step** (arrow keys and Enter), and text labels on New, Duplicate, Delete, Export…, Import…, Folder and Reload, with Run and Run on All Tabs on the same bottom row (icons only if a translation doesn't fit)
+- [x] New text in all four interface languages
+
 ### 2.0.1: Fit and finish
 
 Requested on 2026-11-10: the first release of the UX plan, from the 2.0.0 UX review (items R1, R7, R11, R21 and R26).
@@ -556,7 +573,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-The UX plan from the 2.0.0 review continues: 2.0.2 Find it faster (Convert to, palette ranking, recipe shortcuts), 2.1 Transform first (one Transform menu, simpler menus and Home tab), 2.2 Try before you apply (previews, suggestion bar, welcome tab), 2.3 Plugins as transforms, 2.4 Settings in one place, 2.5 Themes and languages.
+The UX plan from the 2.0.0 review continues: 2.1 Transform first (one Transform menu, simpler menus and Home tab), 2.2 Try before you apply (previews, suggestion bar, welcome tab), 2.3 Plugins as transforms, 2.4 Settings in one place, 2.5 Themes and languages.
 
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 

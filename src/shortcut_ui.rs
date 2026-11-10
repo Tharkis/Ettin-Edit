@@ -62,7 +62,7 @@ pub fn current(row: &Row, saved: &BTreeMap<String, Vec<String>>) -> Vec<Keyboard
     }
 }
 
-fn store(
+pub fn store(
     saved: &mut BTreeMap<String, Vec<String>>,
     row_defaults: &[KeyboardShortcut],
     action: &Action,
@@ -96,7 +96,7 @@ fn is_modifier(key: Key) -> bool {
 }
 
 /// Reads one shortcut from this frame's key presses.
-fn captured(ctx: &egui::Context) -> Option<Result<KeyboardShortcut, String>> {
+pub fn captured(ctx: &egui::Context) -> Option<Result<KeyboardShortcut, String>> {
     ctx.input(|i| {
         i.events.iter().find_map(|e| match e {
             egui::Event::Key {
@@ -127,6 +127,34 @@ fn captured(ctx: &egui::Context) -> Option<Result<KeyboardShortcut, String>> {
     })
 }
 
+/// Takes this frame's key presses away, so nothing else acts on them while
+/// a shortcut is being picked.
+pub fn swallow_keys(ctx: &egui::Context) {
+    ctx.input_mut(|i| {
+        i.events.retain(|e| {
+            !matches!(
+                e,
+                egui::Event::Key { .. }
+                    | egui::Event::Text(_)
+                    | egui::Event::Copy
+                    | egui::Event::Cut
+                    | egui::Event::Paste(_)
+            )
+        })
+    });
+}
+
+/// The command (other than `action`) that already uses `s`, if any.
+pub fn used_by<'a>(
+    rows: &'a [Row],
+    saved: &BTreeMap<String, Vec<String>>,
+    action: &Action,
+    s: &KeyboardShortcut,
+) -> Option<&'a Row> {
+    rows.iter()
+        .find(|r| &r.action != action && current(r, saved).iter().any(|c| shortcut::same(c, s)))
+}
+
 impl ShortcutMapper {
     pub fn show(&mut self) {
         self.open = true;
@@ -148,18 +176,7 @@ impl ShortcutMapper {
         } else if let Some(result) = captured(ctx) {
             self.grabbed = Some(result);
         }
-        ctx.input_mut(|i| {
-            i.events.retain(|e| {
-                !matches!(
-                    e,
-                    egui::Event::Key { .. }
-                        | egui::Event::Text(_)
-                        | egui::Event::Copy
-                        | egui::Event::Cut
-                        | egui::Event::Paste(_)
-                )
-            })
-        });
+        swallow_keys(ctx);
     }
 
     /// Draws the mapper. Returns true when the saved shortcuts changed.

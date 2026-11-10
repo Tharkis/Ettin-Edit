@@ -7,7 +7,6 @@ use super::EttinApp;
 use crate::actions::{self, Action};
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
 use crate::menu::{self, MenuEntry};
-use crate::tools::convert::DataFormat;
 use crate::tools::json::JsonOp;
 use crate::tools::transform::{HashKind, TransformOp};
 use crate::tools::xml::XmlOp;
@@ -26,6 +25,9 @@ pub(super) struct MenuModel<'c> {
     ctx: &'c egui::Context,
     shortcuts: Vec<(egui::KeyboardShortcut, Action)>,
     actions: Vec<Action>,
+    /// The name an item has in the command palette when its menu label
+    /// alone wouldn't say what it does ("YAML" is "Convert to YAML").
+    names: Vec<Option<String>>,
 }
 
 impl<'c> MenuModel<'c> {
@@ -34,7 +36,12 @@ impl<'c> MenuModel<'c> {
             ctx,
             shortcuts: actions::all_shortcuts(),
             actions: Vec::new(),
+            names: Vec::new(),
         }
+    }
+
+    pub fn ctx(&self) -> &egui::Context {
+        self.ctx
     }
 
     fn entry(
@@ -52,6 +59,37 @@ impl<'c> MenuModel<'c> {
             id: self.actions.len(),
         };
         self.actions.push(action);
+        self.names.push(None);
+        entry
+    }
+
+    /// An item with its own name in the command palette.
+    pub fn item_named(
+        &mut self,
+        label: &str,
+        name: &str,
+        enabled: bool,
+        action: Action,
+    ) -> MenuEntry {
+        let entry = self.entry(label, enabled, None, action);
+        if let Some(last) = self.names.last_mut() {
+            *last = Some(name.to_owned());
+        }
+        entry
+    }
+
+    /// A tickable item with its own name in the command palette.
+    pub fn toggle_named(
+        &mut self,
+        label: &str,
+        name: &str,
+        checked: bool,
+        action: Action,
+    ) -> MenuEntry {
+        let entry = self.entry(label, true, Some(checked), action);
+        if let Some(last) = self.names.last_mut() {
+            *last = Some(name.to_owned());
+        }
         entry
     }
 
@@ -78,6 +116,7 @@ impl<'c> MenuModel<'c> {
             id: self.actions.len(),
         };
         self.actions.push(action);
+        self.names.push(None);
         entry
     }
 
@@ -88,6 +127,11 @@ impl<'c> MenuModel<'c> {
     /// The action of a clicked item id.
     pub fn action(&self, id: usize) -> Option<Action> {
         self.actions.get(id).cloned()
+    }
+
+    /// The palette name of a clicked item id, when it has its own.
+    pub fn name(&self, id: usize) -> Option<&str> {
+        self.names.get(id).and_then(|n| n.as_deref())
     }
 }
 
@@ -329,20 +373,7 @@ impl EttinApp {
                 Action::TransformDialog(DialogKind::Reflow),
             ),
         ];
-        let mut convert = Vec::new();
-        for from in DataFormat::SOURCES {
-            let items = DataFormat::TARGETS
-                .into_iter()
-                .filter(|to| *to != from && !(from == DataFormat::Csv && *to == DataFormat::Csv))
-                .map(|to| {
-                    m.item(
-                        &t!("convert-to", from = from.name(), to = to.name()),
-                        t(TransformOp::Convert { from, to }),
-                    )
-                })
-                .collect();
-            convert.push(submenu(&t!("convert-from", format = from.name()), items));
-        }
+        let convert = self.convert_menu(m);
         let hashes = [
             HashKind::Md5,
             HashKind::Sha1,
@@ -375,12 +406,12 @@ impl EttinApp {
         if !self.recipes.is_empty() {
             recipes.push(MenuEntry::Separator);
             for r in &self.recipes {
-                recipes.push(m.item(&r.name, Action::RunRecipe(r.name.clone())));
+                recipes.push(m.item(&r.name, Action::RunRecipe(r.id.clone())));
             }
             let all_tabs = self
                 .recipes
                 .iter()
-                .map(|r| m.item(&r.name, Action::RunRecipeOnAllTabs(r.name.clone())))
+                .map(|r| m.item(&r.name, Action::RunRecipeOnAllTabs(r.id.clone())))
                 .collect();
             recipes.push(MenuEntry::Separator);
             recipes.push(submenu(&t!("run-recipe-on-all-tabs"), all_tabs));
@@ -391,7 +422,7 @@ impl EttinApp {
             MenuEntry::Separator,
             submenu(&t!("menu-transform-lines"), lines),
             submenu(&t!("menu-identifier-case"), identifier_cases(m)),
-            submenu(&t!("menu-convert"), convert),
+            submenu(&t!("menu-convert-to"), convert),
             MenuEntry::Separator,
             submenu(&t!("menu-hash"), hashes),
             submenu(&t!("menu-hex-jwt"), encode),
@@ -433,8 +464,18 @@ impl EttinApp {
             }
         }
         let json = vec![
-            m.item(&t!("json-format"), Action::Json(JsonOp::Format)),
-            m.item(&t!("json-minify"), Action::Json(JsonOp::Minify)),
+            m.item_named(
+                &t!("json-format"),
+                &t!("json-format-named"),
+                true,
+                Action::Json(JsonOp::Format),
+            ),
+            m.item_named(
+                &t!("json-minify"),
+                &t!("json-minify-named"),
+                true,
+                Action::Json(JsonOp::Minify),
+            ),
             MenuEntry::Separator,
             m.item(&t!("json-validate"), Action::Json(JsonOp::Validate)),
             m.item(&t!("json-sort-keys"), Action::Json(JsonOp::SortKeys)),

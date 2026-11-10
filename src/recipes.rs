@@ -38,6 +38,11 @@ pub struct Recipe {
     #[serde(default = "version")]
     pub version: u32,
     pub name: String,
+    /// Stays the same when the recipe is renamed, so shortcuts and toolbar
+    /// buttons (which refer to it by this) keep working. Made from the name
+    /// when the recipe is first saved; files without one get one on load.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
     #[serde(default)]
@@ -116,9 +121,17 @@ pub enum Step {
         #[serde(default = "eighty")]
         width: usize,
     },
+    /// Recipes from 2.0.0 name both formats; still read and run.
     Convert {
         from: DataFormat,
         to: DataFormat,
+    },
+    /// Converts to `to`, reading the text as `from`, or as the format it
+    /// looks like when `from` is left out.
+    ConvertTo {
+        to: DataFormat,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from: Option<DataFormat>,
     },
     /// The text's hash in place of the text.
     Hash {
@@ -291,6 +304,12 @@ impl Step {
             Step::Convert { to, from } if !DataFormat::SOURCES.contains(from) || from == to => {
                 Err(t!("recipe-step-not-allowed"))
             }
+            Step::ConvertTo {
+                to,
+                from: Some(from),
+            } if !DataFormat::SOURCES.contains(from) || from == to => {
+                Err(t!("recipe-step-not-allowed"))
+            }
             Step::Json {
                 kind: JsonOp::Validate,
             }
@@ -359,6 +378,7 @@ impl Step {
             } => transform::number_lines(text, *start, *step, separator, *pad, *skip_empty),
             Step::Reflow { width } => transform::reflow(text, (*width).clamp(1, 10_000)),
             Step::Convert { from, to } => convert::convert(text, *from, *to, indent)?,
+            Step::ConvertTo { to, from } => convert::convert_to(text, *from, *to, "", indent)?.0,
             Step::Hash { kind } => transform::hash(*kind, text.as_bytes()),
             Step::HexEncode => transform::hex_encode(text),
             Step::HexDecode => transform::hex_decode(text)?,
@@ -446,6 +466,7 @@ impl Recipe {
         Self {
             version: FILE_VERSION,
             name: name.to_owned(),
+            id: new_id(name),
             description: String::new(),
             steps: Vec::new(),
             path: None,
@@ -540,16 +561,72 @@ impl Recipe {
 // -------------------------------------------------------------------------
 // The recipes folder
 
+/// A new id for a recipe called `name`: the name in lower case with dashes,
+/// and four hex digits so two recipes with the same name differ.
+pub fn new_id(name: &str) -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let mut slug = String::new();
+    for c in name.chars().flat_map(char::to_lowercase) {
+        if c.is_alphanumeric() {
+            slug.push(c);
+        } else if !slug.is_empty() && !slug.ends_with('-') {
+            slug.push('-');
+        }
+    }
+    let slug: String = slug.trim_end_matches('-').chars().take(40).collect();
+    let slug = slug.trim_end_matches('-');
+    let mut hash = sha2::Sha256::new();
+    hash.update(name.as_bytes());
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    hash.update(nanos.to_le_bytes());
+    hash.update(COUNTER.fetch_add(1, Ordering::Relaxed).to_le_bytes());
+    hash.update(std::process::id().to_le_bytes());
+    let digest = hash.finalize();
+    let suffix = format!("{:02x}{:02x}", digest[0], digest[1]);
+    if slug.is_empty() {
+        format!("recipe-{suffix}")
+    } else {
+        format!("{slug}-{suffix}")
+    }
+}
+
+/// Gives every recipe without an id, or with one an earlier recipe already
+/// has, a new id. Returns the indices of the recipes that changed.
+pub fn ensure_ids(recipes: &mut [Recipe]) -> Vec<usize> {
+    let mut changed = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (i, r) in recipes.iter_mut().enumerate() {
+        if r.id.trim().is_empty() || seen.contains(&r.id) {
+            loop {
+                r.id = new_id(&r.name);
+                if !seen.contains(&r.id) {
+                    break;
+                }
+            }
+            changed.push(i);
+        }
+        seen.insert(r.id.clone());
+    }
+    changed
+}
+
 pub fn recipes_dir() -> Option<PathBuf> {
     crate::settings::config_dir().map(|d| d.join("recipes"))
 }
 
-/// The recipe called `name`; exact first, then ignoring case.
-pub fn find<'a>(recipes: &'a [Recipe], name: &str) -> Option<&'a Recipe> {
+/// The recipe with the id `key`, or else called `key` (exact first, then
+/// ignoring case). Commands and shortcuts use ids; the command line takes
+/// either.
+pub fn find<'a>(recipes: &'a [Recipe], key: &str) -> Option<&'a Recipe> {
     recipes
         .iter()
-        .find(|r| r.name == name)
-        .or_else(|| recipes.iter().find(|r| r.name.eq_ignore_ascii_case(name)))
+        .find(|r| !r.id.is_empty() && r.id == key)
+        .or_else(|| recipes.iter().find(|r| r.name == key))
+        .or_else(|| recipes.iter().find(|r| r.name.eq_ignore_ascii_case(key)))
 }
 
 /// Reads every `.json` file in `dir`, sorted by name. The first time (when
@@ -585,6 +662,19 @@ pub fn load_all(dir: &Path) -> (Vec<Recipe>, Vec<String>) {
         }
     }
     recipes.sort_by_key(|r| r.name.to_lowercase());
+    // Recipes from before 2.0.2 (or copied files) get an id, saved back so
+    // it stays the same next time.
+    for i in ensure_ids(&mut recipes) {
+        if let Some(path) = &recipes[i].path
+            && let Err(e) = std::fs::write(path, recipes[i].to_json())
+        {
+            errors.push(t!(
+                "recipe-save-failed",
+                path = path.display().to_string(),
+                error = e.to_string()
+            ));
+        }
+    }
     (recipes, errors)
 }
 
@@ -713,9 +803,9 @@ pub fn samples() -> Vec<Recipe> {
         recipe(
             "CSV to Markdown Table",
             "Converts CSV with a header row to a Markdown table.",
-            vec![Step::Convert {
-                from: DataFormat::Csv,
+            vec![Step::ConvertTo {
                 to: DataFormat::Markdown,
+                from: Some(DataFormat::Csv),
             }],
         ),
     ]
@@ -923,6 +1013,93 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert_eq!(list.len(), samples().len() + 1);
         assert!(find(&list, "unique sorted lines").is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A recipe file written by 2.0.0: no id, and the old Convert step.
+    const OLD_FILE: &str = r#"{
+  "version": 1,
+  "name": "Csv To Json",
+  "steps": [
+    { "op": "convert", "from": "Csv", "to": "Json" }
+  ]
+}"#;
+
+    #[test]
+    fn old_recipe_files_still_run() {
+        let r = Recipe::from_json(OLD_FILE).unwrap();
+        assert!(r.id.is_empty());
+        let out = r.run("a,b\n1,2\n", &Env::default()).unwrap();
+        assert_eq!(
+            out,
+            "[\n    {\n        \"a\": 1,\n        \"b\": 2\n    }\n]\n"
+        );
+    }
+
+    #[test]
+    fn convert_to_detects_or_reads_as() {
+        let detect = Step::ConvertTo {
+            to: DataFormat::Yaml,
+            from: None,
+        };
+        assert_eq!(run(vec![detect.clone()], "{\"a\": 1}\n"), "a: 1\n");
+        let r = Recipe {
+            steps: vec![detect.into()],
+            ..Recipe::new("t")
+        };
+        assert!(r.run("not data at all", &Env::default()).is_err());
+        let forced = Step::ConvertTo {
+            to: DataFormat::Json,
+            from: Some(DataFormat::Yaml),
+        };
+        assert_eq!(run(vec![forced], "a: 1\n"), "{\n    \"a\": 1\n}\n");
+        // Without `from` the file leaves it out.
+        let json = serde_json::to_string(&RecipeStep::from(Step::ConvertTo {
+            to: DataFormat::Toml,
+            from: None,
+        }))
+        .unwrap();
+        assert_eq!(json, r#"{"op":"convert_to","to":"Toml"}"#);
+        assert!(
+            Step::ConvertTo {
+                to: DataFormat::Json,
+                from: Some(DataFormat::Json)
+            }
+            .check()
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn ids_are_made_once_and_survive_renaming() {
+        let id = new_id("Clean API dump!");
+        assert!(id.starts_with("clean-api-dump-"), "{id}");
+        assert_eq!(id.len(), "clean-api-dump-".len() + 4);
+        assert!(new_id("…").starts_with("recipe-"));
+
+        let dir = std::env::temp_dir().join(format!("ettin-recipe-ids-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("old.json"), OLD_FILE).unwrap();
+        // A copied file has the same id as the original.
+        let (list, errors) = load_all(&dir);
+        assert!(errors.is_empty(), "{errors:?}");
+        let id = list[0].id.clone();
+        assert!(id.starts_with("csv-to-json-"));
+        std::fs::copy(dir.join("old.json"), dir.join("copy.json")).unwrap();
+        // Saved back: loading again gives the same id.
+        let (list, _) = load_all(&dir);
+        assert_eq!(list.len(), 2);
+        assert!(list.iter().any(|r| r.id == id));
+        assert_ne!(list[0].id, list[1].id);
+
+        let mut r = list.into_iter().find(|r| r.id == id).unwrap();
+        r.name = "Renamed".into();
+        save(&mut r, &dir).unwrap();
+        let (list, _) = load_all(&dir);
+        let found = find(&list, &id).unwrap();
+        assert_eq!(found.name, "Renamed");
+        assert_eq!(find(&list, "renamed").unwrap().id, id);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

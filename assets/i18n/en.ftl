@@ -1116,7 +1116,6 @@ toolbar-group-customise = Customise
 menu-transform = Transform
 menu-transform-lines = Lines
 menu-identifier-case = Identifier Case
-menu-convert = Convert
 menu-hash = Hash
 menu-hex-jwt = Hex and JWT
 pipe-dots = Filter Through Command…
@@ -1131,7 +1130,6 @@ number-lines = Number Lines
 number-lines-dots = Number Lines…
 reflow = Reflow Paragraphs
 reflow-dots = Reflow Paragraphs…
-convert-from = From { $format }
 convert-to = { $from } to { $to }
 case-camel = camelCase
 case-pascal = PascalCase
@@ -1266,3 +1264,41 @@ recipe-changed-tabs = “{ $name }” changed { $count } tabs.
 recipe-no-change = “{ $name }” made no changes.
 recipe-read-failed = Couldn't read the recipe { $path }: { $error }
 recipe-save-failed = Couldn't save the recipe { $path }: { $error }
+
+## 2.0.2: Convert to, Read as
+menu-convert-to = Convert to
+menu-read-as = Read as
+convert-to-format = Convert to { $format }
+convert-markdown-table = Markdown table
+convert-reading = Reading this tab…
+convert-reading-as = Reading this tab as { $format }
+convert-not-data = Not JSON, YAML, TOML, XML or CSV
+convert-unknown-format = Can't tell which format this text is in. Pick one under Transform › Convert to › Read as.
+converted-to = Converted to { $to } (read as { $from })
+read-as-auto = Auto
+read-as-auto-format = Auto ({ $format })
+read-as-named = Read as { $format }
+toolbar-convert-to = To { $format }
+## 2.0.2: command palette
+palette-recipe = Recipe · { $steps ->
+    [one] 1 step
+   *[other] { $steps } steps
+}
+palette-plugin = Plugin · { $name }
+palette-not-for-tab = not for this tab
+palette-tag-recent = recent
+palette-tag-recipe = recipe
+palette-tag-plugin = plugin
+## 2.0.2: Recipes window
+recipe-new-short = New
+recipe-export-short = Export…
+recipe-import-short = Import…
+recipe-folder = Folder
+recipe-reload = Reload
+recipe-no-shortcut = None
+recipe-clear-shortcut = Clear
+recipe-id = id { $id }
+recipe-id-hint = Shortcuts and toolbar buttons use this id, so they keep working when you rename the recipe.
+recipe-step-search = Search steps…
+json-format-named = Format JSON
+json-minify-named = Minify JSON

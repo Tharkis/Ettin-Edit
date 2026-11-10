@@ -1118,7 +1118,6 @@ toolbar-group-customise = Personalizar
 menu-transform = Transformar
 menu-transform-lines = Líneas
 menu-identifier-case = Estilo de identificador
-menu-convert = Convertir
 menu-hash = Hash
 menu-hex-jwt = Hex y JWT
 pipe-dots = Filtrar con un comando…
@@ -1133,7 +1132,6 @@ number-lines = Numerar líneas
 number-lines-dots = Numerar líneas…
 reflow = Reajustar párrafos
 reflow-dots = Reajustar párrafos…
-convert-from = Desde { $format }
 convert-to = { $from } a { $to }
 case-camel = camelCase
 case-pascal = PascalCase
@@ -1268,3 +1266,41 @@ recipe-changed-tabs = “{ $name }” cambió { $count } pestañas.
 recipe-no-change = “{ $name }” no hizo cambios.
 recipe-read-failed = No se pudo leer la receta { $path }: { $error }
 recipe-save-failed = No se pudo guardar la receta { $path }: { $error }
+
+## 2.0.2: Convertir a, Leer como
+menu-convert-to = Convertir a
+menu-read-as = Leer como
+convert-to-format = Convertir a { $format }
+convert-markdown-table = Tabla Markdown
+convert-reading = Leyendo esta pestaña…
+convert-reading-as = Esta pestaña se lee como { $format }
+convert-not-data = No es JSON, YAML, TOML, XML ni CSV
+convert-unknown-format = No se reconoce el formato de este texto. Elija uno en Transformar › Convertir a › Leer como.
+converted-to = Convertido a { $to } (leído como { $from })
+read-as-auto = Automático
+read-as-auto-format = Automático ({ $format })
+read-as-named = Leer como { $format }
+toolbar-convert-to = A { $format }
+## 2.0.2: paleta de comandos
+palette-recipe = Receta · { $steps ->
+    [one] 1 paso
+   *[other] { $steps } pasos
+}
+palette-plugin = Complemento · { $name }
+palette-not-for-tab = no para esta pestaña
+palette-tag-recent = reciente
+palette-tag-recipe = receta
+palette-tag-plugin = complemento
+## 2.0.2: ventana Recetas
+recipe-new-short = Nueva
+recipe-export-short = Exportar…
+recipe-import-short = Importar…
+recipe-folder = Carpeta
+recipe-reload = Recargar
+recipe-no-shortcut = Ninguno
+recipe-clear-shortcut = Quitar
+recipe-id = id { $id }
+recipe-id-hint = Los atajos y los botones de la barra de herramientas usan este id, así que siguen funcionando si cambia el nombre de la receta.
+recipe-step-search = Buscar pasos…
+json-format-named = Formatear JSON
+json-minify-named = Minimizar JSON

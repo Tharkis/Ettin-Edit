@@ -21,9 +21,16 @@ isn't JSON, a message names the step and why, and the text is left as it was.
 of every open tab instead. Each tab changes as its own undo step; read-only
 tabs and tabs shown in Hex View are skipped.
 
-A recipe can have a [keyboard shortcut](shortcuts.md) of its own: find it
-under **Transform › Recipes** in the Shortcut Mapper. Shortcuts and menus find
-a recipe by its name, so renaming a recipe takes its shortcut away.
+A recipe can have a [keyboard shortcut](shortcuts.md) of its own: set it in
+the Recipes window (below), or find the recipe under **Transform › Recipes**
+in the Shortcut Mapper. Recipes are also in the
+[command palette](view.md#command-palette), shown as *Recipe · 3 steps*.
+
+Each recipe has an **id**, like `clean-api-dump-7f3a`, made from its name the
+first time it is saved. Shortcuts and toolbar buttons use the id, so renaming
+a recipe keeps its shortcut and its toolbar button. (Shortcuts and buttons
+made before 2.0.2 used the name; Ettin Edit moves them to the id the first
+time it starts.)
 
 ## The Recipes window
 
@@ -33,18 +40,25 @@ its steps on the right. Double-click a recipe to run it.
 
 - **Name** and **Description**: the name is what the menus show; the
   description shows when you point at the recipe in the list.
+- **Shortcut**: click **Set…** and press the keys you want; **Clear** takes
+  the shortcut away. If another command already has those keys, the window
+  says which and offers **Move It Here**, as the Shortcut Mapper does. The
+  recipe's id is shown under the shortcut.
 - **Steps**: click a step to open its settings. The tick box switches a step
   off without removing it, the arrows move it, and the cross removes it.
-- **Add Step** lists every step, by group (below).
+- **Add Step** lists every step, by group (below). Type in the search box at
+  its top to list every step whose name has those words, from all groups;
+  the arrow keys move the highlight and <kbd>Enter</kbd> adds it.
 - **Preview** shows the text of the active tab (the selection, or the
   document) before and after the recipe, and updates as you change any step.
   It uses the first 20,000 characters, and stops before a step that runs a
   shell command.
-- **Run** and **Run on All Tabs** run the recipe you're looking at.
-
-Every change is saved straight away. The buttons under the list make a new
-recipe, duplicate, delete, export or import one, open the recipes folder, and
-read it again after you've changed files there yourself.
+Every change is saved straight away. The buttons along the bottom make a
+**New** recipe, **Duplicate**, **Delete**, **Export…** or **Import…** one,
+open the recipes **Folder**, and **Reload** it after you've changed files
+there yourself. **Run** and **Run on All Tabs** on the right run the recipe
+you're looking at. (If a translation makes the labels too long to fit, the
+buttons show only their icons; point at one to see what it does.)
 
 ## Recording a recipe
 
@@ -71,7 +85,7 @@ Typing, moving the caret and other commands aren't recorded; use a
 | Find and Replace | Replace every match, with **Match case**, **Whole word**, **Regular expression** or **Extended** (`\n`, `\t`, `\xNN`), exactly as in the [find bar](search.md). `$1` or `\1` put a group back |
 | Lines | Keep or Remove Matching Lines, Count Distinct Lines, Add Prefix and Suffix, Number Lines, Reflow Paragraphs, Sort (lexically, ignoring case, as integers, as decimals or by length; ascending or descending), Reverse Line Order, Remove Duplicate Lines (all, or only repeats next to each other), Remove Empty Lines (and blank ones), Trim, Join Lines, Tabs to Spaces, Spaces to Tabs |
 | Convert Case To | UPPERCASE, lowercase, Title Case, Sentence case, iNVERT cASE, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE |
-| Convert | Between JSON, YAML, TOML, XML and CSV, and to Markdown tables |
+| Convert to | JSON, YAML, TOML, XML, CSV or a Markdown table. **Read as** is **Auto** (the format the text looks like when the step runs) or a format you pick. Recipes from 2.0.0 with a "from X to Y" step still run as before |
 | Encode and Hash | Every [MIME Tools](mime.md) encoding and decoding, MD5, SHA-1, SHA-256, SHA-512, CRC32, Text to Hex, Hex to Text, Decode JWT |
 | JSON and XML | JSON Format, Minify and Sort Keys; Format XML (with or without attributes on their own lines), Linearize, Escape and Unescape |
 | Command | Filter Through Command: any shell command, as in [Transform](transform.md#filter-through-a-command) |
@@ -116,6 +130,7 @@ A recipe file looks like this:
 {
   "version": 1,
   "name": "Lines to SQL IN List",
+  "id": "lines-to-sql-in-list-0c4e",
   "description": "Turns one value per line into IN ('a', 'b', 'c').",
   "steps": [
     { "op": "trim", "kind": "Both" },
@@ -130,7 +145,11 @@ A recipe file looks like this:
 ```
 
 Each step has an `op` and its settings; settings you leave out take their
-defaults, and `"enabled": false` switches a step off. The easiest way to learn
+defaults, and `"enabled": false` switches a step off. A file without an `id`
+gets one when Ettin Edit reads it (and it is written back), and so does a
+copied file whose id another recipe already has. A Convert to step looks like
+`{ "op": "convert_to", "to": "Yaml" }`, with `"from": "Json"` when it reads
+the text as a set format. The easiest way to learn
 the names is to build a recipe in the window and open its file. To share one,
 use **Export Recipe…**, or send the file; the other person uses **Import
 Recipes…** or drops it into their recipes folder.
@@ -147,8 +166,8 @@ ettin-edit --recipe my-recipe.json data.csv
 ettin-edit --list-recipes
 ```
 
-- `--recipe` takes a recipe's name (from your recipes folder, ignoring case)
-  or the path of a recipe file.
+- `--recipe` takes a recipe's name (from your recipes folder, ignoring case),
+  its id, or the path of a recipe file.
 - With no files it reads standard input. Files are written one after another
   to standard output, or changed where they are with `--in-place` (files the
   recipe doesn't change are left untouched).
