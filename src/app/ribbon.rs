@@ -8,12 +8,15 @@ use egui::{Frame, Margin, Ui};
 
 use super::EttinApp;
 use super::convert::Effort;
-use crate::actions::{self, Action};
+use super::menus::MenuModel;
+use crate::actions::{self, Action, ToolbarMenu};
 use crate::encoding::{TextEncoding, legacy_groups};
 use crate::highlight::PLAIN_TEXT;
+use crate::menu::MenuEntry;
 use crate::ribbon::{self, Layout};
 use crate::ribbon_dialog::{CommandEntry, CustomiseDialog, DialogEvent};
 use crate::ribbon_ui::{BarEvent, Button, GroupView, IconImage, RibbonBar, TabView};
+use crate::settings::ToolbarMode;
 use crate::tools::transform::TransformOp;
 
 /// Seconds the list of commands is kept before it is built again (plugins
@@ -102,7 +105,7 @@ impl EttinApp {
             .into_iter()
             .map(|c| (c.action, c.path))
             .collect();
-        let theme = t!("menu-theme");
+        let theme = format!("{} › {}", t!("menu-view"), t!("menu-theme"));
         for t in &self.themes {
             list.push((
                 Action::SetTheme(t.name.clone()),
@@ -118,6 +121,12 @@ impl EttinApp {
                 format!("{language} › {letter} › {l}")
             };
             list.push((Action::SetLanguage(l.clone()), path));
+        }
+        for menu in ToolbarMenu::ALL {
+            list.push((
+                Action::ToolbarMenu(menu),
+                format!("{} › {}", t!("toolbar-menus"), menu.label()),
+            ));
         }
         let encoding = t!("menu-encoding");
         // (menu path below the Encoding menu, encoding name)
@@ -256,6 +265,12 @@ impl EttinApp {
             Action::ToggleReadOnly => on(editor.is_some_and(|e| e.buffer.read_only)),
             Action::ToggleCompareOption(opt) => on(s.compare.get(*opt)),
             Action::ToggleToolbar => on(s.show_toolbar),
+            Action::ToggleSimplifiedToolbar => on(s.toolbar_mode == ToolbarMode::Simplified),
+            Action::RunLastRecipe => (self.last_recipe().is_some(), None),
+            Action::SaveMacroAsRecipe => (
+                !recording && has_macro && self.macro_recipe_block.is_none(),
+                None,
+            ),
             Action::ToggleMenuBar => on(s.show_menu_bar),
             Action::SetTheme(name) => on(self
                 .themes
@@ -277,7 +292,7 @@ impl EttinApp {
     /// The visible tabs, with each button's label, icon and state. Buttons
     /// for commands that aren't available (a plugin that isn't running) are
     /// left out.
-    fn toolbar_views(&mut self, ctx: &egui::Context) -> Vec<TabView> {
+    fn toolbar_views(&mut self, ctx: &egui::Context, m: &mut MenuModel) -> Vec<TabView> {
         self.toolbar_commands(ctx);
         let layout = self.toolbar.layout.clone();
         let commands = &self.toolbar.cache.as_ref().expect("built above").1;
@@ -295,6 +310,10 @@ impl EttinApp {
                         continue;
                     };
                     let (enabled, checked) = self.command_state(action);
+                    let menu = match action {
+                        Action::ToolbarMenu(which) => Some(self.toolbar_menu(m, *which)),
+                        _ => None,
+                    };
                     let shortcut = actions::effective_shortcut(action, None)
                         .or_else(|| {
                             all_shortcuts
@@ -322,6 +341,7 @@ impl EttinApp {
                         checked,
                         size: item.size,
                         place: (t, g, i),
+                        menu,
                     });
                 }
                 if !buttons.is_empty() {
@@ -347,8 +367,11 @@ impl EttinApp {
         }
         let palette = self.palette();
         let ctx = ui.ctx().clone();
-        let views = self.toolbar_views(&ctx);
+        let mut m = MenuModel::new(&ctx);
+        let views = self.toolbar_views(&ctx, &mut m);
+        let help = self.help_menu(&mut m);
         let collapsed = self.settings.toolbar_collapsed;
+        let simplified = self.settings.toolbar_mode == ToolbarMode::Simplified;
         let mut events = Vec::new();
         self.toolbar.bar.menu_bar_shown = self.settings.show_menu_bar;
         egui::Panel::top("toolbar")
@@ -360,11 +383,16 @@ impl EttinApp {
             }))
             .show_separator_line(false)
             .show(ui, |ui| {
-                events = self.toolbar.bar.ui(ui, &views, collapsed, &palette);
+                events = self
+                    .toolbar
+                    .bar
+                    .ui(ui, &views, &help, collapsed, simplified, &palette);
             });
         for event in events {
             match event {
                 BarEvent::Run(action) => self.pending.push(action),
+                BarEvent::Menu(id) => self.pending.extend(m.action(id)),
+                BarEvent::ToggleMode => self.pending.push(Action::ToggleSimplifiedToolbar),
                 BarEvent::Remove(t, g, i) => {
                     self.toolbar.layout.remove(t, g, i);
                     self.save_toolbar();
@@ -375,6 +403,74 @@ impl EttinApp {
                 BarEvent::ToggleMenuBar => self.pending.push(Action::ToggleMenuBar),
             }
         }
+    }
+
+    /// The menu a drop-down toolbar button opens.
+    fn toolbar_menu(&self, m: &mut MenuModel, which: ToolbarMenu) -> Vec<MenuEntry> {
+        use crate::transforms::{self, GroupId};
+        match which {
+            ToolbarMenu::Format => {
+                let group = transforms::group(GroupId::JsonXml);
+                group
+                    .entries
+                    .iter()
+                    .filter_map(|e| match e {
+                        transforms::Entry::Item { label, action, .. } => {
+                            Some(m.item_named(label, label, true, action.clone()))
+                        }
+                        transforms::Entry::Heading(h) => Some(MenuEntry::Heading(h.clone())),
+                        _ => None,
+                    })
+                    .collect()
+            }
+            ToolbarMenu::ConvertTo => self.convert_menu(m),
+            ToolbarMenu::Recipes => self.recipes_menu(m),
+            ToolbarMenu::Case => {
+                let group = transforms::group(GroupId::Case);
+                group
+                    .entries
+                    .iter()
+                    .map(|e| match e {
+                        transforms::Entry::Item { label, action, .. } => {
+                            m.item_named(label, label, true, action.clone())
+                        }
+                        _ => MenuEntry::Separator,
+                    })
+                    .collect()
+            }
+        }
+    }
+
+    /// The ? button's menu at the right of the toolbar's tab names.
+    fn help_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
+        vec![
+            m.item_named(
+                &t!("user-manual"),
+                &t!("user-manual"),
+                true,
+                Action::UserManual,
+            ),
+            m.item_named(
+                &t!("user-manual-web"),
+                &t!("user-manual-web"),
+                true,
+                Action::WebManual,
+            ),
+            MenuEntry::Separator,
+            m.item_named(
+                &t!("check-for-updates"),
+                &t!("check-for-updates"),
+                true,
+                Action::CheckForUpdates,
+            ),
+            MenuEntry::Separator,
+            m.item_named(
+                &t!("about-ettin-edit"),
+                &t!("about-ettin-edit"),
+                true,
+                Action::About,
+            ),
+        ]
     }
 
     fn save_toolbar(&mut self) {
@@ -425,6 +521,13 @@ impl EttinApp {
                 self.toolbar.dialog.show(&layout);
             }
             Action::ToggleToolbar => self.settings.show_toolbar = !self.settings.show_toolbar,
+            Action::ToggleSimplifiedToolbar => {
+                self.settings.toolbar_mode = match self.settings.toolbar_mode {
+                    ToolbarMode::Full => ToolbarMode::Simplified,
+                    ToolbarMode::Simplified => ToolbarMode::Full,
+                };
+                self.settings.show_toolbar = true;
+            }
             Action::CollapseToolbar => {
                 if self.settings.show_toolbar {
                     self.settings.toolbar_collapsed = !self.settings.toolbar_collapsed;

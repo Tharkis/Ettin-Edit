@@ -6,9 +6,9 @@ command and so on. Run it and every step happens in order, as one undo step.
 Build it once, then use it on any file whenever the same clean-up comes round
 again.
 
-Recipes live in **Transform > Recipes**, in the **Recipes** group at the
-start of the **Transform** [toolbar](toolbar.md) tab, and in the
-[command palette](view.md#command-palette).
+Recipes live in **Transform > Recipes** (also in the right-click menu), in
+the **Recipes** group on the [toolbar](toolbar.md)'s Home and Transform tabs,
+and in the [command palette](view.md#command-palette).
 
 ## Running a recipe
 
@@ -60,6 +60,9 @@ there yourself. **Run** and **Run on All Tabs** on the right run the recipe
 you're looking at. (If a translation makes the labels too long to fit, the
 buttons show only their icons; point at one to see what it does.)
 
+**Transform > Recipes > Run Last Recipe** (also on the toolbar's Home tab)
+runs the recipe you ran last again on the active tab; its tooltip names it.
+
 ## Recording a recipe
 
 You can also make a recipe by doing the job once:
@@ -71,19 +74,25 @@ You can also make a recipe by doing the job once:
    bar message.
 
 The Recipes window opens with the new recipe, ready for a name. Commands that
-change text become steps: everything in the Transform menu, the Edit menu's
-line operations, case conversion, tabs and spaces, MIME Tools, JSON Format,
-Minify and Sort Keys, and the XML Tools that change text. **Replace All** in the
+change text become steps: everything in the Transform menu (including the
+same commands in Edit > Line Operations and on the toolbar). **Replace All** in the
 find bar becomes a find-and-replace step with the find bar's text and options.
 Typing, moving the caret and other commands aren't recorded; use a
-[macro](macros.md) for those.
+[macro](macros.md) for those. A macro made only of transforms can become a
+recipe too: see [Turning a macro into a recipe](macros.md#turning-a-macro-into-a-recipe).
+
+Recipes replay transforms and can run from the command line; macros replay
+keystrokes and edits. The top of each submenu in **Transform** says so.
 
 ## The steps
+
+**Add Step** offers the same groups, in the same order, as the
+[Transform menu](transform.md#the-transform-menu):
 
 | Group | Steps |
 | --- | --- |
 | Find and Replace | Replace every match, with **Match case**, **Whole word**, **Regular expression** or **Extended** (`\n`, `\t`, `\xNN`), exactly as in the [find bar](search.md). `$1` or `\1` put a group back |
-| Lines | Keep or Remove Matching Lines, Count Distinct Lines, Add Prefix and Suffix, Number Lines, Reflow Paragraphs, Sort (lexically, ignoring case, as integers, as decimals or by length; ascending or descending), Reverse Line Order, Remove Duplicate Lines (all, or only repeats next to each other), Remove Empty Lines (and blank ones), Trim, Join Lines, Tabs to Spaces, Spaces to Tabs |
+| Lines | Keep or Remove Matching Lines, Count Distinct Lines, Sort (lexically, ignoring case, as integers, as decimals or by length; ascending or descending), Reverse Line Order, Remove Duplicate Lines (all, or only repeats next to each other), Remove Empty Lines (and blank ones), Trim, Join Lines, Add Prefix and Suffix, Number Lines, Reflow Paragraphs, Tabs to Spaces, Spaces to Tabs |
 | Convert Case To | UPPERCASE, lowercase, Title Case, Sentence case, iNVERT cASE, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE |
 | Convert to | JSON, YAML, TOML, XML, CSV or a Markdown table. **Read as** is **Auto** (the format the text looks like when the step runs) or a format you pick. Recipes from 2.0.0 with a "from X to Y" step still run as before |
 | Encode and Hash | Every [MIME Tools](mime.md) encoding and decoding, MD5, SHA-1, SHA-256, SHA-512, CRC32, Text to Hex, Hex to Text, Decode JWT |

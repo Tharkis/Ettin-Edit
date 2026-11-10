@@ -1,6 +1,7 @@
 //! Draws the toolbar: a row of tab names, and below it the selected tab's
 //! groups of buttons. Collapsed, only the names show and clicking one opens
 //! its buttons over the text until a command runs or the user clicks away.
+//! Simplified, the buttons are one row of small ones.
 
 use egui::{
     Align2, Color32, CornerRadius, FontId, Id, Order, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2,
@@ -9,6 +10,7 @@ use egui_phosphor::regular as ph;
 
 use crate::actions::Action;
 use crate::fonts::icon_font;
+use crate::menu::{self, MenuEntry};
 use crate::ribbon::Size;
 use crate::theme::Palette;
 
@@ -26,6 +28,8 @@ const LARGE_LABEL_W: f32 = 72.0;
 const COLLAPSED_LABEL_W: f32 = 80.0;
 /// A small button without its label.
 const ICON_ONLY_W: f32 = 6.0 + SMALL_ICON + 6.0;
+/// Room for the ▾ of a button that opens a menu.
+const CARET_W: f32 = 12.0;
 
 #[derive(Clone)]
 pub enum IconImage {
@@ -48,6 +52,9 @@ pub struct Button {
     pub size: Size,
     /// Where it is in the layout: tab, group, item.
     pub place: (usize, usize, usize),
+    /// A drop-down button's menu; clicking it opens this instead of
+    /// running `action`.
+    pub menu: Option<Vec<MenuEntry>>,
 }
 
 pub struct GroupView {
@@ -64,6 +71,10 @@ pub struct TabView {
 
 pub enum BarEvent {
     Run(Action),
+    /// An item of a drop-down button's menu (or the ? menu) was clicked.
+    Menu(usize),
+    /// Switch between the full and the simplified toolbar.
+    ToggleMode,
     /// Take a button off the toolbar.
     Remove(usize, usize, usize),
     Customise,
@@ -84,11 +95,14 @@ pub struct RibbonBar {
 
 impl RibbonBar {
     /// Draws the bar into a top panel.
+    /// `help` is the menu of the ? button at the right of the tab names.
     pub fn ui(
         &mut self,
         ui: &mut Ui,
         tabs: &[TabView],
+        help: &[MenuEntry],
         collapsed: bool,
+        simplified: bool,
         palette: &Palette,
     ) -> Vec<BarEvent> {
         let mut events = Vec::new();
@@ -101,12 +115,21 @@ impl RibbonBar {
             self.popup = false;
         }
         let strip = ui
-            .horizontal(|ui| self.tab_strip(ui, tabs, collapsed, palette, &mut events))
+            .horizontal(|ui| {
+                self.tab_strip(ui, tabs, help, collapsed, simplified, palette, &mut events)
+            })
             .response;
         let current = tabs.iter().find(|t| t.index == self.selected);
+        let body = |ui: &mut Ui, tab: &TabView, events: &mut Vec<BarEvent>| {
+            if simplified {
+                simple_body(ui, tab, palette, events)
+            } else {
+                body(ui, tab, palette, events)
+            }
+        };
         if !collapsed {
             if let Some(tab) = current {
-                body(ui, tab, palette, &mut events);
+                body(ui, tab, &mut events);
             } else {
                 ui.label(egui::RichText::new(t!("toolbar-empty")).weak());
             }
@@ -121,7 +144,7 @@ impl RibbonBar {
                         .fill(palette.chrome_bg)
                         .show(ui, |ui| {
                             ui.set_max_width(strip.rect.width());
-                            body(ui, tab, palette, &mut events)
+                            body(ui, tab, &mut events)
                         });
                 });
             let clicked_away = ui.input(|i| i.pointer.any_pressed())
@@ -137,11 +160,14 @@ impl RibbonBar {
         events
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn tab_strip(
         &mut self,
         ui: &mut Ui,
         tabs: &[TabView],
+        help: &[MenuEntry],
         collapsed: bool,
+        simplified: bool,
         palette: &Palette,
         events: &mut Vec<BarEvent>,
     ) {
@@ -187,13 +213,79 @@ impl RibbonBar {
             }
             strip_menu(&response, collapsed, self.menu_bar_shown, events);
         }
-        // The rest of the row: the collapse button at the far right.
+        // The rest of the row: ?, the toolbar style and the collapse button
+        // at the far right.
         let rest = ui.available_rect_before_wrap();
         let response = ui.allocate_rect(
             Rect::from_min_size(rest.min, Vec2::new(rest.width(), 24.0)),
             Sense::click(),
         );
         strip_menu(&response, collapsed, self.menu_bar_shown, events);
+        let mode_text = format!(
+            "{}  {}",
+            ph::LIST,
+            if simplified {
+                t!("toolbar-mode-full")
+            } else {
+                t!("toolbar-mode-simplified")
+            }
+        );
+        let mode_galley =
+            ui.painter()
+                .layout_no_wrap(mode_text, FontId::proportional(12.5), palette.text_dim);
+        let mode = Rect::from_min_size(
+            Pos2::new(
+                rest.right() - 32.0 - mode_galley.size().x - 12.0,
+                rest.top() + 1.0,
+            ),
+            Vec2::new(mode_galley.size().x + 12.0, 22.0),
+        );
+        let m = ui.interact(mode, Id::new("toolbar-mode"), Sense::click());
+        if m.hovered() {
+            ui.painter()
+                .rect_filled(mode, CornerRadius::same(4), palette.tab_hover_bg);
+        }
+        focus_ring(ui, mode, &m, palette);
+        let tip = if simplified {
+            t!("toolbar-mode-full-tip")
+        } else {
+            t!("toolbar-mode-simplified-tip")
+        };
+        m.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &tip));
+        ui.painter().galley(
+            mode.center() - mode_galley.size() / 2.0,
+            mode_galley,
+            palette.text_dim,
+        );
+        if m.on_hover_text(&tip).clicked() {
+            events.push(BarEvent::ToggleMode);
+        }
+        let help_rect = Rect::from_center_size(
+            Pos2::new(mode.left() - 16.0, rest.top() + 12.0),
+            Vec2::splat(22.0),
+        );
+        let h = ui.interact(help_rect, Id::new("toolbar-help"), Sense::click());
+        if h.hovered() {
+            ui.painter()
+                .rect_filled(help_rect, CornerRadius::same(4), palette.tab_hover_bg);
+        }
+        focus_ring(ui, help_rect, &h, palette);
+        ui.painter().text(
+            help_rect.center(),
+            Align2::CENTER_CENTER,
+            ph::QUESTION,
+            icon_font(15.0),
+            palette.text_dim,
+        );
+        let tip = t!("toolbar-help");
+        h.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &tip));
+        let h = h.on_hover_text(&tip);
+        if let Some(id) = egui::Popup::menu(&h)
+            .show(|ui| menu::show(ui, help))
+            .and_then(|r| r.inner)
+        {
+            events.push(BarEvent::Menu(id));
+        }
         let button = Rect::from_center_size(
             Pos2::new(rest.right() - 14.0, rest.top() + 12.0),
             Vec2::splat(22.0),
@@ -356,7 +448,14 @@ fn body(ui: &mut Ui, tab: &TabView, palette: &Palette, events: &mut Vec<BarEvent
             group_ui(ui, (tab.index, i), group, *state, palette, events);
         }
         if layout.shown < tab.groups.len() {
-            overflow_button(ui, tab, &tab.groups[layout.shown..], palette, events);
+            overflow_button(
+                ui,
+                tab,
+                &tab.groups[layout.shown..],
+                CONTENT_H,
+                palette,
+                events,
+            );
         }
     });
 }
@@ -441,7 +540,7 @@ fn icons_differ(group: &GroupView) -> bool {
 
 fn small_column_width(ui: &Ui, column: &[&Button], state: GroupState) -> f32 {
     if state == GroupState::IconOnly {
-        return ICON_ONLY_W;
+        return column.iter().map(|b| icon_width(b)).fold(0.0, f32::max);
     }
     column
         .iter()
@@ -494,6 +593,16 @@ fn group_ui(
 /// The commands of a group as menu items, with their state.
 fn menu_items(ui: &mut Ui, group: &GroupView, events: &mut Vec<BarEvent>) {
     for b in &group.buttons {
+        if let Some(entries) = &b.menu {
+            if let Some(id) = ui
+                .menu_button(b.label.as_str(), |ui| menu::show(ui, entries))
+                .inner
+                .flatten()
+            {
+                events.push(BarEvent::Menu(id));
+            }
+            continue;
+        }
         let icon: egui::Atom<'_> = match &b.icon {
             IconImage::Glyph(g) => egui::RichText::new(*g).font(icon_font(14.0)).into(),
             IconImage::Texture(tex) => egui::Image::new((tex.id(), Vec2::splat(14.0))).into(),
@@ -604,13 +713,15 @@ fn overflow_button(
     ui: &mut Ui,
     tab: &TabView,
     hidden: &[GroupView],
+    height: f32,
     palette: &Palette,
     events: &mut Vec<BarEvent>,
 ) {
     let rest = ui.available_rect_before_wrap();
+    let side = height.min(28.0);
     let rect = Rect::from_min_size(
-        Pos2::new(rest.right() - 28.0, rest.top() + (CONTENT_H - 28.0) / 2.0),
-        Vec2::splat(28.0),
+        Pos2::new(rest.right() - side, rest.top() + (height - side) / 2.0),
+        Vec2::splat(side),
     );
     let response = ui.interact(
         rect,
@@ -718,7 +829,18 @@ fn finish(response: Response, b: &Button, events: &mut Vec<BarEvent>) {
         info
     });
     let response = response.on_hover_text(&b.tooltip);
-    if response.clicked() && b.enabled {
+    if let Some(entries) = &b.menu {
+        if b.enabled
+            && let Some(id) = egui::Popup::menu(&response)
+                // Not the default id: the right-click menu below uses that
+                // one, and closes it on a left click.
+                .id(Id::new(("toolbar-drop-down", b.place)))
+                .show(|ui| menu::show(ui, entries))
+                .and_then(|r| r.inner)
+        {
+            events.push(BarEvent::Menu(id));
+        }
+    } else if response.clicked() && b.enabled {
         events.push(BarEvent::Run(b.action.clone()));
     }
     response.context_menu(|ui| {
@@ -767,9 +889,33 @@ fn large_button(ui: &mut Ui, b: &Button, palette: &Palette, events: &mut Vec<Bar
     );
     // A centred job's galley is laid out around x = 0.
     let text_top = rect.top() + 12.0 + LARGE_ICON;
+    let label_h = galley.size().y;
     ui.painter()
         .galley(Pos2::new(rect.center().x, text_top), galley, colour);
+    if b.menu.is_some() {
+        caret(
+            ui,
+            Pos2::new(rect.center().x, text_top + label_h + 7.0),
+            palette,
+        );
+    }
     finish(response, b, events);
+}
+
+/// The ▾ of a drop-down button.
+fn caret(ui: &Ui, center: Pos2, palette: &Palette) {
+    ui.painter().text(
+        center,
+        Align2::CENTER_CENTER,
+        ph::CARET_DOWN,
+        icon_font(10.0),
+        palette.text_dim,
+    );
+}
+
+/// The extra width of a drop-down button's ▾.
+fn caret_w(b: &Button) -> f32 {
+    if b.menu.is_some() { CARET_W } else { 0.0 }
 }
 
 fn small_galley(ui: &Ui, b: &Button, colour: Color32) -> std::sync::Arc<egui::Galley> {
@@ -778,7 +924,11 @@ fn small_galley(ui: &Ui, b: &Button, colour: Color32) -> std::sync::Arc<egui::Ga
 }
 
 fn small_width(ui: &Ui, b: &Button) -> f32 {
-    6.0 + SMALL_ICON + 6.0 + small_galley(ui, b, Color32::WHITE).size().x + 8.0
+    6.0 + SMALL_ICON + 6.0 + small_galley(ui, b, Color32::WHITE).size().x + 8.0 + caret_w(b)
+}
+
+fn icon_width(b: &Button) -> f32 {
+    ICON_ONLY_W + caret_w(b)
 }
 
 fn small_button(
@@ -804,17 +954,175 @@ fn small_button(
         rect.left() + 12.0 + SMALL_ICON,
         rect.center().y - galley.size().y / 2.0,
     );
+    let label_w = galley.size().x;
     ui.painter().galley(pos, galley, colour);
+    if b.menu.is_some() {
+        caret(
+            ui,
+            Pos2::new(pos.x + label_w + 2.0 + CARET_W / 2.0, rect.center().y),
+            palette,
+        );
+    }
     finish(response, b, events);
 }
 
 /// A small button without its label; the tooltip names it.
 fn icon_button(ui: &mut Ui, b: &Button, palette: &Palette, events: &mut Vec<BarEvent>) {
     let colour = text_colour(b, palette);
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(ICON_ONLY_W, SMALL_H), Sense::click());
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::new(icon_width(b), SMALL_H), Sense::click());
     paint_frame(ui, rect, &response, b, palette);
-    paint_icon(ui, rect.center(), SMALL_ICON, &b.icon, b.enabled, colour);
+    paint_icon(
+        ui,
+        Pos2::new(rect.left() + ICON_ONLY_W / 2.0, rect.center().y),
+        SMALL_ICON,
+        &b.icon,
+        b.enabled,
+        colour,
+    );
+    if b.menu.is_some() {
+        caret(
+            ui,
+            Pos2::new(rect.right() - CARET_W / 2.0 - 1.0, rect.center().y),
+            palette,
+        );
+    }
     finish(response, b, events);
+}
+
+// -------------------------------------------------------------------------
+// The simplified toolbar: one row of small buttons
+
+/// A group's width in the simplified toolbar, by state (`STATES` order):
+/// large buttons with labels and small ones as icons; (no second state);
+/// every button as an icon; one drop-down with the group's name.
+fn simple_widths(ui: &Ui, group: &GroupView) -> [f32; 4] {
+    let gaps = 2.0 * group.buttons.len().saturating_sub(1) as f32;
+    let mixed = group
+        .buttons
+        .iter()
+        .map(|b| match b.size {
+            Size::Large => small_width(ui, b),
+            Size::Small => icon_width(b),
+        })
+        .sum::<f32>()
+        + gaps;
+    let icons = if icons_differ(group) {
+        group.buttons.iter().map(icon_width).sum::<f32>() + gaps
+    } else {
+        f32::INFINITY
+    };
+    [
+        mixed,
+        f32::INFINITY,
+        icons,
+        simple_collapsed_width(ui, &group.name),
+    ]
+}
+
+fn simple_collapsed_galley(ui: &Ui, name: &str, colour: Color32) -> std::sync::Arc<egui::Galley> {
+    ui.painter()
+        .layout_no_wrap(name.to_owned(), FontId::proportional(12.5), colour)
+}
+
+fn simple_collapsed_width(ui: &Ui, name: &str) -> f32 {
+    8.0 + simple_collapsed_galley(ui, name, Color32::WHITE).size().x + 4.0 + CARET_W
+}
+
+/// The selected tab's groups in one row, shrunk to fit the window.
+fn simple_body(ui: &mut Ui, tab: &TabView, palette: &Palette, events: &mut Vec<BarEvent>) {
+    if tab.groups.iter().all(|g| g.buttons.is_empty()) {
+        ui.label(egui::RichText::new(t!("toolbar-empty")).weak());
+        return;
+    }
+    let widths: Vec<[f32; 4]> = tab.groups.iter().map(|g| simple_widths(ui, g)).collect();
+    let available = ui.available_width() - SLACK;
+    let layout = fit(&widths, GROUP_GAP, available, OVERFLOW_W);
+    ui.horizontal(|ui| {
+        ui.set_min_height(SMALL_H + 6.0);
+        ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+        for (i, (group, state)) in tab.groups.iter().zip(&layout.states).enumerate() {
+            if i > 0 {
+                let x = ui.cursor().left() + 3.0;
+                let mid = ui.min_rect().center().y;
+                ui.painter()
+                    .vline(x, mid - 8.0..=mid + 8.0, Stroke::new(1.0, palette.border));
+                ui.add_space(GROUP_GAP - 2.0);
+            }
+            match state {
+                GroupState::Collapsed => {
+                    simple_collapsed(ui, (tab.index, i), group, palette, events)
+                }
+                GroupState::IconOnly => {
+                    for b in &group.buttons {
+                        icon_button(ui, b, palette, events);
+                    }
+                }
+                _ => {
+                    for b in &group.buttons {
+                        match b.size {
+                            Size::Large => {
+                                let w = small_width(ui, b);
+                                small_button(ui, b, w, palette, events);
+                            }
+                            Size::Small => icon_button(ui, b, palette, events),
+                        }
+                    }
+                }
+            }
+        }
+        if layout.shown < tab.groups.len() {
+            overflow_button(
+                ui,
+                tab,
+                &tab.groups[layout.shown..],
+                SMALL_H,
+                palette,
+                events,
+            );
+        }
+    });
+}
+
+/// A simplified group with no room for its buttons: its name and ▾.
+fn simple_collapsed(
+    ui: &mut Ui,
+    id: (usize, usize),
+    group: &GroupView,
+    palette: &Palette,
+    events: &mut Vec<BarEvent>,
+) {
+    let any_enabled = group.buttons.iter().any(|b| b.enabled);
+    let colour = if any_enabled {
+        palette.text
+    } else {
+        palette.text_dim.gamma_multiply(0.6)
+    };
+    let galley = simple_collapsed_galley(ui, &group.name, colour);
+    let width = simple_collapsed_width(ui, &group.name);
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, SMALL_H), Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, any_enabled, &group.name)
+    });
+    if response.hovered() {
+        ui.painter()
+            .rect_filled(rect, CornerRadius::same(4), palette.tab_hover_bg);
+    }
+    focus_ring(ui, rect, &response, palette);
+    ui.painter().galley(
+        Pos2::new(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        colour,
+    );
+    caret(
+        ui,
+        Pos2::new(rect.right() - CARET_W / 2.0 - 2.0, rect.center().y),
+        palette,
+    );
+    let response = response.on_hover_text(&group.name);
+    egui::Popup::menu(&response)
+        .id(Id::new(("toolbar-group-menu", id)))
+        .show(|ui| menu_items(ui, group, events));
 }
 
 #[cfg(test)]
@@ -889,6 +1197,7 @@ mod tests {
             checked: None,
             size: Size::Small,
             place: (0, 0, 0),
+            menu: None,
         };
         let group = GroupView {
             name: "History".to_owned(),

@@ -72,11 +72,6 @@ runs on Linux and Windows only.
 | Line Operations > Split Lines at Long-Line Column | <kbd>Ctrl+I</kbd> |
 | Line Operations > Insert Blank Line Above | <kbd>Ctrl+Alt+Enter</kbd> |
 | Line Operations > Insert Blank Line Below | <kbd>Ctrl+Alt+Shift+Enter</kbd> |
-| Convert Case To > UPPERCASE | <kbd>Ctrl+Shift+U</kbd> |
-| Convert Case To > lowercase | <kbd>Ctrl+U</kbd> |
-| Convert Case To > Title Case | <kbd>Alt+U</kbd> |
-| Convert Case To > Sentence case | <kbd>Ctrl+Alt+U</kbd> |
-| Convert Case To > iNVERT cASE | <kbd>Ctrl+Alt+Shift+U</kbd> |
 | Comment > Toggle Line Comment | <kbd>Ctrl+Q</kbd> |
 | Comment > Toggle Block Comment | <kbd>Ctrl+Shift+Q</kbd> |
 | Insert > Date and Time (Short) | <kbd>F5</kbd> |
@@ -133,6 +128,17 @@ runs on Linux and Windows only.
 | Recipes > Manage Recipes… | <kbd>Ctrl+Alt+R</kbd> |
 | Filter Through Command… | <kbd>Ctrl+Alt+P</kbd> |
 | Lines > Keep Matching Lines… | <kbd>Ctrl+Alt+K</kbd> |
+| Macros > Start or Stop Recording | <kbd>Ctrl+Shift+R</kbd> |
+| Macros > Playback | <kbd>Ctrl+Shift+P</kbd> |
+| Convert Case To > UPPERCASE | <kbd>Ctrl+Shift+U</kbd> |
+| Convert Case To > lowercase | <kbd>Ctrl+U</kbd> |
+| Convert Case To > Title Case | <kbd>Alt+U</kbd> |
+| Convert Case To > Sentence case | <kbd>Ctrl+Alt+U</kbd> |
+| Convert Case To > iNVERT cASE | <kbd>Ctrl+Alt+Shift+U</kbd> |
+| JSON and XML > Format JSON | <kbd>Ctrl+Alt+M</kbd> |
+| JSON and XML > Minify JSON | <kbd>Ctrl+Alt+N</kbd> |
+| JSON and XML > Format XML | <kbd>Ctrl+Alt+Shift+B</kbd> |
+| JSON and XML > Linearize | <kbd>Ctrl+Alt+Shift+L</kbd> |
 
 ### Settings
 
@@ -149,21 +155,10 @@ runs on Linux and Windows only.
 | Compare > Previous Difference | <kbd>Shift+F7</kbd> |
 | CsvQuery > CsvQuery Panel | <kbd>Ctrl+Alt+Q</kbd> |
 | CsvQuery > Run Query (in the panel) | <kbd>Ctrl+Enter</kbd> |
-| JSON and JavaScript > Format | <kbd>Ctrl+Alt+M</kbd> |
-| JSON and JavaScript > Minify | <kbd>Ctrl+Alt+N</kbd> |
-| JSON and JavaScript > JSON Tree | <kbd>Ctrl+Alt+J</kbd> |
-| XML Tools > Format XML | <kbd>Ctrl+Alt+Shift+B</kbd> |
-| XML Tools > Linearize | <kbd>Ctrl+Alt+Shift+L</kbd> |
-| XML Tools > Check Syntax | <kbd>Ctrl+Alt+Shift+M</kbd> |
-| XML Tools > XPath Panel | <kbd>Ctrl+Alt+Shift+E</kbd> |
-| XML Tools > Copy Current XPath | <kbd>Ctrl+Alt+Shift+P</kbd> |
-
-### Macro
-
-| Command | Shortcut |
-| --- | --- |
-| Start or Stop Recording | <kbd>Ctrl+Shift+R</kbd> |
-| Playback | <kbd>Ctrl+Shift+P</kbd> |
+| JSON Tree | <kbd>Ctrl+Alt+J</kbd> |
+| Check XML Syntax | <kbd>Ctrl+Alt+Shift+M</kbd> |
+| XPath Panel | <kbd>Ctrl+Alt+Shift+E</kbd> |
+| Copy Current XPath | <kbd>Ctrl+Alt+Shift+P</kbd> |
 
 ### Help
 

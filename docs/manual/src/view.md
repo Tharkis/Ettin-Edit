@@ -214,7 +214,7 @@ shortcut. Type a few letters of any words in its name, in any order, then
 press <kbd>Enter</kbd>.
 
 Each command shows its name first and, dimmer and smaller, where it is: the
-menu (*Tools › JSON and JavaScript*), *Recipe · 3 steps*, or *Plugin · name*.
+menu (*Transform › JSON and XML*), *Recipe · 3 steps*, or *Plugin · name*.
 The list is in this order:
 
 1. Commands you used recently (the last 20, newest first), marked *recent*.

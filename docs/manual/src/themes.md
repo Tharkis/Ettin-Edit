@@ -11,7 +11,7 @@ the status bar. Ettin Edit comes with nine:
 | **Mocha** | **GitHub Light** |
 | **Solarized Dark** | |
 
-Pick one from the **Theme** menu, where they're listed under **Dark** and
+Pick one from **View > Theme**, where they're listed under **Dark** and
 **Light**. The change is immediate and remembered.
 
 ## Themes are files
@@ -22,24 +22,24 @@ themes folder:
 - Linux: `~/.config/EttinEdit/themes/`
 - Windows: `%APPDATA%\EttinEdit\themes\`
 
-**Theme > Open Themes Folder** opens it. This means you can:
+**View > Theme > Open Themes Folder** opens it. This means you can:
 
-- **Change a built-in theme** by editing its file, then choosing **Theme >
+- **Change a built-in theme** by editing its file, then choosing **View > Theme >
   Reload Themes**.
 - **Add a theme** by dropping any `.tmTheme` file into the folder and
-  reloading. Themes you add appear under **Custom** in the Theme menu.
+  reloading. Themes you add appear under **Custom** in **View > Theme**.
   Thousands of `.tmTheme` files exist for TextMate, Sublime Text and other
   editors.
 - **Share a theme** by sending someone the file.
 
 When Ettin Edit is updated, built-in themes you haven't edited are updated
-with it; ones you have edited are left alone. **Theme > Restore Built-in
+with it; ones you have edited are left alone. **View > Theme > Restore Built-in
 Themes** puts the original built-in themes back and keeps each edited copy
 as `<name>.tmTheme.bak`, so nothing is lost.
 
 ## Edit Theme Colours
 
-**Theme > Edit Theme Colours…** changes a theme without touching its file by
+**View > Theme > Edit Theme Colours…** changes a theme without touching its file by
 hand. Every change shows in the editor at once, so you can see what you're
 doing.
 

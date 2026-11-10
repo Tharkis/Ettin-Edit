@@ -201,6 +201,8 @@ pub enum Action {
     RunRecipeOnAllTabs(String),
     ToggleRecipeRecording,
     OpenRecipesFolder,
+    /// Runs the recipe that ran last again, on the active tab.
+    RunLastRecipe,
     // CsvQuery
     ToggleCsvQuery,
     RunCsvQuery,
@@ -232,6 +234,8 @@ pub enum Action {
     PlayMacro,
     RunMacroMultiple,
     SaveMacro,
+    /// Turns the recorded macro into a recipe, when every step is a transform.
+    SaveMacroAsRecipe,
     PlaySavedMacro(usize),
     DeleteSavedMacro(usize),
     // Plugins
@@ -267,8 +271,43 @@ pub enum Action {
     ToggleToolbar,
     /// Show only the toolbar's tab names, or the buttons too.
     CollapseToolbar,
+    /// Switch between the full ribbon and the simplified one-row toolbar.
+    ToggleSimplifiedToolbar,
     /// Show or hide the menu bar.
     ToggleMenuBar,
+    /// A toolbar button that opens a menu; it runs nothing itself.
+    ToolbarMenu(ToolbarMenu),
+}
+
+/// The menus a toolbar drop-down button can open.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolbarMenu {
+    /// Format, minify and sort JSON; format and linearize XML.
+    Format,
+    /// Transform > Convert to.
+    ConvertTo,
+    /// Transform > Recipes.
+    Recipes,
+    /// Transform > Convert Case To.
+    Case,
+}
+
+impl ToolbarMenu {
+    pub const ALL: [ToolbarMenu; 4] = [
+        ToolbarMenu::Format,
+        ToolbarMenu::ConvertTo,
+        ToolbarMenu::Recipes,
+        ToolbarMenu::Case,
+    ];
+
+    pub fn label(self) -> String {
+        crate::i18n::tr(match self {
+            ToolbarMenu::Format => "toolbar-menu-format",
+            ToolbarMenu::ConvertTo => "menu-convert-to",
+            ToolbarMenu::Recipes => "menu-recipes",
+            ToolbarMenu::Case => "toolbar-menu-case",
+        })
+    }
 }
 
 impl Action {

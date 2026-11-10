@@ -5,13 +5,17 @@ Each tab holds groups of buttons for commands you use often. You can put any
 menu command on it, plugin commands and saved macros too, and arrange the
 tabs, groups and buttons however you like.
 
-<p><img class="screenshot" src="images/toolbar.png" alt="The toolbar's Home tab above a document"></p>
+<p><img class="screenshot" src="images/toolbar.png" alt="The toolbar's Home tab: File, Transform (Keep Matching, Filter Command, Format, Convert to), Recipes, Find and Quick groups"></p>
 
 ## Using it
 
 - Click a tab name (**Home**, **Edit**, **Transform**, **View**, **Tools**) to show its buttons.
 - Hover over a button to see where its command is in the menus and its
   shortcut.
+- A button with a ▾ under or beside its label, such as **Format** or
+  **Convert to**, opens a menu.
+- **?** at the right of the tab names opens the Help menu: User Manual, User
+  Manual on the Web, Check for Updates and About.
 - Buttons for commands that turn something on or off, such as **Word Wrap**,
   are outlined while it's on. Buttons for commands that can't run right now,
   such as **Undo** with nothing to undo, are greyed out.
@@ -50,11 +54,40 @@ screens. After that it remembers the size you leave it at.
 
 | Tab | Groups |
 | --- | --- |
-| **Home** | File, Clipboard, Undo, Find, Tabs, Help |
-| **Edit** | Lines, Sort, Case, Comment, Blanks, Selection |
+| **Home** | File (New, Open, Save); Transform (Keep Matching, Filter Command, Format ▾, Convert to ▾); Recipes (Recipes ▾, Record Recipe, Run Last Recipe); Find (Find, Replace, Command Palette); Quick (Case ▾, Sort Lines, Remove Duplicates) |
+| **Edit** | Clipboard, Undo, Search, Tabs, Lines, Sort, Case, Comment, Blanks, Selection |
 | **Transform** | Recipes, Command, Lines, Identifier Case, Convert (To JSON, To YAML, To TOML, To XML, To CSV, To Markdown table), Encode |
 | **View** | Show, Zoom, Folding, Panels, Window, Customise |
 | **Tools** | Compare, JSON, XML, Data (CsvQuery and MIME Tools), Macros |
+
+Home puts transforms first. Its drop-down buttons open the same menus as
+**Transform**: **Format** has Format, Minify and Sort Keys for JSON and
+Format, Linearize, Escape and Unescape for XML; **Convert to** is
+[Transform > Convert to](transform.md#converting-data); **Recipes** lists
+your recipes with Manage Recipes and Record Recipe; **Case** is
+**Transform > Convert Case To**. Customise Toolbar lists these menus under
+**Drop-down menus**, so you can put them on any tab.
+
+Until 2.1, Home also had Clipboard, Undo, Find in Files, Tabs and Help
+groups. The first four are at the start of the Edit tab now, and Help is
+the **?** button. If you never changed your Home tab, it is updated to the
+new one the first time 2.1 starts. If you did change it, it is left as you
+made it.
+
+## Simplified toolbar
+
+<p><img class="screenshot" src="images/toolbar-simplified.png" alt="The simplified toolbar: one row of small buttons on the Home tab"></p>
+
+**☰ Simplified** at the right of the tab names (or **View > Toolbar >
+Simplified Toolbar**) turns the toolbar into one row of small buttons, which
+leaves more room for the text. It uses the same tabs and buttons: large
+buttons keep their labels and small ones show just their icon. Click
+**☰ Full** to go back. Ettin Edit remembers which one you use.
+
+When the row doesn't fit, it shrinks the same way as the full toolbar,
+starting on the right: buttons lose their labels, then a group becomes one
+drop-down with its name and a ▾, and when that isn't enough, the groups on
+the right go behind **»**.
 
 ## Collapsing and hiding
 
@@ -63,27 +96,27 @@ To give the text more room, collapse the toolbar so only its tab names show:
 - click **⌃** at the right end of the tab names, or
 - double-click a tab name, or
 - press <kbd>Ctrl+F1</kbd>, or
-- choose **View > Collapse Toolbar**.
+- choose **View > Toolbar > Collapse Toolbar**.
 
 While it's collapsed, clicking a tab name opens its buttons over the text;
 they close again when you click a button or anywhere else. Expand it the same
 ways (**⌄** at the right end).
 
-**View > Toolbar** hides the toolbar completely and shows it again; so does
+**View > Toolbar > Toolbar** hides the toolbar completely and shows it again; so does
 **Hide the toolbar** in its right-click menu.
 
 You can hide the classic menu bar as well, with **View > Menu Bar**,
 <kbd>Ctrl+M</kbd> or **Hide the menu bar** in the toolbar's right-click menu.
 While it's hidden, tap <kbd>Alt</kbd> to show it for a moment, and press
 <kbd>Ctrl+M</kbd> to bring it back for good. The Help menu's commands (the user
-manual, Check for Updates and About) are on the toolbar's **Home** tab too.
+manual, Check for Updates and About) are under the toolbar's **?** button too.
 With both hidden, only the tabs, the text and the status bar are left. Both choices are kept in
 `settings.json`.
 
 ## Customising
 
 Open **Settings > Customise Toolbar…**, or right-click the toolbar and choose
-**Customise Toolbar…** (it's also in **View** and in Preferences).
+**Customise Toolbar…** (it's also in **View > Toolbar** and in Preferences).
 
 <p><img class="screenshot" src="images/customise-toolbar.png" alt="The Customise Toolbar dialog: commands on the left, the toolbar's tabs, groups and buttons on the right"></p>
 

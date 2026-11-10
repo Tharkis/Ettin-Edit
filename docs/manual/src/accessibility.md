@@ -47,7 +47,7 @@ desktop's accessibility settings (or run `orca`), then start Ettin Edit.
 - **View > Zoom In** and **Zoom Out** (<kbd>Ctrl+=</kbd> and
   <kbd>Ctrl+-</kbd>) change the text size of the editor.
 - The light and dark [themes](themes.md) can be changed, down to every
-  colour, in **Theme > Edit Theme Colours…**.
+  colour, in **View > Theme > Edit Theme Colours…**.
 
 If something can't be reached or isn't read out, please
 [open an issue](https://github.com/Tharkis/Ettin-Edit/issues).

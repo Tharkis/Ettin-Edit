@@ -1,16 +1,18 @@
 //! The menus that are drawn in more than one place: Edit, Transform and
-//! Tools are in the menu bar and also in the editor's right-click menu.
+//! Tools are in the menu bar, and the editor's right-click menu offers parts
+//! of them that fit what was clicked.
 
 use egui::Ui;
 
 use super::EttinApp;
 use crate::actions::{self, Action};
-use crate::editor::lines::{CaseKind, SortKind, TrimKind};
+use crate::editor::lines::SortKind;
 use crate::menu::{self, MenuEntry};
+use crate::tools::convert::DataFormat;
 use crate::tools::json::JsonOp;
-use crate::tools::transform::{HashKind, TransformOp};
 use crate::tools::xml::XmlOp;
 use crate::transform_ui::DialogKind;
+use crate::transforms::{self, Entry, GroupId};
 
 /// A menu shown in the menu bar and in the right-click menu.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -57,9 +59,25 @@ impl<'c> MenuModel<'c> {
             enabled,
             checked,
             id: self.actions.len(),
+            hint: None,
         };
         self.actions.push(action);
         self.names.push(None);
+        entry
+    }
+
+    /// An item with a tooltip, shown while it is greyed out too.
+    fn item_hint(
+        &mut self,
+        label: &str,
+        enabled: bool,
+        hint: Option<String>,
+        action: Action,
+    ) -> MenuEntry {
+        let mut entry = self.entry(label, enabled, None, action);
+        if let MenuEntry::Item { hint: h, .. } = &mut entry {
+            *h = hint;
+        }
         entry
     }
 
@@ -114,6 +132,7 @@ impl<'c> MenuModel<'c> {
             enabled: true,
             checked: None,
             id: self.actions.len(),
+            hint: None,
         };
         self.actions.push(action);
         self.names.push(None);
@@ -135,25 +154,107 @@ impl<'c> MenuModel<'c> {
     }
 }
 
-/// camelCase, PascalCase, snake_case, kebab-case and CONSTANT_CASE.
-fn identifier_cases(m: &mut MenuModel) -> Vec<MenuEntry> {
-    [
-        ("case-camel", CaseKind::Camel),
-        ("case-pascal", CaseKind::Pascal),
-        ("case-snake", CaseKind::Snake),
-        ("case-kebab", CaseKind::Kebab),
-        ("case-constant", CaseKind::Constant),
-    ]
-    .into_iter()
-    .map(|(label, kind)| m.item(&crate::i18n::tr(label), Action::ConvertCase(kind)))
-    .collect()
-}
-
 fn submenu(label: &str, entries: Vec<MenuEntry>) -> MenuEntry {
     MenuEntry::Submenu {
         label: label.to_owned(),
         entries,
     }
+}
+
+/// Catalogue entries as menu entries.
+fn catalogue_entries(m: &mut MenuModel, entries: &[Entry]) -> Vec<MenuEntry> {
+    entries
+        .iter()
+        .map(|e| match e {
+            Entry::Item { label, action, .. } => m.item(label, action.clone()),
+            Entry::Heading(text) => MenuEntry::Heading(text.clone()),
+            Entry::Separator => MenuEntry::Separator,
+            Entry::Submenu { label, entries } => submenu(label, catalogue_entries(m, entries)),
+        })
+        .collect()
+}
+
+/// A catalogue group's entries.
+fn group_entries(m: &mut MenuModel, id: GroupId) -> Vec<MenuEntry> {
+    catalogue_entries(m, &transforms::group(id).entries)
+}
+
+/// What the Tools menu shows ticked or greyed out.
+pub(super) struct ToolsState {
+    pub json_tree: bool,
+    pub xpath: bool,
+    pub csv_open: bool,
+    pub csv_result: bool,
+    pub xml_check_on_save: bool,
+    pub close_tags: bool,
+}
+
+/// The Tools menu: tools that look at the text without changing it.
+/// Everything that changes the text is under Transform.
+pub(super) fn tools_entries(
+    m: &mut MenuModel,
+    state: &ToolsState,
+    compare: Vec<MenuEntry>,
+) -> Vec<MenuEntry> {
+    let csv = vec![
+        m.toggle(
+            &t!("csvquery-panel"),
+            state.csv_open,
+            Action::ToggleCsvQuery,
+        ),
+        m.item(&t!("run-query"), Action::RunCsvQuery),
+        MenuEntry::Separator,
+        m.item_if(
+            &t!("copy-results"),
+            state.csv_result,
+            Action::CopyCsvResults,
+        ),
+        m.item_if(
+            &t!("results-to-new-tab"),
+            state.csv_result,
+            Action::CsvResultsToNewTab,
+        ),
+    ];
+    vec![
+        submenu(&t!("menu-compare"), compare),
+        submenu(&t!("menu-csvquery"), csv),
+        MenuEntry::Separator,
+        m.toggle(&t!("json-tree"), state.json_tree, Action::ToggleJsonTree),
+        m.item(&t!("json-validate"), Action::Json(JsonOp::Validate)),
+        MenuEntry::Separator,
+        m.toggle(&t!("xpath-panel"), state.xpath, Action::ToggleXPathPanel),
+        m.item(&t!("copy-current-xpath"), Action::CopyXPath),
+        m.item_named(
+            &t!("xml-check-syntax-named"),
+            &t!("xml-check-syntax-named"),
+            true,
+            Action::Xml(XmlOp::CheckSyntax),
+        ),
+        m.item_named(
+            &t!("xml-validate-named"),
+            &t!("xml-validate-named"),
+            true,
+            Action::Xml(XmlOp::ValidateSchema),
+        ),
+        m.item_named(
+            &t!("xml-validate-against-named"),
+            &t!("xml-validate-against-named"),
+            true,
+            Action::Xml(XmlOp::ChooseSchema),
+        ),
+        m.item(&t!("xml-xsl-transform"), Action::Xml(XmlOp::XslTransform)),
+        MenuEntry::Separator,
+        m.toggle(
+            &t!("xml-check-on-save"),
+            state.xml_check_on_save,
+            Action::ToggleXmlCheckOnSave,
+        ),
+        m.toggle(
+            &t!("close-tags-automatically"),
+            state.close_tags,
+            Action::ToggleCloseTags,
+        ),
+    ]
 }
 
 impl EttinApp {
@@ -171,18 +272,90 @@ impl EttinApp {
         }
     }
 
-    /// The right-click menu of tab `index`'s editor: the Edit menu, then
-    /// Transform and Tools.
+    /// The right-click menu of tab `index`'s editor: Cut, Copy and Paste,
+    /// then the commands that fit what was clicked (the selection, or the
+    /// kind of file), then the whole Transform menu, Recipes and the rest
+    /// of the Edit menu.
     pub(super) fn context_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
-        let mut entries = self.edit_menu(m, index);
+        let doc = self.docs.get(index);
+        let has_sel = doc.is_some_and(|d| d.editor.selections.has_selection());
+        let mut entries = vec![
+            m.item_if(&t!("cut"), has_sel, Action::Cut),
+            m.item_if(&t!("copy"), has_sel, Action::Copy),
+            m.item(&t!("paste"), Action::Paste),
+        ];
+        let section = self.context_section(m, index, has_sel);
+        if !section.is_empty() {
+            entries.push(MenuEntry::Separator);
+            entries.extend(section);
+        }
         entries.push(MenuEntry::Separator);
         entries.push(submenu(&t!("menu-transform"), self.transform_menu(m)));
-        entries.push(submenu(&t!("menu-tools"), self.tools_menu(m)));
+        entries.push(submenu(&t!("menu-recipes"), self.recipes_menu(m)));
+        entries.push(submenu(
+            &t!("more-edit-commands"),
+            self.more_edit_menu(m, index),
+        ));
         let plugins = self.plugin_commands_menu(m);
         if !plugins.is_empty() {
             entries.push(submenu(&t!("menu-plugins"), plugins));
         }
         entries
+    }
+
+    /// The part of the right-click menu that fits what was clicked: a
+    /// selection, or a JSON, XML or CSV file.
+    fn context_section(&self, m: &mut MenuModel, index: usize, has_sel: bool) -> Vec<MenuEntry> {
+        if has_sel {
+            return vec![
+                MenuEntry::Heading(t!("context-selection")),
+                submenu(&t!("menu-convert-case"), group_entries(m, GroupId::Case)),
+                submenu(&t!("menu-encode-decode"), group_entries(m, GroupId::Encode)),
+                m.item(
+                    &t!("sort-lines"),
+                    Action::SortLines {
+                        kind: SortKind::Lexical,
+                        desc: false,
+                    },
+                ),
+                m.item(&t!("remove-duplicate-lines"), Action::RemoveDuplicateLines),
+                m.item(&t!("pipe-dots"), Action::TransformDialog(DialogKind::Pipe)),
+            ];
+        }
+        let Some(doc) = self.docs.get(index) else {
+            return Vec::new();
+        };
+        let Some(format) = DataFormat::from_language(&doc.syntax) else {
+            return Vec::new();
+        };
+        let mut out = vec![MenuEntry::Heading(format.name().to_owned())];
+        match format {
+            DataFormat::Json => out.extend([
+                m.item(&t!("json-format-named"), Action::Json(JsonOp::Format)),
+                m.item(&t!("json-minify-named"), Action::Json(JsonOp::Minify)),
+                m.item(&t!("json-sort-keys"), Action::Json(JsonOp::SortKeys)),
+            ]),
+            DataFormat::Xml => {
+                out.push(m.item(&t!("xml-pretty-print"), Action::Xml(XmlOp::PrettyPrint)))
+            }
+            DataFormat::Csv => out.push(m.item(&t!("open-in-csvquery"), Action::ToggleCsvQuery)),
+            _ => {}
+        }
+        out.push(submenu(&t!("menu-convert-to"), self.convert_menu(m)));
+        match format {
+            DataFormat::Json => out.push(m.toggle(
+                &t!("json-tree"),
+                self.json_tree.open,
+                Action::ToggleJsonTree,
+            )),
+            DataFormat::Xml => out.push(m.toggle(
+                &t!("xpath-panel"),
+                self.xpath.open,
+                Action::ToggleXPathPanel,
+            )),
+            _ => {}
+        }
+        out
     }
 
     /// The running plugins' commands, one submenu per plugin.
@@ -209,7 +382,28 @@ impl EttinApp {
             .collect()
     }
 
-    /// The Edit menu, enabled for tab `index`.
+    /// The Edit menu without Cut, Copy and Paste, which the right-click
+    /// menu shows first.
+    fn more_edit_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
+        let mut entries = self.edit_menu(m, index);
+        entries.retain(|e| match e {
+            MenuEntry::Item { id, .. } => !matches!(
+                m.action(*id),
+                Some(Action::Cut | Action::Copy | Action::Paste)
+            ),
+            _ => true,
+        });
+        // The separator Cut and Copy stood after.
+        if let (Some(MenuEntry::Separator), Some(MenuEntry::Separator)) =
+            (entries.get(2), entries.get(3))
+        {
+            entries.remove(2);
+        }
+        entries
+    }
+
+    /// The Edit menu, enabled for tab `index`. Line Operations repeats
+    /// Transform > Lines for people used to finding them here.
     pub(super) fn edit_menu(&self, m: &mut MenuModel, index: usize) -> Vec<MenuEntry> {
         let editor = self.docs.get(index).map(|d| &d.editor);
         let read_only = editor.is_some_and(|e| e.buffer.read_only);
@@ -227,37 +421,7 @@ impl EttinApp {
             m.item(&t!("insert-blank-below"), Action::InsertBlankBelow),
             MenuEntry::Separator,
         ];
-        for (labels, kind) in [
-            (["sort-lexical-asc", "sort-lexical-desc"], SortKind::Lexical),
-            (
-                ["sort-ignore-case-asc", "sort-ignore-case-desc"],
-                SortKind::IgnoreCase,
-            ),
-            (["sort-integer-asc", "sort-integer-desc"], SortKind::Integer),
-            (["sort-decimal-asc", "sort-decimal-desc"], SortKind::Decimal),
-            (["sort-length-asc", "sort-length-desc"], SortKind::Length),
-        ] {
-            for (label, desc) in labels.into_iter().zip([false, true]) {
-                line_ops.push(m.item(&crate::i18n::tr(label), Action::SortLines { kind, desc }));
-            }
-        }
-        line_ops.extend([
-            m.item(&t!("reverse-lines"), Action::ReverseLines),
-            MenuEntry::Separator,
-            m.item(&t!("remove-duplicate-lines"), Action::RemoveDuplicateLines),
-            m.item(
-                &t!("remove-consecutive-duplicates"),
-                Action::RemoveConsecutiveDuplicates,
-            ),
-            m.item(
-                &t!("remove-empty-lines"),
-                Action::RemoveEmptyLines { blank: false },
-            ),
-            m.item(
-                &t!("remove-blank-lines"),
-                Action::RemoveEmptyLines { blank: true },
-            ),
-        ]);
+        line_ops.extend(group_entries(m, GroupId::Lines));
         vec![
             m.item_if(&t!("undo"), can_undo, Action::Undo),
             m.item_if(&t!("redo"), can_redo, Action::Redo),
@@ -269,46 +433,10 @@ impl EttinApp {
             MenuEntry::Separator,
             submenu(&t!("menu-line-operations"), line_ops),
             submenu(
-                &t!("menu-convert-case"),
-                vec![
-                    m.item(&t!("case-upper"), Action::ConvertCase(CaseKind::Upper)),
-                    m.item(&t!("case-lower"), Action::ConvertCase(CaseKind::Lower)),
-                    m.item(&t!("case-title"), Action::ConvertCase(CaseKind::Title)),
-                    m.item(
-                        &t!("case-sentence"),
-                        Action::ConvertCase(CaseKind::Sentence),
-                    ),
-                    m.item(&t!("case-invert"), Action::ConvertCase(CaseKind::Invert)),
-                    MenuEntry::Separator,
-                ]
-                .into_iter()
-                .chain(identifier_cases(m))
-                .collect(),
-            ),
-            submenu(
                 &t!("menu-comment"),
                 vec![
                     m.item(&t!("toggle-line-comment"), Action::ToggleLineComment),
                     m.item(&t!("toggle-block-comment"), Action::ToggleBlockComment),
-                ],
-            ),
-            submenu(
-                &t!("menu-blank-operations"),
-                vec![
-                    m.item(&t!("trim-trailing"), Action::Trim(TrimKind::Trailing)),
-                    m.item(&t!("trim-leading"), Action::Trim(TrimKind::Leading)),
-                    m.item(&t!("trim-both"), Action::Trim(TrimKind::Both)),
-                    m.item(&t!("eol-to-space"), Action::EolToSpace),
-                    MenuEntry::Separator,
-                    m.item(&t!("tabs-to-spaces"), Action::TabsToSpaces),
-                    m.item(
-                        &t!("leading-spaces-to-tabs"),
-                        Action::SpacesToTabs { all: false },
-                    ),
-                    m.item(
-                        &t!("all-spaces-to-tabs"),
-                        Action::SpacesToTabs { all: true },
-                    ),
                 ],
             ),
             submenu(
@@ -346,52 +474,37 @@ impl EttinApp {
         ]
     }
 
-    /// The Transform menu: tools that turn text into other text.
+    /// The Transform menu: everything that turns text into other text.
+    /// Filter Through Command, Recipes and Macros at the top, then the
+    /// catalogue's groups (see [`crate::transforms`]).
     pub(super) fn transform_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
-        let t = Action::Transform;
-        let lines = vec![
-            m.item(
-                &t!("keep-matching-lines-dots"),
-                Action::TransformDialog(DialogKind::FilterLines { keep: true }),
-            ),
-            m.item(
-                &t!("remove-matching-lines-dots"),
-                Action::TransformDialog(DialogKind::FilterLines { keep: false }),
-            ),
-            m.item(&t!("count-distinct-lines"), t(TransformOp::CountLines)),
-            MenuEntry::Separator,
-            m.item(
-                &t!("affix-lines-dots"),
-                Action::TransformDialog(DialogKind::AffixLines),
-            ),
-            m.item(
-                &t!("number-lines-dots"),
-                Action::TransformDialog(DialogKind::NumberLines),
-            ),
-            m.item(
-                &t!("reflow-dots"),
-                Action::TransformDialog(DialogKind::Reflow),
-            ),
-        ];
-        let convert = self.convert_menu(m);
-        let hashes = [
-            HashKind::Md5,
-            HashKind::Sha1,
-            HashKind::Sha256,
-            HashKind::Sha512,
-            HashKind::Crc32,
-        ]
-        .into_iter()
-        .map(|k| m.item(k.name(), t(TransformOp::Hash(k))))
-        .collect();
-        let encode = vec![
-            m.item(&t!("hex-encode"), t(TransformOp::HexEncode)),
-            m.item(&t!("hex-decode"), t(TransformOp::HexDecode)),
-            MenuEntry::Separator,
-            m.item(&t!("jwt-decode"), t(TransformOp::JwtDecode)),
-        ];
+        let mut out = group_entries(m, GroupId::Command);
+        out.push(submenu(&t!("menu-recipes"), self.recipes_menu(m)));
+        out.push(submenu(&t!("menu-macros"), self.macros_menu(m)));
+        out.push(MenuEntry::Separator);
+        for group in transforms::catalogue() {
+            let entries = match group.id {
+                GroupId::Command => continue,
+                GroupId::ConvertTo => self.convert_menu(m),
+                _ => catalogue_entries(m, &group.entries),
+            };
+            if entries.is_empty() {
+                continue;
+            }
+            if group.id == GroupId::Plugins {
+                out.push(MenuEntry::Separator);
+            }
+            out.push(submenu(&group.id.label(), entries));
+        }
+        out
+    }
+
+    /// Transform > Recipes.
+    pub(super) fn recipes_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
         let recording = self.recipe_recording.is_some();
+        let last = self.last_recipe();
         let mut recipes = vec![
+            MenuEntry::Note(t!("recipes-menu-note")),
             m.item(&t!("manage-recipes"), Action::Recipes),
             m.item(
                 &crate::i18n::tr(if recording {
@@ -400,6 +513,12 @@ impl EttinApp {
                     "record-recipe"
                 }),
                 Action::ToggleRecipeRecording,
+            ),
+            m.item_hint(
+                &t!("run-last-recipe"),
+                last.is_some(),
+                last.map(|r| r.name.clone()),
+                Action::RunLastRecipe,
             ),
             m.item(&t!("open-recipes-folder"), Action::OpenRecipesFolder),
         ];
@@ -416,135 +535,69 @@ impl EttinApp {
             recipes.push(MenuEntry::Separator);
             recipes.push(submenu(&t!("run-recipe-on-all-tabs"), all_tabs));
         }
-        vec![
-            submenu(&t!("menu-recipes"), recipes),
-            m.item(&t!("pipe-dots"), Action::TransformDialog(DialogKind::Pipe)),
-            MenuEntry::Separator,
-            submenu(&t!("menu-transform-lines"), lines),
-            submenu(&t!("menu-identifier-case"), identifier_cases(m)),
-            submenu(&t!("menu-convert-to"), convert),
-            MenuEntry::Separator,
-            submenu(&t!("menu-hash"), hashes),
-            submenu(&t!("menu-hex-jwt"), encode),
-        ]
+        recipes
+    }
+
+    /// Transform > Macros.
+    fn macros_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
+        let recording = self.recorder.is_recording();
+        let has_macro = !self.recorder.current.is_empty();
+        let label = if recording {
+            t!("stop-recording")
+        } else {
+            t!("start-recording")
+        };
+        let ready = !recording && has_macro;
+        let as_recipe = ready && self.macro_recipe_block.is_none();
+        let hint = if as_recipe {
+            Some(t!("save-macro-as-recipe-hint"))
+        } else if ready {
+            self.macro_recipe_block.clone()
+        } else {
+            None
+        };
+        let mut out = vec![
+            MenuEntry::Note(t!("macros-menu-note")),
+            m.item(&label, Action::ToggleMacroRecording),
+            m.item_if(&t!("playback"), ready, Action::PlayMacro),
+            m.item_if(&t!("run-macro-multiple"), ready, Action::RunMacroMultiple),
+            m.item_if(&t!("save-current-macro"), ready, Action::SaveMacro),
+            m.item_hint(
+                &t!("save-macro-as-recipe"),
+                as_recipe,
+                hint,
+                Action::SaveMacroAsRecipe,
+            ),
+        ];
+        if !self.settings.macros.is_empty() {
+            out.push(MenuEntry::Separator);
+            for (i, mac) in self.settings.macros.iter().enumerate() {
+                out.push(m.item_if(&mac.name, !recording, Action::PlaySavedMacro(i)));
+            }
+            let delete = self
+                .settings
+                .macros
+                .iter()
+                .enumerate()
+                .map(|(i, mac)| m.item(&mac.name, Action::DeleteSavedMacro(i)))
+                .collect();
+            out.push(submenu(&t!("delete-saved-macro"), delete));
+        }
+        out
     }
 
     /// The Tools menu.
     pub(super) fn tools_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
-        use crate::tools::mime::MimeOp::*;
-        let mut mime = Vec::new();
-        for (i, group) in [
-            &[
-                ("mime-base64-encode", Base64Encode),
-                ("mime-base64-encode-wrapped", Base64EncodeWrapped),
-                ("mime-base64-url-encode", Base64UrlEncode),
-                ("mime-base64-decode", Base64Decode),
-            ][..],
-            &[
-                ("mime-url-encode-component", UrlEncodeComponent),
-                ("mime-url-encode", UrlEncode),
-                ("mime-url-decode", UrlDecode),
-            ],
-            &[("mime-qp-encode", QpEncode), ("mime-qp-decode", QpDecode)],
-            &[
-                ("mime-html-encode", HtmlEncode),
-                ("mime-html-encode-all", HtmlEncodeAll),
-                ("mime-html-decode", HtmlDecode),
-            ],
-            &[("mime-saml-decode", SamlDecode)],
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            if i > 0 {
-                mime.push(MenuEntry::Separator);
-            }
-            for &(label, op) in group {
-                mime.push(m.item(&crate::i18n::tr(label), Action::Mime(op)));
-            }
-        }
-        let json = vec![
-            m.item_named(
-                &t!("json-format"),
-                &t!("json-format-named"),
-                true,
-                Action::Json(JsonOp::Format),
-            ),
-            m.item_named(
-                &t!("json-minify"),
-                &t!("json-minify-named"),
-                true,
-                Action::Json(JsonOp::Minify),
-            ),
-            MenuEntry::Separator,
-            m.item(&t!("json-validate"), Action::Json(JsonOp::Validate)),
-            m.item(&t!("json-sort-keys"), Action::Json(JsonOp::SortKeys)),
-            MenuEntry::Separator,
-            m.toggle(
-                &t!("json-tree"),
-                self.json_tree.open,
-                Action::ToggleJsonTree,
-            ),
-        ];
-        let xml = vec![
-            m.item(&t!("xml-pretty-print"), Action::Xml(XmlOp::PrettyPrint)),
-            m.item(
-                &t!("xml-pretty-print-attributes"),
-                Action::Xml(XmlOp::PrettyPrintAttributes),
-            ),
-            m.item(&t!("xml-linearize"), Action::Xml(XmlOp::Linearize)),
-            MenuEntry::Separator,
-            m.item(&t!("xml-check-syntax"), Action::Xml(XmlOp::CheckSyntax)),
-            m.toggle(
-                &t!("xml-check-on-save"),
-                self.settings.xml_check_on_save,
-                Action::ToggleXmlCheckOnSave,
-            ),
-            m.item(&t!("xml-validate"), Action::Xml(XmlOp::ValidateSchema)),
-            m.item(
-                &t!("xml-validate-against"),
-                Action::Xml(XmlOp::ChooseSchema),
-            ),
-            m.item(&t!("xml-xsl-transform"), Action::Xml(XmlOp::XslTransform)),
-            MenuEntry::Separator,
-            m.toggle(
-                &t!("xpath-panel"),
-                self.xpath.open,
-                Action::ToggleXPathPanel,
-            ),
-            m.item(&t!("copy-current-xpath"), Action::CopyXPath),
-            MenuEntry::Separator,
-            m.item(&t!("xml-escape"), Action::Xml(XmlOp::Escape)),
-            m.item(&t!("xml-unescape"), Action::Xml(XmlOp::Unescape)),
-            m.toggle(
-                &t!("close-tags-automatically"),
-                self.settings.close_tags,
-                Action::ToggleCloseTags,
-            ),
-        ];
-        let csv = vec![
-            m.toggle(&t!("csvquery-panel"), self.csv.open, Action::ToggleCsvQuery),
-            m.item(&t!("run-query"), Action::RunCsvQuery),
-            MenuEntry::Separator,
-            m.item_if(
-                &t!("copy-results"),
-                self.csv.result.is_some(),
-                Action::CopyCsvResults,
-            ),
-            m.item_if(
-                &t!("results-to-new-tab"),
-                self.csv.result.is_some(),
-                Action::CsvResultsToNewTab,
-            ),
-        ];
-        vec![
-            submenu(&t!("menu-compare"), self.compare_menu(m)),
-            submenu(&t!("menu-csvquery"), csv),
-            MenuEntry::Separator,
-            submenu(&t!("menu-mime-tools"), mime),
-            submenu(&t!("menu-json"), json),
-            submenu(&t!("menu-xml-tools"), xml),
-        ]
+        let compare = self.compare_menu(m);
+        let state = ToolsState {
+            json_tree: self.json_tree.open,
+            xpath: self.xpath.open,
+            csv_open: self.csv.open,
+            csv_result: self.csv.result.is_some(),
+            xml_check_on_save: self.settings.xml_check_on_save,
+            close_tags: self.settings.close_tags,
+        };
+        tools_entries(m, &state, compare)
     }
 
     /// Tools > Compare.
@@ -594,5 +647,62 @@ impl EttinApp {
             ));
         }
         entries
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn actions_of(entries: &[MenuEntry], m: &MenuModel, out: &mut Vec<Action>) {
+        for e in entries {
+            match e {
+                MenuEntry::Item { id, .. } => out.extend(m.action(*id)),
+                MenuEntry::Submenu { entries, .. } => actions_of(entries, m, out),
+                _ => {}
+            }
+        }
+    }
+
+    /// Tools only looks at the text: nothing in it is a transform.
+    #[test]
+    fn tools_has_no_transforms() {
+        let ctx = egui::Context::default();
+        let mut m = MenuModel::new(&ctx);
+        let state = ToolsState {
+            json_tree: false,
+            xpath: false,
+            csv_open: false,
+            csv_result: false,
+            xml_check_on_save: false,
+            close_tags: false,
+        };
+        let entries = tools_entries(&mut m, &state, Vec::new());
+        let mut actions = Vec::new();
+        actions_of(&entries, &m, &mut actions);
+        assert!(actions.contains(&Action::Xml(XmlOp::XslTransform)));
+        for a in &actions {
+            assert!(!transforms::is_transform(a), "{a:?} is in Tools");
+        }
+    }
+
+    /// The Transform menu's groups and the recipe window's Add Step groups
+    /// are both the catalogue's.
+    #[test]
+    fn menu_and_add_step_share_groups() {
+        let ctx = egui::Context::default();
+        let mut m = MenuModel::new(&ctx);
+        for group in transforms::catalogue() {
+            let entries = catalogue_entries(&mut m, &group.entries);
+            let mut actions = Vec::new();
+            actions_of(&entries, &m, &mut actions);
+            assert_eq!(actions, group.actions());
+        }
+        let menu_groups: Vec<String> = transforms::catalogue()
+            .iter()
+            .filter(|g| !g.steps().is_empty())
+            .map(|g| g.id.label())
+            .collect();
+        assert_eq!(crate::recipe_ui::add_step_groups(), menu_groups);
     }
 }

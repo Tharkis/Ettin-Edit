@@ -21,28 +21,32 @@ remembers both choices.
 | Menu | What's in it |
 | --- | --- |
 | **File** | New, open, save, recent files, print, rename, workspace folders, close |
-| **Edit** | Undo, clipboard, line operations, case, comments, multi-select, completion, column editor, read-only |
-| **Transform** | [Recipes](recipes.md) of saved steps, filter through a shell command, keep or remove matching lines, number lines, reflow, identifier case, JSON/YAML/TOML/XML/CSV conversion, hashes, hex and JWT |
+| **Edit** | Undo, clipboard, line operations, comments, multi-select, completion, column editor, read-only |
 | **Search** | Find, replace, Find in Files, marks, Go to Line, bookmarks |
-| **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode, the menu bar and toolbar |
+| **View** | Word wrap, symbols, panels, split view, folding, zoom, distraction-free mode, the menu bar, the toolbar and the **Theme** |
 | **Encoding** | The encoding the file is saved in, or read it again in another one |
-| **Theme** | Pick a theme, edit its colours, open the themes folder |
 | **Language** | Pick the highlighting language, add your own languages |
-| **Settings** | Preferences, the Shortcut Mapper, Customise Toolbar and quick on/off switches |
-| **Tools** | Compare, CsvQuery, MIME Tools, JSON and JavaScript, XML Tools |
+| **Transform** | Everything that changes the text: filter through a shell command, [recipes](recipes.md), [macros](macros.md), find and replace, lines, case, Convert to, encoding and hashes, JSON and XML formatting |
+| **Tools** | Tools that look at the text without changing it: Compare, CsvQuery, JSON Tree, the XPath panel, XML checks and XSL Transform |
 | **Plugins** | Your plugins' commands, and managing plugins |
-| **Macro** | Record, play back and save macros |
+| **Settings** | Preferences, the Shortcut Mapper, Customise Toolbar and quick on/off switches |
 | **Help** | This manual, update checks and About |
+
+Until 2.1 there were also **Theme** and **Macro** menus; they are
+**View > Theme** and **Transform > Macros** now.
 
 Under the menu bar is the [toolbar](toolbar.md): tabs of buttons for the
 commands you use most. Right-click it to customise it, or press
-<kbd>Ctrl+F1</kbd> to collapse it to its tab names.
+<kbd>Ctrl+F1</kbd> to collapse it to its tab names. Its Home tab puts
+transforms first, **?** at its right opens the Help menu, and **☰ Simplified**
+makes it one row of small buttons.
 
 **Help > About Ettin Edit** shows the version you have.
 
-Right-clicking the text gives you the whole **Edit** menu, the
-**Transform** and **Tools** menus and your plugins' commands, so you rarely need to go up to the menu
-bar.
+Right-clicking the text gives you Cut, Copy and Paste, the commands that fit
+what you clicked (a selection, or a JSON, XML or CSV file), then the whole
+**Transform** menu, **Recipes** and **More Edit Commands**, so you rarely need
+to go up to the menu bar. See [the right-click menu](transform.md#the-right-click-menu).
 
 ## Tabs
 

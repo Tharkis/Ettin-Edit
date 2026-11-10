@@ -40,7 +40,7 @@ Ours has two, and they share one body, one tunic and, sadly, one breakfast bowl.
 
 They argue a lot. You get an editor that does both.
 
-![Ettin Edit with a JSON file open and the JSON tree panel beside it](docs/screenshots/dark.png)
+![Ettin Edit with a JSON file open, the JSON tree panel beside it and the transform-first toolbar above it](docs/screenshots/dark.png)
 
 ## What it does
 
@@ -54,15 +54,15 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with live preview. Drop in any `.tmTheme` you like. |
 | 🔎 **Finds things** | Find and replace with regex or extended escapes (`\n`, `\r\n`, `\t`, `\x41`), Find All in open tabs, Find in Files in the background, marks and a results panel. |
 | 🍳 **Recipes** | Save a list of Transform steps (find and replace, keep lines, sort, trim, convert, encode, even shell commands) under a name, watch a live before-and-after preview while you build it, or record one by doing the job once. Run it on a selection, every open tab, or from the command line (`ettin-edit --recipe "Tidy Whitespace" *.txt --in-place`). Recipes are plain JSON files you can share. |
-| 🔁 **Transform menu** | Pipe text through any shell command, keep or drop matching lines, count duplicates, number lines, reflow paragraphs, rename identifiers (camelCase, snake_case…), convert to JSON, YAML, TOML, XML, CSV or a Markdown table (it works out what you have), hash it, hex it or decode a JWT. |
-| 🧰 **Tools menu** | JSON and JavaScript formatting, minifying and a live JSON tree (JSTool). Base64, URL, HTML entities and SAML (MIME tools). XPath, Format XML, XSD/DTD validation and XSLT (XML Tools). |
+| 🔁 **Transform first** | Everything that changes text lives in one Transform menu: pipe it through any shell command, keep or drop matching lines, sort, count duplicates, number lines, reflow paragraphs, change case (camelCase, snake_case…), convert to JSON, YAML, TOML, XML, CSV or a Markdown table (it works out what you have), Base64, URL and HTML encoding, hashes, hex, JWT, and JSON and XML formatting. The toolbar's Home tab and the right-click menu put the transforms that fit your text first. |
+| 🧰 **Tools menu** | Tools that look without changing: a live JSON tree and JSON validation (JSTool), XPath, XML syntax checks, XSD/DTD validation and XSLT (XML Tools). |
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
 | 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
 | 🌍 **Text in any shape** | About 80 languages, plus your own with a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
 | 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels (even live Markdown with images, as the Markdown Preview sample does), and install them from Plugins > Manage Plugins. |
 | 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits any byte and opens binary files of any size, and a command palette on F1 that puts your recent commands, recipes and plugin commands first. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
-| 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, or collapse it out of the way. Hide the toolbar, the menu bar or both for a cleaner window (tap Alt to reach the menus). |
+| 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, switch to a one-row simplified toolbar, or collapse it out of the way. Hide the toolbar, the menu bar or both for a cleaner window (tap Alt to reach the menus). |
 | ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
 | 🗣️ **Speaks your language** | English, plus Deutsch, Français and Español (machine-translated for now, corrections welcome), following your system's language. Add your own with one text file. |
 
@@ -132,9 +132,9 @@ three to poke at, including the HL7 Viewer, and the
 Ettin Edit ships with nine themes. Ettin Dark, the default, is based on Base16 Eighties;
 Ettin Night and Ettin Light are its own; the rest are classic schemes bundled with syntect.
 All of them live as TextMate `.tmTheme` files in the themes folder, so you can change
-any colour and pick **Theme > Reload Themes** to see it, or use
-**Theme > Edit Theme Colours** for a live preview. Any other `.tmTheme` file you
-put there appears under **Theme > Custom**. **Theme > Restore Built-in Themes** puts the
+any colour and pick **View > Theme > Reload Themes** to see it, or use
+**View > Theme > Edit Theme Colours** for a live preview. Any other `.tmTheme` file you
+put there appears under **View > Theme > Custom**. **View > Theme > Restore Built-in Themes** puts the
 originals back and keeps your edited copy as `<name>.tmTheme.bak`.
 
 - Linux: `~/.config/EttinEdit/themes/`
@@ -196,10 +196,11 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/search.rs` | Search queries (plain, extended escapes, whole word, regex), replacement templates, and Find in Files |
 | `src/search_ui.rs` | The find bar, results panel, and the Go to Line and Find in Files dialogs |
 | `src/tools_ui.rs` | The Column Editor and macro dialogs |
-| `src/tools/` | The Tools menu's text tools: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0), `csv.rs` (reading delimited text), `sql.rs` (CsvQuery's SQLite tables and queries) |
+| `src/tools/` | The text tools behind the Transform and Tools menus: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0), `csv.rs` (reading delimited text), `sql.rs` (CsvQuery's SQLite tables and queries) |
 | `src/csv_query.rs`, `src/app/csv_query.rs` | The CsvQuery panel, its background query thread, and which tabs are tables |
 | `src/text_tools_ui.rs` | The JSON tree and XPath panels, and the notices tools show |
-| `src/menu.rs`, `src/app/menus.rs` | Menus as data, so the Edit and Tools menus are drawn in both the menu bar and the right-click menu |
+| `src/menu.rs`, `src/app/menus.rs` | Menus as data, so the Edit, Transform and Tools menus are drawn in both the menu bar and the right-click menu |
+| `src/transforms.rs` | The transform catalogue: every command that changes text, in the groups the Transform menu, the right-click menu and the recipe window's Add Step all use |
 | `src/app/text_tools.rs` | Runs the text tools on the current document |
 | `src/app/views.rs` | Split view: which tabs are in which view, moving and cloning tabs, the divider |
 | `src/compare.rs` | The compare engine: line alignment, options, moved lines, word changes, unified patches |

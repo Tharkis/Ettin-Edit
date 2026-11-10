@@ -1,7 +1,9 @@
 # XML Tools
 
-**Tools > XML Tools** covers what the XML Tools plugin does for Notepad++,
-built in. Like the other text tools, the formatting commands work on the
+What the XML Tools plugin does for Notepad++ is built in. The commands that
+change the text (Format XML, Linearize, Escape and Unescape) are in
+**Transform > JSON and XML**; the checks, validation, XSL Transform and the
+XPath panel, which leave the text alone, are in **Tools**. Like the other text tools, the formatting commands work on the
 selection or on the whole document, as one undo step.
 
 ## Formatting
@@ -17,7 +19,7 @@ is kept as it is.
 
 ## Checking XML
 
-- **Check Syntax** (<kbd>Ctrl+Alt+Shift+M</kbd>) checks that the document is
+- **Check XML Syntax** (<kbd>Ctrl+Alt+Shift+M</kbd>) checks that the document is
   well-formed: every tag closed, attributes quoted, one root element. A
   mistake is shown with its line and column, and the caret moves there.
 - **Check Syntax When Saving** runs that check each time you save an XML
@@ -26,14 +28,14 @@ is kept as it is.
 
 ## Validating against a schema
 
-**Validate** checks the document against an XSD schema or a DTD:
+**Validate XML** checks the document against an XSD schema or a DTD:
 
 - the XSD named in the root element's `xsi:schemaLocation` or
   `xsi:noNamespaceSchemaLocation`, or
 - the DTD in the document's `<!DOCTYPE>`, or
 - the schema you last used for that file.
 
-If there isn't one, or to use another, choose **Validate Against…** and pick
+If there isn't one, or to use another, choose **Validate XML Against…** and pick
 the `.xsd` or `.dtd` file. Ettin Edit remembers your choice for that file.
 
 Problems are listed in the [results panel](search.md#the-results-panel);

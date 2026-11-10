@@ -1,7 +1,8 @@
 # MIME Tools
 
-**Tools > MIME Tools** encodes and decodes text the way the MIME Tools plugin
-does for Notepad++. Each command works on the selection (each selection, if
+**Transform > Encode and Hash** encodes and decodes text the way the MIME
+Tools plugin does for Notepad++ (on a selection, it is also in the right-click
+menu as **Encode / Decode**). Each command works on the selection (each selection, if
 there are several) or on the whole document, and is one undo step. Select
 just the part you need, such as one value in a JSON file, so the rest is left
 alone.

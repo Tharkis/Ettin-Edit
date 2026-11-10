@@ -35,12 +35,12 @@ use crate::file_ui::{self, RenameDialog, Summary};
 use crate::highlight::{Highlighter, PLAIN_TEXT};
 use crate::instance;
 use crate::macros::{MacroStep, Recorder, SavedMacro};
-use crate::search::{self, FileSearch, Query};
+use crate::search::{self, FileSearch, Query, SearchOptions};
 use crate::search_ui::{
     FifDialog, FifRequest, FileJob, FindBar, GotoDialog, Jump, Results, Source,
 };
 use crate::session::{Session, SessionStore, SessionTab};
-use crate::settings::{self, Settings};
+use crate::settings::{self, Settings, ToolbarMode};
 use crate::system;
 use crate::text_tools_ui::{JsonTree, Notice, XPathPanel};
 use crate::theme::{self, Palette, ThemeDef};
@@ -109,6 +109,9 @@ pub struct EttinApp {
     recipe_confirm: Option<crate::recipe_ui::CommandConfirm>,
     /// The steps recorded so far, while a recipe is being recorded.
     recipe_recording: Option<Vec<crate::recipes::Step>>,
+    /// Why Save Macro as Recipe can't turn the recorded macro into a
+    /// recipe (its first step that isn't a transform), or `None` when it can.
+    macro_recipe_block: Option<String>,
     /// Transform > Convert to > Read as, by tab id (tabs left out are read
     /// as the format they look like).
     read_as: HashMap<u64, crate::tools::convert::DataFormat>,
@@ -309,6 +312,7 @@ impl EttinApp {
             read_as: HashMap::new(),
             detect_cache: Default::default(),
             recipe_recording: None,
+            macro_recipe_block: None,
             session: None,
             instance: None,
             last_backup: 0.0,
@@ -1021,7 +1025,14 @@ impl EttinApp {
 
     fn run(&mut self, ctx: &egui::Context, action: Action) {
         let focus_editor = action.focuses_editor();
-        if action.recordable() {
+        if action == Action::ReplaceAll {
+            // Keep the text and options, so the macro can become a recipe.
+            self.recorder.push(MacroStep::ReplaceAll {
+                find: self.find_bar.find.clone(),
+                replace: self.find_bar.replace.clone(),
+                options: self.settings.search,
+            });
+        } else if action.recordable() {
             self.recorder.push(MacroStep::Action(action.clone()));
         }
         self.record_recipe_step(&action);
@@ -1304,9 +1315,10 @@ impl EttinApp {
                 self.command_palette
                     .show(&t!("command-palette-title"), &t!("command-palette-hint"));
             }
-            Action::CustomiseToolbar | Action::ToggleToolbar | Action::CollapseToolbar => {
-                self.run_toolbar(&action)
-            }
+            Action::CustomiseToolbar
+            | Action::ToggleToolbar
+            | Action::CollapseToolbar
+            | Action::ToggleSimplifiedToolbar => self.run_toolbar(&action),
             Action::TabList => {
                 self.command_palette.open = false;
                 self.tab_picker
@@ -1417,6 +1429,12 @@ impl EttinApp {
             Action::RunRecipe(name) => self.run_recipe(ctx, &name, false),
             Action::RunRecipeOnAllTabs(name) => self.run_recipe(ctx, &name, true),
             Action::ToggleRecipeRecording => self.toggle_recipe_recording(ctx),
+            Action::RunLastRecipe => {
+                if let Some(id) = self.last_recipe().map(|r| r.id.clone()) {
+                    self.run_recipe(ctx, &id, false);
+                }
+            }
+            Action::SaveMacroAsRecipe => self.save_macro_as_recipe(ctx),
             Action::OpenRecipesFolder => {
                 if let Some(dir) = crate::recipes::recipes_dir() {
                     let _ = std::fs::create_dir_all(&dir);
@@ -1635,7 +1653,10 @@ impl EttinApp {
             Action::ToggleXmlCheckOnSave => {
                 self.settings.xml_check_on_save = !self.settings.xml_check_on_save
             }
-            Action::ToggleMacroRecording => self.recorder.toggle(),
+            Action::ToggleMacroRecording => {
+                self.recorder.toggle();
+                self.update_macro_recipe_block(ctx);
+            }
             Action::PlayMacro => {
                 if !self.recorder.is_recording() {
                     let steps = self.recorder.current.clone();
@@ -1708,6 +1729,19 @@ impl EttinApp {
                     }
                 }
                 MacroStep::Action(a) => self.run(ctx, a.clone()),
+                MacroStep::ReplaceAll {
+                    find,
+                    replace,
+                    options,
+                } => {
+                    self.find_bar.find = find.clone();
+                    self.find_bar.replace = replace.clone();
+                    self.settings.search = SearchOptions {
+                        wrap: self.settings.search.wrap,
+                        ..*options
+                    };
+                    self.run(ctx, Action::ReplaceAll);
+                }
             }
         }
     }
@@ -1761,8 +1795,10 @@ impl EttinApp {
         let Some(doc) = self.docs.get(self.active) else {
             return;
         };
-        let id = Id::new(("editor", doc.id));
-        if !ctx.memory(|m| m.has_focus(id)) {
+        // Each view's editor has its own id (see `editor_pane`).
+        let focused =
+            (0..2).any(|view| ctx.memory(|m| m.has_focus(Id::new(("editor", doc.id, view)))));
+        if !focused {
             return;
         }
         let steps: Vec<MacroStep> =
@@ -2249,9 +2285,6 @@ impl EttinApp {
             ui.menu_button(t!("menu-edit"), |ui| {
                 self.shared_menu(ui, menus::SharedMenu::Edit)
             });
-            ui.menu_button(t!("menu-transform"), |ui| {
-                self.shared_menu(ui, menus::SharedMenu::Transform)
-            });
             ui.menu_button(t!("menu-search"), |ui| {
                 self.menu_item(ui, &t!("find-dots"), Action::Find);
                 self.menu_item(ui, &t!("replace-dots"), Action::Replace);
@@ -2378,19 +2411,28 @@ impl EttinApp {
                     s.show_menu_bar,
                     Action::ToggleMenuBar,
                 );
-                self.toggle_item(
-                    ui,
-                    &t!("toolbar-show"),
-                    s.show_toolbar,
-                    Action::ToggleToolbar,
-                );
-                self.toggle_item(
-                    ui,
-                    &t!("toolbar-collapse-menu"),
-                    s.toolbar_collapsed,
-                    Action::CollapseToolbar,
-                );
-                self.menu_item(ui, &t!("customise-toolbar-dots"), Action::CustomiseToolbar);
+                ui.menu_button(t!("menu-toolbar"), |ui| {
+                    self.toggle_item(
+                        ui,
+                        &t!("toolbar-show"),
+                        s.show_toolbar,
+                        Action::ToggleToolbar,
+                    );
+                    self.toggle_item(
+                        ui,
+                        &t!("toolbar-simplified"),
+                        s.toolbar_mode == ToolbarMode::Simplified,
+                        Action::ToggleSimplifiedToolbar,
+                    );
+                    self.toggle_item(
+                        ui,
+                        &t!("toolbar-collapse-menu"),
+                        s.toolbar_collapsed,
+                        Action::CollapseToolbar,
+                    );
+                    self.menu_item(ui, &t!("customise-toolbar-dots"), Action::CustomiseToolbar);
+                });
+                ui.menu_button(t!("menu-theme"), |ui| self.theme_menu(ui));
                 ui.separator();
                 self.menu_item(ui, &t!("move-to-other-view"), Action::MoveActiveToOtherView);
                 self.menu_item(
@@ -2424,36 +2466,14 @@ impl EttinApp {
                 self.menu_item(ui, &t!("summary-dots"), Action::Summary);
             });
             ui.menu_button(t!("menu-encoding"), |ui| self.encoding_menu(ui));
-            ui.menu_button(t!("menu-theme"), |ui| {
-                let current = self.theme_idx;
-                let names: Vec<(String, bool, bool)> = self
-                    .themes
-                    .iter()
-                    .map(|t| (t.name.clone(), t.palette.dark, t.custom))
-                    .collect();
-                ui.label(RichText::new(t!("themes-dark")).small().weak());
-                for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| t.1 && !t.2) {
-                    self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
-                }
-                ui.separator();
-                ui.label(RichText::new(t!("themes-light")).small().weak());
-                for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| !t.1 && !t.2) {
-                    self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
-                }
-                if names.iter().any(|t| t.2) {
-                    ui.separator();
-                    ui.label(RichText::new(t!("themes-custom")).small().weak());
-                    for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| t.2) {
-                        self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
-                    }
-                }
-                ui.separator();
-                self.menu_item(ui, &t!("edit-theme-colours"), Action::StyleConfigurator);
-                self.menu_item(ui, &t!("open-themes-folder"), Action::OpenThemesFolder);
-                self.menu_item(ui, &t!("reload-themes"), Action::ReloadThemes);
-                self.menu_item(ui, &t!("restore-built-in-themes"), Action::RestoreThemes);
-            });
             ui.menu_button(t!("menu-language"), |ui| self.language_menu(ui));
+            ui.menu_button(t!("menu-transform"), |ui| {
+                self.shared_menu(ui, menus::SharedMenu::Transform)
+            });
+            ui.menu_button(t!("menu-tools"), |ui| {
+                self.shared_menu(ui, menus::SharedMenu::Tools)
+            });
+            ui.menu_button(t!("menu-plugins"), |ui| self.plugins_menu(ui));
             ui.menu_button(t!("menu-settings"), |ui| {
                 self.menu_item(ui, &t!("preferences-dots"), Action::Preferences);
                 self.menu_item(ui, &t!("shortcut-mapper-dots"), Action::ShortcutMapper);
@@ -2521,11 +2541,6 @@ impl EttinApp {
                     ui.add(egui::DragValue::new(&mut self.settings.edge_column).range(10..=400));
                 });
             });
-            ui.menu_button(t!("menu-tools"), |ui| {
-                self.shared_menu(ui, menus::SharedMenu::Tools)
-            });
-            ui.menu_button(t!("menu-plugins"), |ui| self.plugins_menu(ui));
-            ui.menu_button(t!("menu-macro"), |ui| self.macro_menu(ui));
             ui.menu_button(t!("menu-help"), |ui| {
                 self.menu_item(ui, &t!("user-manual"), Action::UserManual);
                 self.menu_item(ui, &t!("user-manual-web"), Action::WebManual);
@@ -2541,6 +2556,37 @@ impl EttinApp {
                 self.menu_item(ui, &t!("about-ettin-edit"), Action::About);
             });
         });
+    }
+
+    /// View > Theme: pick a theme, or edit and reload them.
+    fn theme_menu(&mut self, ui: &mut Ui) {
+        let current = self.theme_idx;
+        let names: Vec<(String, bool, bool)> = self
+            .themes
+            .iter()
+            .map(|t| (t.name.clone(), t.palette.dark, t.custom))
+            .collect();
+        ui.label(RichText::new(t!("themes-dark")).small().weak());
+        for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| t.1 && !t.2) {
+            self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
+        }
+        ui.separator();
+        ui.label(RichText::new(t!("themes-light")).small().weak());
+        for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| !t.1 && !t.2) {
+            self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
+        }
+        if names.iter().any(|t| t.2) {
+            ui.separator();
+            ui.label(RichText::new(t!("themes-custom")).small().weak());
+            for (i, (name, _, _)) in names.iter().enumerate().filter(|(_, t)| t.2) {
+                self.toggle_item(ui, name, i == current, Action::SetTheme(name.clone()));
+            }
+        }
+        ui.separator();
+        self.menu_item(ui, &t!("edit-theme-colours"), Action::StyleConfigurator);
+        self.menu_item(ui, &t!("open-themes-folder"), Action::OpenThemesFolder);
+        self.menu_item(ui, &t!("reload-themes"), Action::ReloadThemes);
+        self.menu_item(ui, &t!("restore-built-in-themes"), Action::RestoreThemes);
     }
 
     /// Convert the encoding used when saving, or read the file again in another one.
@@ -2562,41 +2608,6 @@ impl EttinApp {
             .on_disabled_hover_text(t!("only-saved-files"));
         });
         self.pending.extend(picked);
-    }
-
-    fn macro_menu(&mut self, ui: &mut Ui) {
-        let recording = self.recorder.is_recording();
-        let has_macro = !self.recorder.current.is_empty();
-        let label = if recording {
-            t!("stop-recording")
-        } else {
-            t!("start-recording")
-        };
-        self.menu_item(ui, &label, Action::ToggleMacroRecording);
-        ui.add_enabled_ui(!recording && has_macro, |ui| {
-            self.menu_item(ui, &t!("playback"), Action::PlayMacro);
-            self.menu_item(ui, &t!("run-macro-multiple"), Action::RunMacroMultiple);
-            self.menu_item(ui, &t!("save-current-macro"), Action::SaveMacro);
-        });
-        if !self.settings.macros.is_empty() {
-            ui.separator();
-            let names: Vec<String> = self
-                .settings
-                .macros
-                .iter()
-                .map(|m| m.name.clone())
-                .collect();
-            ui.add_enabled_ui(!recording, |ui| {
-                for (i, name) in names.iter().enumerate() {
-                    self.menu_item(ui, name, Action::PlaySavedMacro(i));
-                }
-            });
-            ui.menu_button(t!("delete-saved-macro"), |ui| {
-                for (i, name) in names.iter().enumerate() {
-                    self.menu_item(ui, name, Action::DeleteSavedMacro(i));
-                }
-            });
-        }
     }
 
     /// Languages grouped by first letter, like Notepad++'s Language menu.

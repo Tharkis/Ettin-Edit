@@ -12,8 +12,12 @@ pub enum MenuEntry {
         checked: Option<bool>,
         /// Returned by [`show`] when the item is clicked.
         id: usize,
+        /// Shown when the pointer rests on it (also while it is greyed out).
+        hint: Option<String>,
     },
     Separator,
+    /// A dim line that says what the menu is for, as written.
+    Note(String),
     /// A line of dim text that says something about the items below it.
     Heading(String),
     /// A heading with a spinner, while something is being worked out.
@@ -35,6 +39,7 @@ pub fn show(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                 enabled,
                 checked,
                 id,
+                hint,
             } => {
                 let mut button = Button::new(label.as_str());
                 if let Some(checked) = checked {
@@ -43,12 +48,21 @@ pub fn show(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                 if let Some(shortcut) = shortcut {
                     button = button.shortcut_text(shortcut.as_str());
                 }
-                if ui.add_enabled(*enabled, button).clicked() {
+                let mut response = ui.add_enabled(*enabled, button);
+                if let Some(hint) = hint {
+                    response = response
+                        .on_hover_text(hint.as_str())
+                        .on_disabled_hover_text(hint.as_str());
+                }
+                if response.clicked() {
                     clicked = Some(*id);
                 }
             }
             MenuEntry::Separator => {
                 ui.separator();
+            }
+            MenuEntry::Note(text) => {
+                ui.label(egui::RichText::new(text).small().weak());
             }
             MenuEntry::Heading(text) => {
                 ui.label(egui::RichText::new(text.to_uppercase()).small().weak());
