@@ -79,9 +79,34 @@ commands.
 
 ## Converting data
 
-**Transform > Convert** converts between JSON, YAML, TOML, XML and CSV, and
-writes Markdown tables. Pick the format the text is in, then the one you
-want: **From JSON > JSON to YAML**, **From CSV > CSV to Markdown**, and so on.
+**Transform > Convert to** converts between JSON, YAML, TOML, XML and CSV,
+and writes Markdown tables. You only pick the format you want: **Convert to >
+YAML**, **Convert to > Markdown table** and so on. Ettin Edit works out what
+the text is in now, and the top of the menu says so ("Reading this tab as
+JSON"). After a conversion the status bar says what happened, for example
+*Converted to YAML (read as JSON)*.
+
+How it tells: a tab whose language is JSON, YAML, TOML, XML or CSV is read as
+that. Otherwise it tries JSON, XML, TOML, YAML and CSV in that order on the
+selection (or the whole tab) and takes the first that fits. Because nearly
+any text is valid YAML or CSV, YAML only counts when it is a list or a set of
+`key: value` lines with plain keys, and CSV only when at least two lines have
+the same number of commas (or tabs, semicolons or `|`).
+
+The format the text is already in is greyed out, and so is everything when
+the text doesn't look like any of them, such as a log file or prose. In a
+very big file (over 2 MB) the format is worked out when you open the menu,
+and a **Reading this tab…** line shows while that takes a moment.
+
+**Convert to > Read as** picks the format yourself when the guess is wrong or
+the text isn't one of the formats yet: **Auto** (the guess, shown in
+brackets), **JSON**, **YAML**, **TOML**, **XML** or **CSV**. The choice is for
+that tab, and goes back to Auto once the whole tab has been converted.
+
+The **Convert** group on the [toolbar](toolbar.md)'s Transform tab has the
+same targets (**To JSON**, **To YAML** and so on), greyed out the same way.
+In the [command palette](view.md#command-palette) they're called **Convert to
+JSON**, **Convert to YAML**, and so on.
 
 When the whole document is converted, the tab's language switches to the new
 format; the file name doesn't change until you save it under another name.

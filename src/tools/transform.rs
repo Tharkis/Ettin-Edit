@@ -39,9 +39,18 @@ pub enum TransformOp {
     Reflow {
         width: usize,
     },
+    /// Converts from one named format to another (Ettin Edit 1.9.5 to
+    /// 2.0.1); kept so saved macros and shortcuts still run.
     Convert {
         from: DataFormat,
         to: DataFormat,
+    },
+    /// Converts to `to`, reading the text as `from` or, when that is `None`,
+    /// as the tab's Read as choice or the format it looks like.
+    ConvertTo {
+        to: DataFormat,
+        #[serde(default)]
+        from: Option<DataFormat>,
     },
     Hash(HashKind),
     HexEncode,

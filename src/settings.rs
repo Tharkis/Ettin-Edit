@@ -115,6 +115,9 @@ pub struct Settings {
     /// Recipes whose shell commands may run without asking, by
     /// [`crate::recipes::Recipe::fingerprint`].
     pub allowed_recipes: Vec<String>,
+    /// The commands run last, newest first, by command key; the command
+    /// palette lists them first.
+    pub recent_commands: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -194,6 +197,7 @@ impl Default for Settings {
             show_menu_bar: true,
             pipe_commands: Vec::new(),
             allowed_recipes: Vec::new(),
+            recent_commands: Vec::new(),
         }
     }
 }

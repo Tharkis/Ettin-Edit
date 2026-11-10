@@ -7,12 +7,14 @@ use std::path::{Path, PathBuf};
 use egui::{Frame, Margin, Ui};
 
 use super::EttinApp;
+use super::convert::Effort;
 use crate::actions::{self, Action};
 use crate::encoding::{TextEncoding, legacy_groups};
 use crate::highlight::PLAIN_TEXT;
 use crate::ribbon::{self, Layout};
 use crate::ribbon_dialog::{CommandEntry, CustomiseDialog, DialogEvent};
 use crate::ribbon_ui::{BarEvent, Button, GroupView, IconImage, RibbonBar, TabView};
+use crate::tools::transform::TransformOp;
 
 /// Seconds the list of commands is kept before it is built again (plugins
 /// add commands while they run; the language can change).
@@ -181,7 +183,7 @@ impl EttinApp {
 
     /// Whether a command can run now, and whether it is turned on (for
     /// commands that turn something on or off).
-    fn command_state(&self, action: &Action) -> (bool, Option<bool>) {
+    pub(super) fn command_state(&self, action: &Action) -> (bool, Option<bool>) {
         let s = &self.settings;
         let doc = self.docs.get(self.active);
         let editor = doc.map(|d| &d.editor);
@@ -260,6 +262,14 @@ impl EttinApp {
                 .get(self.theme_idx)
                 .is_some_and(|t| &t.name == name)),
             Action::SetLanguage(name) => on(doc.is_some_and(|d| &d.syntax == name)),
+            Action::Transform(TransformOp::ConvertTo { to, from }) => match from {
+                Some(f) => (f != to, None),
+                None => (
+                    doc.is_some() && self.convert_source(Effort::Toolbar).allows(*to),
+                    None,
+                ),
+            },
+            Action::SetReadAs(f) => on(doc.is_some_and(|d| self.read_as.get(&d.id) == f.as_ref())),
             _ => (true, None),
         }
     }

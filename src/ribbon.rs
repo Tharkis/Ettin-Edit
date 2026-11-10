@@ -129,7 +129,7 @@ fn version() -> u32 {
 
 /// The layout version this build writes. Layouts saved by older versions get
 /// the default groups added since then (see [`Layout::upgrade`]).
-pub const LAYOUT_VERSION: u32 = 4;
+pub const LAYOUT_VERSION: u32 = 5;
 
 pub const FILE_NAME: &str = "toolbar.json";
 
@@ -217,8 +217,45 @@ impl Layout {
                 tab.groups.insert(0, last);
             }
         }
+        if self.version < 5 {
+            // 5 (Ettin Edit 2.0.2): "JSON to YAML" buttons became "To YAML",
+            // which reads the text as whatever format it is in.
+            added |= self.use_convert_to();
+        }
         self.version = self.version.max(LAYOUT_VERSION);
         added
+    }
+
+    /// Turns each old Convert button (from one format to another) into a
+    /// Convert to button for its target, keeping its label, icon and size.
+    /// A group keeps one button per target.
+    fn use_convert_to(&mut self) -> bool {
+        let mut changed = false;
+        for group in self.tabs.iter_mut().flat_map(|t| t.groups.iter_mut()) {
+            let mut targets = Vec::new();
+            let mut items = Vec::new();
+            for mut item in std::mem::take(&mut group.items) {
+                let action = serde_json::from_str::<Action>(&item.command).ok();
+                let to = match action {
+                    Some(Action::Transform(TransformOp::Convert { to, .. })) => {
+                        changed = true;
+                        item.command = actions::command_key(&convert_to(to));
+                        Some(to)
+                    }
+                    Some(Action::Transform(TransformOp::ConvertTo { to, from: None })) => Some(to),
+                    _ => None,
+                };
+                if let Some(to) = to {
+                    if targets.contains(&to) {
+                        continue;
+                    }
+                    targets.push(to);
+                }
+                items.push(item);
+            }
+            group.items = items;
+        }
+        changed
     }
 
     /// Adds a built-in tab after the built-in tab `after`. A layout without
@@ -283,8 +320,8 @@ fn group(id: &str, items: Vec<(Action, Size)>) -> Group {
     }
 }
 
-fn convert(from: DataFormat, to: DataFormat) -> Action {
-    Action::Transform(TransformOp::Convert { from, to })
+fn convert_to(to: DataFormat) -> Action {
+    Action::Transform(TransformOp::ConvertTo { to, from: None })
 }
 
 fn tab(id: &str, groups: Vec<Group>) -> Tab {
@@ -450,12 +487,12 @@ impl Default for Layout {
                         group(
                             "toolbar-group-convert",
                             vec![
-                                (convert(DataFormat::Json, DataFormat::Yaml), S),
-                                (convert(DataFormat::Yaml, DataFormat::Json), S),
-                                (convert(DataFormat::Csv, DataFormat::Json), S),
-                                (convert(DataFormat::Json, DataFormat::Csv), S),
-                                (convert(DataFormat::Xml, DataFormat::Json), S),
-                                (convert(DataFormat::Csv, DataFormat::Markdown), S),
+                                (convert_to(DataFormat::Json), S),
+                                (convert_to(DataFormat::Yaml), S),
+                                (convert_to(DataFormat::Toml), S),
+                                (convert_to(DataFormat::Xml), S),
+                                (convert_to(DataFormat::Csv), S),
+                                (convert_to(DataFormat::Markdown), S),
                             ],
                         ),
                         group(
@@ -762,7 +799,10 @@ pub fn default_icon(action: &Action) -> &'static str {
         TransformDialog(DialogKind::Reflow) | Transform(TransformOp::Reflow { .. }) => {
             ph::TEXT_ALIGN_LEFT
         }
-        Transform(TransformOp::Convert { .. }) => ph::ARROWS_LEFT_RIGHT,
+        Transform(TransformOp::Convert { .. } | TransformOp::ConvertTo { .. }) => {
+            ph::ARROWS_LEFT_RIGHT
+        }
+        SetReadAs(_) => ph::EYEGLASSES,
         Transform(TransformOp::Hash(_)) => ph::FINGERPRINT,
         Transform(TransformOp::HexEncode | TransformOp::HexDecode) => ph::BINARY,
         Transform(TransformOp::JwtDecode) => ph::KEY,
@@ -817,6 +857,13 @@ pub fn default_icon(action: &Action) -> &'static str {
 pub fn short_label(action: &Action) -> Option<String> {
     match action {
         Action::TransformDialog(DialogKind::Pipe) => Some(t!("toolbar-filter-command")),
+        Action::Transform(TransformOp::ConvertTo { to, .. }) => Some(t!(
+            "toolbar-convert-to",
+            format = match to {
+                DataFormat::Markdown => t!("convert-markdown-table"),
+                f => f.name().to_owned(),
+            }
+        )),
         _ => None,
     }
 }
@@ -965,6 +1012,42 @@ mod tests {
         assert_eq!(groups.len(), old.tabs[transform].groups.len() + 1);
         assert!(is(&groups[0].name, "toolbar-group-recipes"));
         assert!(!upgraded.upgrade());
+    }
+
+    #[test]
+    fn older_layouts_get_convert_to_buttons() {
+        let old_convert = |from, to| {
+            Item::new(
+                &Action::Transform(TransformOp::Convert { from, to }),
+                Size::Small,
+            )
+        };
+        let mut labelled = old_convert(DataFormat::Csv, DataFormat::Markdown);
+        labelled.label = Some("Table".into());
+        let mut old = Layout {
+            version: 4,
+            tabs: vec![Tab {
+                name: Name::user("Mine"),
+                visible: true,
+                groups: vec![Group {
+                    name: Name::user("G"),
+                    items: vec![
+                        old_convert(DataFormat::Json, DataFormat::Yaml),
+                        Item::new(&Action::Save, Size::Large),
+                        old_convert(DataFormat::Toml, DataFormat::Yaml),
+                        labelled,
+                    ],
+                }],
+            }],
+        };
+        assert!(old.upgrade());
+        let items = &old.tabs[0].groups[0].items;
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].action(), Some(convert_to(DataFormat::Yaml)));
+        assert_eq!(items[1].action(), Some(Action::Save));
+        assert_eq!(items[2].action(), Some(convert_to(DataFormat::Markdown)));
+        assert_eq!(items[2].label.as_deref(), Some("Table"));
+        assert!(!old.upgrade());
     }
 
     #[test]

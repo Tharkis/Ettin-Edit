@@ -4,6 +4,15 @@ use super::EttinApp;
 use super::menus::MenuModel;
 use crate::actions::Action;
 use crate::menu::MenuEntry;
+use crate::palette_ui::Item;
+
+/// What sort of command it is, for the command palette.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Menu,
+    Recipe,
+    Plugin,
+}
 
 /// A command and where it is in the menus, like "Edit › Line Operations › Duplicate".
 #[derive(Clone)]
@@ -12,28 +21,143 @@ pub struct Command {
     pub action: Action,
     /// The shortcut a plugin gave its command.
     pub plugin_shortcut: Option<egui::KeyboardShortcut>,
+    /// Its name in the command palette, when that isn't the last part of
+    /// the path ("Convert to YAML" rather than "YAML").
+    pub name: Option<String>,
+    /// What the palette shows after the name instead of the menu path,
+    /// such as "Recipe · 3 steps".
+    pub context: Option<String>,
+    pub kind: Kind,
+    /// False for a menu item that is greyed out now.
+    pub enabled: bool,
+}
+
+impl Command {
+    fn menu(path: String, action: Action) -> Self {
+        Self {
+            path,
+            action,
+            plugin_shortcut: None,
+            name: None,
+            context: None,
+            kind: Kind::Menu,
+            enabled: true,
+        }
+    }
+
+    /// The name the palette shows.
+    pub fn palette_name(&self) -> String {
+        match &self.name {
+            Some(n) => n.clone(),
+            None => self
+                .path
+                .rsplit(" › ")
+                .next()
+                .unwrap_or(&self.path)
+                .to_owned(),
+        }
+    }
+
+    /// What the palette shows after the name: the menu it is in, or the
+    /// context set for it.
+    pub fn palette_context(&self) -> String {
+        if let Some(c) = &self.context {
+            return c.clone();
+        }
+        match self.path.rsplit_once(" › ") {
+            Some((menus, _)) => menus.to_owned(),
+            None => String::new(),
+        }
+    }
 }
 
 fn flatten(prefix: &str, entries: &[MenuEntry], m: &MenuModel, out: &mut Vec<Command>) {
     for entry in entries {
         match entry {
-            MenuEntry::Item { label, id, .. } => {
+            MenuEntry::Item {
+                label, id, enabled, ..
+            } => {
                 if let Some(action) = m.action(*id)
                     && !matches!(action, Action::CompareWith(_))
                 {
                     out.push(Command {
-                        path: format!("{prefix} › {label}"),
-                        action,
-                        plugin_shortcut: None,
+                        name: m.name(*id).map(str::to_owned),
+                        enabled: *enabled,
+                        ..Command::menu(format!("{prefix} › {label}"), action)
                     });
                 }
             }
             MenuEntry::Submenu { label, entries } => {
                 flatten(&format!("{prefix} › {label}"), entries, m, out)
             }
-            MenuEntry::Separator => {}
+            MenuEntry::Separator | MenuEntry::Heading(_) | MenuEntry::Busy(_) => {}
         }
     }
+}
+
+/// A running plugin's commands: (id, title, shortcut).
+pub struct PluginCommands {
+    pub id: String,
+    pub name: String,
+    pub commands: Vec<(String, String, Option<egui::KeyboardShortcut>)>,
+}
+
+/// Marks the recipes in `out` (from Transform › Recipes) as recipes, adds
+/// any recipe that isn't there, and adds every plugin command.
+fn add_recipes_and_plugins(
+    out: &mut Vec<Command>,
+    recipes: &[crate::recipes::Recipe],
+    plugins: &[PluginCommands],
+) {
+    for r in recipes {
+        let action = Action::RunRecipe(r.id.clone());
+        match out.iter_mut().find(|c| c.action == action) {
+            Some(c) => {
+                c.kind = Kind::Recipe;
+                c.context = Some(recipe_context(r));
+            }
+            None => out.push(Command {
+                kind: Kind::Recipe,
+                context: Some(recipe_context(r)),
+                ..Command::menu(
+                    format!(
+                        "{} › {} › {}",
+                        t!("menu-transform"),
+                        t!("menu-recipes"),
+                        r.name
+                    ),
+                    action,
+                )
+            }),
+        }
+    }
+    for p in plugins {
+        for (id, title, shortcut) in &p.commands {
+            out.push(Command {
+                plugin_shortcut: *shortcut,
+                name: Some(title.clone()),
+                context: Some(plugin_context(&p.name)),
+                kind: Kind::Plugin,
+                ..Command::menu(
+                    format!("{} › {} › {}", t!("menu-plugins"), p.name, title),
+                    Action::PluginCommand {
+                        plugin: p.id.clone(),
+                        command: id.clone(),
+                    },
+                )
+            });
+        }
+    }
+}
+
+/// "Recipe · 3 steps", shown after a recipe's name in the palette.
+pub fn recipe_context(recipe: &crate::recipes::Recipe) -> String {
+    t!("palette-recipe", steps = recipe.steps.len())
+}
+
+/// "Plugin · jsonl-tools", shown after a plugin command's name.
+pub fn plugin_context(plugin: &str) -> String {
+    t!("palette-plugin", name = plugin.to_owned())
 }
 
 /// Commands from the menus drawn directly in the menu bar.
@@ -239,27 +363,26 @@ impl EttinApp {
     pub(super) fn command_catalog(&self, ctx: &egui::Context) -> Vec<Command> {
         let mut out: Vec<Command> = fixed_commands()
             .into_iter()
-            .map(|(ids, action)| Command {
-                path: ids
-                    .iter()
-                    .map(|id| crate::i18n::tr(id))
-                    .collect::<Vec<_>>()
-                    .join(" › "),
-                action,
-                plugin_shortcut: None,
+            .map(|(ids, action)| {
+                Command::menu(
+                    ids.iter()
+                        .map(|id| crate::i18n::tr(id))
+                        .collect::<Vec<_>>()
+                        .join(" › "),
+                    action,
+                )
             })
             .collect();
         for level in 1..=5 {
-            out.push(Command {
-                path: format!(
+            out.push(Command::menu(
+                format!(
                     "{} › {} › {}",
                     t!("menu-view"),
                     t!("menu-folding"),
                     t!("fold-level", level = level)
                 ),
-                action: Action::FoldLevel(level),
-                plugin_shortcut: None,
-            });
+                Action::FoldLevel(level),
+            ));
         }
         let mut m = MenuModel::new(ctx);
         let edit = self.edit_menu(&mut m, self.active);
@@ -268,24 +391,27 @@ impl EttinApp {
         flatten(&t!("menu-transform"), &transform, &m, &mut out);
         let tools = self.tools_menu(&mut m);
         flatten(&t!("menu-tools"), &tools, &m, &mut out);
-        for p in self.plugins.plugins.iter().filter(|p| p.is_running()) {
-            for c in &p.commands {
-                out.push(Command {
-                    path: format!("{} › {} › {}", t!("menu-plugins"), p.name(), c.title),
-                    action: Action::PluginCommand {
-                        plugin: p.id.clone(),
-                        command: c.id.clone(),
-                    },
-                    plugin_shortcut: c.shortcut,
-                });
-            }
-        }
+        let plugins: Vec<PluginCommands> = self
+            .plugins
+            .plugins
+            .iter()
+            .filter(|p| p.is_running())
+            .map(|p| PluginCommands {
+                id: p.id.clone(),
+                name: p.name().to_owned(),
+                commands: p
+                    .commands
+                    .iter()
+                    .map(|c| (c.id.clone(), c.title.clone(), c.shortcut))
+                    .collect(),
+            })
+            .collect();
+        add_recipes_and_plugins(&mut out, &self.recipes, &plugins);
         for (i, mac) in self.settings.macros.iter().enumerate() {
-            out.push(Command {
-                path: format!("{} › {}", t!("menu-macro"), mac.name),
-                action: Action::PlaySavedMacro(i),
-                plugin_shortcut: None,
-            });
+            out.push(Command::menu(
+                format!("{} › {}", t!("menu-macro"), mac.name),
+                Action::PlaySavedMacro(i),
+            ));
         }
         // A command listed twice (Find in two menus) keeps its first place.
         let mut seen = Vec::new();
@@ -301,7 +427,91 @@ impl EttinApp {
     }
 }
 
+/// How many commands the palette remembers as used recently.
+pub const RECENT_COMMANDS: usize = 20;
+
+/// Commands that aren't worth remembering as used recently: moving between
+/// tabs, finding the next match, and opening the palette itself.
+fn forgettable(action: &Action) -> bool {
+    use Action::*;
+    matches!(
+        action,
+        SelectTab(_)
+            | NextTab
+            | PrevTab
+            | CommandPalette
+            | TabList
+            | FindNext
+            | FindPrev
+            | OpenPath(_)
+            | CompareWith(_)
+            | Undo
+            | Redo
+            | Cut
+            | Copy
+            | Paste
+            | SelectAll
+            | FocusOtherView
+    )
+}
+
+/// `list` with `key` moved to the front, at most [`RECENT_COMMANDS`] long.
+fn push_recent(list: &mut Vec<String>, key: String) {
+    list.retain(|k| *k != key);
+    list.insert(0, key);
+    list.truncate(RECENT_COMMANDS);
+}
+
 impl EttinApp {
+    /// Remembers a command for the palette's "used recently".
+    pub(super) fn remember_command(&mut self, action: &Action) {
+        if !forgettable(action) {
+            push_recent(
+                &mut self.settings.recent_commands,
+                crate::actions::command_key(action),
+            );
+        }
+    }
+
+    /// The command palette's list: every command with its shortcut, the
+    /// recent ones marked, and the ones that can't run now greyed out.
+    pub(super) fn palette_items(&self, ctx: &egui::Context) -> Vec<Item<Action>> {
+        let all = crate::actions::all_shortcuts();
+        let recent = &self.settings.recent_commands;
+        self.command_catalog(ctx)
+            .into_iter()
+            .map(|c| {
+                let detail = crate::actions::effective_shortcut(&c.action, c.plugin_shortcut)
+                    .or_else(|| all.iter().find(|(_, a)| *a == c.action).map(|(s, _)| *s))
+                    .map(|s| ctx.format_shortcut(&s))
+                    .unwrap_or_default();
+                let key = crate::actions::command_key(&c.action);
+                let recent = recent.iter().position(|k| *k == key);
+                let enabled = c.enabled && self.command_state(&c.action).0;
+                let tag = if !enabled {
+                    t!("palette-not-for-tab")
+                } else if recent.is_some() {
+                    t!("palette-tag-recent")
+                } else {
+                    match c.kind {
+                        Kind::Recipe => t!("palette-tag-recipe"),
+                        Kind::Plugin => t!("palette-tag-plugin"),
+                        Kind::Menu => String::new(),
+                    }
+                };
+                Item {
+                    label: c.palette_name(),
+                    context: c.palette_context(),
+                    detail,
+                    tag,
+                    enabled,
+                    recent,
+                    value: c.action,
+                }
+            })
+            .collect()
+    }
+
     /// The shortcut mapper's rows: every command with its default shortcuts.
     pub(super) fn shortcut_rows(&self, ctx: &egui::Context) -> Vec<crate::shortcut_ui::Row> {
         let defaults = crate::actions::default_shortcuts();
@@ -325,5 +535,61 @@ impl EttinApp {
                 }
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::recipes::Recipe;
+
+    #[test]
+    fn recent_commands_are_newest_first_and_capped() {
+        let mut list = Vec::new();
+        for i in 0..25 {
+            push_recent(&mut list, format!("c{i}"));
+        }
+        assert_eq!(list.len(), RECENT_COMMANDS);
+        assert_eq!(list[0], "c24");
+        push_recent(&mut list, "c10".into());
+        assert_eq!(list[0], "c10");
+        assert_eq!(list.len(), RECENT_COMMANDS);
+        assert!(forgettable(&Action::NextTab));
+        assert!(!forgettable(&Action::Json(
+            crate::tools::json::JsonOp::Minify
+        )));
+    }
+
+    /// Every recipe and every plugin command is in the palette, with what
+    /// it is after its name.
+    #[test]
+    fn recipes_and_plugin_commands_are_listed() {
+        let mut r = Recipe::new("Clean API dump");
+        r.steps = vec![crate::recipes::Step::JoinLines.into(); 3];
+        let other = Recipe::new("Log errors only");
+        let mut out = vec![Command::menu(
+            "Transform › Recipes › Clean API dump".into(),
+            Action::RunRecipe(r.id.clone()),
+        )];
+        let plugins = [PluginCommands {
+            id: "jsonl".into(),
+            name: "jsonl-tools".into(),
+            commands: vec![("explode".into(), "Explode JSON lines".into(), None)],
+        }];
+        add_recipes_and_plugins(&mut out, &[r.clone(), other.clone()], &plugins);
+        assert_eq!(out.len(), 3);
+        let recipe = &out[0];
+        assert_eq!(recipe.kind, Kind::Recipe);
+        assert_eq!(recipe.palette_name(), "Clean API dump");
+        assert_eq!(recipe.palette_context(), "Recipe · 3 steps");
+        assert_eq!(out[1].action, Action::RunRecipe(other.id.clone()));
+        assert_eq!(out[1].palette_context(), "Recipe · 0 steps");
+        let plugin = &out[2];
+        assert_eq!(plugin.kind, Kind::Plugin);
+        assert_eq!(plugin.palette_name(), "Explode JSON lines");
+        assert_eq!(plugin.palette_context(), "Plugin · jsonl-tools");
+        let menu = Command::menu("Tools › JSON › Format JSON".into(), Action::Save);
+        assert_eq!(menu.palette_name(), "Format JSON");
+        assert_eq!(menu.palette_context(), "Tools › JSON");
     }
 }

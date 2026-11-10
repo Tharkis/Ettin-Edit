@@ -119,4 +119,7 @@ On the right:
 Press <kbd>F1</kbd> anywhere. Type a few letters of any command, for example
 `dup` for **Edit › Line Operations › Duplicate**, then press <kbd>Enter</kbd>.
 Words can be in any order and needn't be complete, and each command shows its
-shortcut, so the palette is also a good way to learn them.
+shortcut, so the palette is also a good way to learn them. Commands you used
+recently come first, and so does `json` → **Format JSON**: names that start
+with what you typed rank above names that only contain it. Your recipes and
+your plugins' commands are in the list too.

@@ -2,6 +2,7 @@
 
 mod commands;
 mod compare;
+mod convert;
 mod csv_query;
 mod languages;
 mod menus;
@@ -108,6 +109,11 @@ pub struct EttinApp {
     recipe_confirm: Option<crate::recipe_ui::CommandConfirm>,
     /// The steps recorded so far, while a recipe is being recorded.
     recipe_recording: Option<Vec<crate::recipes::Step>>,
+    /// Transform > Convert to > Read as, by tab id (tabs left out are read
+    /// as the format they look like).
+    read_as: HashMap<u64, crate::tools::convert::DataFormat>,
+    /// The format Convert to last worked out.
+    detect_cache: convert::DetectCache,
     /// Session and backups; only the first Ettin Edit window keeps them.
     session: Option<SessionStore>,
     instance: Option<instance::Listener>,
@@ -300,6 +306,8 @@ impl EttinApp {
             recipe_window: Default::default(),
             recipe_job: None,
             recipe_confirm: None,
+            read_as: HashMap::new(),
+            detect_cache: Default::default(),
             recipe_recording: None,
             session: None,
             instance: None,
@@ -353,6 +361,7 @@ impl EttinApp {
         crate::editor::layout::set_tab_width(app.settings.tab_width);
         let shortcut_errors = actions::set_overrides(&app.settings.shortcuts);
         app.errors.extend(shortcut_errors);
+        app.migrate_recipe_refs();
         app.apply_style(&cc.egui_ctx);
         let now = chrono::Utc::now().timestamp();
         if app.settings.check_updates
@@ -1016,6 +1025,7 @@ impl EttinApp {
             self.recorder.push(MacroStep::Action(action.clone()));
         }
         self.record_recipe_step(&action);
+        self.remember_command(&action);
         match action {
             Action::NewTab => self.new_tab(),
             Action::Open => self.open_dialog(),
@@ -1392,6 +1402,7 @@ impl EttinApp {
             | Action::ToggleXPathPanel
             | Action::CopyXPath => self.run_text_tool(ctx, action),
             Action::Transform(op) => self.run_transform(ctx, op),
+            Action::SetReadAs(format) => self.set_read_as(format),
             Action::TransformDialog(kind) => self.open_transform_dialog(kind),
             Action::Recipes => {
                 if self.recipe_window.open {
@@ -2044,6 +2055,7 @@ impl EttinApp {
 
     fn handle_input(&mut self, ctx: &egui::Context) {
         self.shortcut_mapper.grab_keys(ctx);
+        self.recipe_window.grab_keys(ctx);
         self.watch_alt(ctx);
         if !self.any_dialog_open() {
             let mut fired = Vec::new();
@@ -3362,23 +3374,7 @@ impl EttinApp {
             self.style_events(ctx, events);
         }
         if self.command_palette.open {
-            let items: Vec<crate::palette_ui::Item<Action>> = self
-                .command_catalog(ctx)
-                .into_iter()
-                .map(|c| crate::palette_ui::Item {
-                    detail: actions::effective_shortcut(&c.action, c.plugin_shortcut)
-                        .or_else(|| {
-                            actions::all_shortcuts()
-                                .into_iter()
-                                .find(|(_, a)| *a == c.action)
-                                .map(|(s, _)| s)
-                        })
-                        .map(|s| ctx.format_shortcut(&s))
-                        .unwrap_or_default(),
-                    label: c.path,
-                    value: c.action,
-                })
-                .collect();
+            let items = self.palette_items(ctx);
             if let Some(action) = self.command_palette.ui(ctx, &items, &palette) {
                 self.pending.push(action);
                 self.focus_editor = true;
@@ -3391,15 +3387,16 @@ impl EttinApp {
                 .docs
                 .iter()
                 .enumerate()
-                .map(|(i, d)| crate::palette_ui::Item {
-                    label: format!("{}{}", if d.is_dirty() { "● " } else { "" }, d.title()),
-                    detail: d
-                        .path
-                        .as_ref()
-                        .and_then(|p| p.parent())
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_default(),
-                    value: i,
+                .map(|(i, d)| {
+                    crate::palette_ui::Item::new(
+                        format!("{}{}", if d.is_dirty() { "● " } else { "" }, d.title()),
+                        d.path
+                            .as_ref()
+                            .and_then(|p| p.parent())
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_default(),
+                        i,
+                    )
                 })
                 .collect();
             if let Some(i) = self.tab_picker.ui(ctx, &items, &palette) {

@@ -68,6 +68,18 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.0.2" date="2026-11-10">
+      <description>
+        <p>Find it faster: Transform, Convert to has one entry per format and
+        works out what the text is in now, with Read as to choose it
+        yourself. The command palette lists recent commands first, ranks
+        names that start with what you type above the rest, and lists every
+        recipe and plugin command. Recipes keep their shortcuts and toolbar
+        buttons when renamed, and the Recipes window has a Shortcut field, a
+        search box in Add Step and labelled buttons.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.0.2</url>
+    </release>
     <release version="2.0.1" date="2026-11-10">
       <description>
         <p>Fit and finish: the toolbar shrinks its groups to fit a narrow

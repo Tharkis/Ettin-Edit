@@ -1117,7 +1117,6 @@ toolbar-group-customise = Anpassen
 menu-transform = Umwandeln
 menu-transform-lines = Zeilen
 menu-identifier-case = Bezeichner-Schreibweise
-menu-convert = Konvertieren
 menu-hash = Prüfsumme
 menu-hex-jwt = Hex und JWT
 pipe-dots = Durch Befehl filtern…
@@ -1132,7 +1131,6 @@ number-lines = Zeilen nummerieren
 number-lines-dots = Zeilen nummerieren…
 reflow = Absätze neu umbrechen
 reflow-dots = Absätze neu umbrechen…
-convert-from = Aus { $format }
 convert-to = { $from } nach { $to }
 case-camel = camelCase
 case-pascal = PascalCase
@@ -1267,3 +1265,41 @@ recipe-changed-tabs = „{ $name }“ hat { $count } Tabs geändert.
 recipe-no-change = „{ $name }“ hat nichts geändert.
 recipe-read-failed = Das Rezept { $path } konnte nicht gelesen werden: { $error }
 recipe-save-failed = Das Rezept { $path } konnte nicht gespeichert werden: { $error }
+
+## 2.0.2: Konvertieren in, Lesen als
+menu-convert-to = Konvertieren in
+menu-read-as = Lesen als
+convert-to-format = In { $format } konvertieren
+convert-markdown-table = Markdown-Tabelle
+convert-reading = Tab wird gelesen…
+convert-reading-as = Dieser Tab wird als { $format } gelesen
+convert-not-data = Kein JSON, YAML, TOML, XML oder CSV
+convert-unknown-format = Das Format dieses Textes ist nicht erkennbar. Wählen Sie eines unter Umwandeln › Konvertieren in › Lesen als.
+converted-to = In { $to } konvertiert (gelesen als { $from })
+read-as-auto = Automatisch
+read-as-auto-format = Automatisch ({ $format })
+read-as-named = Lesen als { $format }
+toolbar-convert-to = In { $format }
+## 2.0.2: Befehlspalette
+palette-recipe = Rezept · { $steps ->
+    [one] 1 Schritt
+   *[other] { $steps } Schritte
+}
+palette-plugin = Plugin · { $name }
+palette-not-for-tab = nicht für diesen Tab
+palette-tag-recent = zuletzt
+palette-tag-recipe = Rezept
+palette-tag-plugin = Plugin
+## 2.0.2: Rezeptfenster
+recipe-new-short = Neu
+recipe-export-short = Exportieren…
+recipe-import-short = Importieren…
+recipe-folder = Ordner
+recipe-reload = Neu laden
+recipe-no-shortcut = Keines
+recipe-clear-shortcut = Entfernen
+recipe-id = ID { $id }
+recipe-id-hint = Tastenkürzel und Symbolleisten-Schaltflächen verwenden diese ID und funktionieren daher auch nach dem Umbenennen des Rezepts.
+recipe-step-search = Schritte suchen…
+json-format-named = JSON formatieren
+json-minify-named = JSON minimieren

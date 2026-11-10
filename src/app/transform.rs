@@ -147,6 +147,7 @@ impl EttinApp {
                     self.docs[self.active].syntax = syntax.to_owned();
                 }
             }
+            TransformOp::ConvertTo { to, from } => self.run_convert_to(ctx, to, from),
             TransformOp::Hash(kind) => {
                 let doc = &mut self.docs[self.active];
                 if doc.editor.selections.has_selection() {

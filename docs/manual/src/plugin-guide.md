@@ -226,6 +226,11 @@ Shortcuts are written like `Ctrl+Alt+U`, `Ctrl+Shift+F9` or `F6`. They
 need Ctrl or Alt unless they use a function key. A shortcut Ettin Edit or
 another plugin already uses isn't added; the log says why.
 
+Every command is also in the [command palette](view.md#command-palette),
+under its title with *Plugin · your plugin's name* after it, so give
+commands titles that say what they do on their own ("Explode JSON Lines"
+rather than "Run").
+
 Users can put any plugin command on the [toolbar](toolbar.md). The `icon`
 is what its button shows there: a [Phosphor](https://phosphoricons.com/)
 icon name such as `"star"` or `"chart-bar"`, or a `.png` file inside your
