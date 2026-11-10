@@ -14,8 +14,9 @@ side by side. It's Ettin Edit's take on the ComparePlus plugin.
 | **Compare to Last Commit (Git)** | the file as it was in the last Git commit. Needs `git` installed and the file in a Git repository. |
 | **Compare Selections** | two pieces of text: select one, then <kbd>Ctrl</kbd>+drag to select the other, or select one in each view |
 
-The same commands are on the editor's right-click menu under **Tools >
-Compare**.
+The most used ones are also on the toolbar's **Tools** tab. (Until 2.1 they
+were in the editor's right-click menu too; that menu now offers the commands
+that change the text you clicked.)
 
 ## The Compare tab
 

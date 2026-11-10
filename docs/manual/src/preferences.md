@@ -26,7 +26,7 @@ without opening Preferences.
 
 - **Close brackets and quotes automatically** (**Settings > Auto-Close
   Brackets and Quotes**)
-- **Close HTML and XML tags automatically** (**Tools > XML Tools > Close Tags
+- **Close HTML and XML tags automatically** (**Tools > Close Tags
   Automatically**)
 - **Suggest words from the document while typing** (**Settings > Word
   Completion**)
@@ -90,8 +90,8 @@ Opened files always keep their own line ending and encoding.
 
 - **Reload files changed on disk automatically when they have no unsaved
   changes**. Also **Settings > Reload Files Changed on Disk Automatically**.
-- **Check that XML is well-formed each time it's saved**. Also **Tools > XML
-  Tools > Check Syntax When Saving**.
+- **Check that XML is well-formed each time it's saved**. Also **Tools > Check
+  Syntax When Saving**.
 
 **Printing**
 

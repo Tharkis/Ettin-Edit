@@ -1,7 +1,9 @@
 # JSON and JavaScript
 
-**Tools > JSON and JavaScript** covers what the JSTool plugin does for
-Notepad++, built in.
+What the JSTool plugin does for Notepad++ is built in. The commands that
+change the text (Format, Minify, Sort JSON Keys) are in **Transform > JSON and
+XML**; Validate JSON and the JSON Tree, which only look at it, are in
+**Tools**. In a JSON file they are also in the right-click menu.
 
 Like every text tool, these work on the selection, or on each selection when
 there are several, or on the whole document when nothing is selected. Each

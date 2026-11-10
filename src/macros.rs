@@ -5,6 +5,7 @@ use egui::{Event, Key, Modifiers};
 use serde::{Deserialize, Serialize};
 
 use crate::actions::Action;
+use crate::search::SearchOptions;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MacroStep {
@@ -21,6 +22,13 @@ pub enum MacroStep {
     Copy,
     Cut,
     Action(Action),
+    /// Replace All with the find bar's text and options as they were when
+    /// it was recorded (Ettin Edit 2.1), so the macro can become a recipe.
+    ReplaceAll {
+        find: String,
+        replace: String,
+        options: SearchOptions,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

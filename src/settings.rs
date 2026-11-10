@@ -107,6 +107,8 @@ pub struct Settings {
     pub show_toolbar: bool,
     /// Only the toolbar's tab names show.
     pub toolbar_collapsed: bool,
+    /// The full ribbon, or the simplified one-row toolbar.
+    pub toolbar_mode: ToolbarMode,
     /// The File, Edit, View… menu bar. When it is hidden, tapping Alt shows it
     /// until a command runs.
     pub show_menu_bar: bool,
@@ -118,6 +120,19 @@ pub struct Settings {
     /// The commands run last, newest first, by command key; the command
     /// palette lists them first.
     pub recent_commands: Vec<String>,
+    /// The id of the recipe that ran last, for Run Last Recipe.
+    pub last_recipe: Option<String>,
+}
+
+/// How the toolbar is drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolbarMode {
+    /// Groups of large and small buttons with their names below.
+    #[default]
+    Full,
+    /// One row of small buttons.
+    Simplified,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -194,10 +209,12 @@ impl Default for Settings {
             workspace: None,
             show_toolbar: true,
             toolbar_collapsed: false,
+            toolbar_mode: ToolbarMode::Full,
             show_menu_bar: true,
             pipe_commands: Vec::new(),
             allowed_recipes: Vec::new(),
             recent_commands: Vec::new(),
+            last_recipe: None,
         }
     }
 }

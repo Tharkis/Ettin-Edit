@@ -19,6 +19,28 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.1: Transform first
+
+Requested on 2026-11-10: the third release of the UX plan (review items R2, R9, R14, R15, R23 and R24). Everything that changes text is under Transform, and the right-click menu and the toolbar's Home tab put transforms first.
+
+- [x] One **Transform** menu: Filter Through Command…, Recipes ▸ and Macros ▸ at the top, then Find and Replace, Lines, Convert Case To, Convert to, Encode and Hash, and JSON and XML ([Transform](docs/manual/src/transform.md#the-transform-menu))
+- [x] Sorting, removing lines, trimming, tabs and spaces and case moved there from Edit; MIME Tools from Tools; JSON Format/Minify/Sort Keys and Format XML/Linearize/Escape/Unescape from Tools. Edit > Line Operations still repeats Transform > Lines for Notepad++ habits. Command ids didn't change, so shortcuts, toolbars, macros and recipes keep working
+- [x] **Tools** keeps only what doesn't change the text: Compare, CsvQuery, JSON Tree, Validate JSON, XPath Panel, Copy Current XPath, Check XML Syntax, Validate XML, Validate XML Against…, XSL Transform…
+- [x] One catalogue (`src/transforms.rs`) feeds the Transform menu, the right-click menu and the recipe window's Add Step, so they can't drift apart; tests check every transform is in exactly one group and Tools has none
+- [x] 11 menus instead of 13: Theme moved to **View > Theme**, Macro to **Transform > Macros**
+- [x] Macros ▸ and Recipes ▸ each say what they are for ("Macros replay keystrokes and edits." / "Recipes replay transforms and can run from the command line.")
+- [x] **Transform > Macros > Save Macro as Recipe…** turns a macro made only of transforms into a recipe; otherwise it is greyed out and its tooltip names the first step that can't be a recipe step. Replace All in a macro now keeps the find bar's text and options, and plays them back ([Macros](docs/manual/src/macros.md#turning-a-macro-into-a-recipe))
+- [x] **Transform > Recipes > Run Last Recipe**
+- [x] The right-click menu fits what you clicked: Cut, Copy, Paste; then a Selection section (Convert Case To, Encode / Decode, Sort Lines, Remove Duplicate Lines, Filter Through Command), or for JSON, XML and CSV files their own commands and Convert to; then Transform ▸, Recipes ▸ and More Edit Commands ▸ ([The right-click menu](docs/manual/src/transform.md#the-right-click-menu))
+- [x] New toolbar **Home** tab: File (New, Open, Save) · Transform (Keep Matching, Filter Command, Format ▾, Convert to ▾) · Recipes (Recipes ▾, Record Recipe, Run Last Recipe) · Find (Find, Replace, Command Palette) · Quick (Case ▾, Sort Lines, Remove Duplicates). Clipboard, Undo, Search and Tabs moved to the start of the Edit tab ([The toolbar](docs/manual/src/toolbar.md#the-default-tabs))
+- [x] Drop-down toolbar buttons (Format, Convert to, Recipes, Case), also offered in Customise Toolbar under *Drop-down menus*
+- [x] **?** at the right of the toolbar's tab names opens the Help menu, replacing the Help group
+- [x] Toolbar layout version 6: an untouched 2.0 Home tab is replaced by the new one; a customised Home is kept as it is
+- [x] **Simplified toolbar**: one row of small buttons, using the same layout and shrinking the same way (labels → icons → one drop-down per group → »). Switch with **☰ Simplified / ☰ Full** at the right of the tab names or **View > Toolbar > Simplified Toolbar**; kept as `toolbar_mode` in `settings.json` ([Simplified toolbar](docs/manual/src/toolbar.md#simplified-toolbar))
+- [x] View's toolbar commands are in a **View > Toolbar** submenu
+- [x] Fixed: macros didn't record typing (since split view arrived in 0.7)
+- [x] New text in all four interface languages
+
 ### 2.0.2: Find it faster
 
 Requested on 2026-11-10: the second release of the UX plan (review items R3, R8 and the first half of R16). The commands people want are one step away.
@@ -500,7 +522,7 @@ full API.
 ## Notepad++ plugin equivalents
 
 Ettin Edit builds in the functionality of several popular Notepad++ plugins. These features
-are original implementations, available from the Tools menu without installing anything.
+are original implementations, available from the Transform and Tools menus without installing anything.
 
 ### CsvQuery (SQL over CSV)
 - [x] Parse the current document as CSV/TSV with automatic delimiter, quote and header detection
@@ -561,6 +583,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| Macros recorded commands but not typing: text typed while recording was left out | 2.1 |
 | At the default window size the toolbar's Transform, View and Tools tabs ran off the right edge and had to be scrolled sideways | 2.0.1 |
 | Closing Theme Colours with unsaved changes threw them away without asking | 2.0.1 |
 | Zorin OS Software (GNOME Software) still shows "Unknown licence" and "No software repository included" for a downloaded `.deb`; this page only reads the package's control fields | 1.9.1 (details in the catalogue once the repository is added; Flatpak and RPM show them up front) |
@@ -573,7 +596,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-The UX plan from the 2.0.0 review continues: 2.1 Transform first (one Transform menu, simpler menus and Home tab), 2.2 Try before you apply (previews, suggestion bar, welcome tab), 2.3 Plugins as transforms, 2.4 Settings in one place, 2.5 Themes and languages.
+The UX plan from the 2.0.0 review continues: 2.2 Try before you apply (previews, suggestion bar, welcome tab), 2.3 Plugins as transforms, 2.4 Settings in one place, 2.5 Themes and languages.
 
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 

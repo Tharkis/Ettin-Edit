@@ -81,50 +81,10 @@ selection touches, or on the caret's line:
 | Split Lines at Long-Line Column | <kbd>Ctrl+I</kbd> |
 | Insert Blank Line Above / Below | <kbd>Ctrl+Alt+Enter</kbd> / <kbd>Ctrl+Alt+Shift+Enter</kbd> |
 
-Sorting, reversing and removing lines work on the selected lines, or on the
-whole document when nothing is selected. Everything is one undo step.
-
-**Sorting**, ascending or descending:
-
-- **Lexicographically**: in character order, so `B` comes before `a`.
-- **Ignoring Case**: `a` and `A` together.
-- **As Integers** and **As Decimals**: by the number at the start of each
-  line, so `9` comes before `10`. Lines without a number go first.
-- **By Length**: shortest first.
-- **Reverse Line Order** flips the lines without sorting.
-
-**Removing lines**:
-
-- **Remove Duplicate Lines** keeps the first copy of each line.
-- **Remove Consecutive Duplicate Lines** only removes repeats that follow
-  each other, like the Unix `uniq`.
-- **Remove Empty Lines** removes lines with nothing on them;
-  **Including Blank Ones** also removes lines that only hold spaces or tabs.
-
-## Spaces and tabs
-
-**Edit > Blank Operations** work on the selected lines, or the whole document:
-
-- **Trim Trailing Space**, **Trim Leading Space**, or both.
-- **EOL to Space** joins the lines with a space between them.
-- **Tabs to Spaces**, **Leading Spaces to Tabs** and **All Spaces to Tabs**,
-  using the tab width from Preferences.
-
-## Case
-
-**Edit > Convert Case To**:
-
-| Command | Shortcut | Example |
-| --- | --- | --- |
-| UPPERCASE | <kbd>Ctrl+Shift+U</kbd> | `HELLO WORLD` |
-| lowercase | <kbd>Ctrl+U</kbd> | `hello world` |
-| Title Case | <kbd>Alt+U</kbd> | `Hello World` |
-| Sentence case | <kbd>Ctrl+Alt+U</kbd> | `Hello world` |
-| iNVERT cASE | <kbd>Ctrl+Alt+Shift+U</kbd> | `hELLO wORLD` |
-
-Below them are the identifier cases (camelCase, PascalCase, snake_case,
-kebab-case and CONSTANT_CASE), which turn each line into one name; see
-[Identifier case](transform.md#identifier-case).
+Below them, the same submenu repeats **Transform > Lines** (sorting, removing
+duplicate and empty lines, trimming, tabs and spaces, and the rest), so it is
+where Notepad++ users look for it. Sorting, removing lines, trimming and
+changing case are described in [Transforming text](transform.md#lines).
 
 ## Comments
 
@@ -148,7 +108,7 @@ Each of these can be turned off in the **Settings** menu or in
   the closing one. Typing the closer steps over it, <kbd>Backspace</kbd>
   removes an empty pair, and typing an opener with text selected wraps the
   selection.
-- **Close Tags Automatically** (XML and HTML, in **Tools > XML Tools**):
+- **Close Tags Automatically** (XML and HTML, in **Tools**):
   typing `>` after `<p` adds `</p>`. Empty HTML elements such as `<br>` are
   left alone.
 - **Smart Indentation**: <kbd>Enter</kbd> after `{`, `(` or `[` (and after

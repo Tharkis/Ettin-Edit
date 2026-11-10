@@ -68,6 +68,20 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.1.0" date="2026-11-10">
+      <description>
+        <p>Transform first: everything that changes text is in one Transform
+        menu, grouped the same way as the recipe window's Add Step, and Tools
+        keeps the tools that only look at text. There are 11 menus instead of
+        13 (Theme is under View, Macros under Transform). The right-click menu
+        offers what fits the selection or the file, the toolbar's Home tab
+        puts transforms first with Format, Convert to, Recipes and Case
+        drop-downs, Help moves to a ? button, and a simplified one-row toolbar
+        is one click away. A macro made of transforms can be saved as a
+        recipe, and macros record typing again.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.1.0</url>
+    </release>
     <release version="2.0.2" date="2026-11-10">
       <description>
         <p>Find it faster: Transform, Convert to has one entry per format and

@@ -129,7 +129,7 @@ fn version() -> u32 {
 
 /// The layout version this build writes. Layouts saved by older versions get
 /// the default groups added since then (see [`Layout::upgrade`]).
-pub const LAYOUT_VERSION: u32 = 5;
+pub const LAYOUT_VERSION: u32 = 6;
 
 pub const FILE_NAME: &str = "toolbar.json";
 
@@ -222,8 +222,72 @@ impl Layout {
             // which reads the text as whatever format it is in.
             added |= self.use_convert_to();
         }
+        if self.version < 6 {
+            // 6 (Ettin Edit 2.1): Home shows transforms first. A Home tab
+            // the user never changed gets the new one, and its Clipboard,
+            // Undo, Tabs and Search buttons move to the Edit tab. A changed
+            // Home is left alone (Help is under ? beside the tab names).
+            added |= self.use_transform_home();
+        }
         self.version = self.version.max(LAYOUT_VERSION);
         added
+    }
+
+    /// Replaces a Home tab that is the 2.0 default with the 2.1 one, and
+    /// adds the groups that left Home to the start of the Edit tab.
+    fn use_transform_home(&mut self) -> bool {
+        let is = |name: &Name, id: &str| name.id.as_deref() == Some(id);
+        let Some(home) = self
+            .tabs
+            .iter_mut()
+            .find(|t| is(&t.name, "toolbar-tab-home"))
+        else {
+            return false;
+        };
+        let old = home_2_0();
+        if home.groups != old.groups {
+            return false;
+        }
+        let defaults = Self::default();
+        let new_home = defaults
+            .tabs
+            .iter()
+            .find(|t| is(&t.name, "toolbar-tab-home"))
+            .expect("the default layout has Home")
+            .clone();
+        home.groups = new_home.groups;
+        let moved: Vec<Group> = defaults
+            .tabs
+            .iter()
+            .find(|t| is(&t.name, "toolbar-tab-edit"))
+            .map(|t| {
+                t.groups
+                    .iter()
+                    .filter(|g| {
+                        g.name
+                            .id
+                            .as_deref()
+                            .is_some_and(|id| EDIT_GROUPS_FROM_HOME.contains(&id))
+                    })
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        if let Some(edit) = self
+            .tabs
+            .iter_mut()
+            .find(|t| is(&t.name, "toolbar-tab-edit"))
+        {
+            let mut at = 0;
+            for group in moved {
+                let id = group.name.id.clone();
+                if !edit.groups.iter().any(|g| g.name.id == id) {
+                    edit.groups.insert(at, group);
+                    at += 1;
+                }
+            }
+        }
+        true
     }
 
     /// Turns each old Convert button (from one format to another) into a
@@ -324,6 +388,64 @@ fn convert_to(to: DataFormat) -> Action {
     Action::Transform(TransformOp::ConvertTo { to, from: None })
 }
 
+/// The groups that were on Home until 2.1 and are first on Edit now.
+const EDIT_GROUPS_FROM_HOME: [&str; 4] = [
+    "toolbar-group-clipboard",
+    "toolbar-group-history",
+    "toolbar-group-search",
+    "toolbar-group-tabs",
+];
+
+/// The Home tab as Ettin Edit 1.7 to 2.0.2 laid it out.
+fn home_2_0() -> Tab {
+    use Action::*;
+    use Size::{Large as L, Small as S};
+    tab(
+        "toolbar-tab-home",
+        vec![
+            group(
+                "toolbar-group-file",
+                vec![
+                    (NewTab, L),
+                    (Open, L),
+                    (Save, L),
+                    (SaveAs, S),
+                    (SaveAll, S),
+                    (Print, S),
+                ],
+            ),
+            group(
+                "toolbar-group-clipboard",
+                vec![(Paste, L), (Cut, S), (Copy, S), (SelectAll, S)],
+            ),
+            group("toolbar-group-history", vec![(Undo, S), (Redo, S)]),
+            group(
+                "toolbar-group-find",
+                vec![
+                    (Find, L),
+                    (Replace, L),
+                    (FindInFiles, S),
+                    (GoToLine, S),
+                    (ToggleBookmark, S),
+                ],
+            ),
+            group(
+                "toolbar-group-tabs",
+                vec![(CloseTab, S), (CloseAll, S), (TabList, S)],
+            ),
+            group(
+                "toolbar-group-help",
+                vec![
+                    (UserManual, L),
+                    (WebManual, S),
+                    (CheckForUpdates, S),
+                    (About, S),
+                ],
+            ),
+        ],
+    )
+}
+
 fn tab(id: &str, groups: Vec<Group>) -> Tab {
     Tab {
         name: Name::builtin(id),
@@ -344,41 +466,41 @@ impl Default for Layout {
                     vec![
                         group(
                             "toolbar-group-file",
+                            vec![(NewTab, S), (Open, S), (Save, S)],
+                        ),
+                        group(
+                            "toolbar-group-transform",
                             vec![
-                                (NewTab, L),
-                                (Open, L),
-                                (Save, L),
-                                (SaveAs, S),
-                                (SaveAll, S),
-                                (Print, S),
+                                (TransformDialog(DialogKind::FilterLines { keep: true }), L),
+                                (TransformDialog(DialogKind::Pipe), L),
+                                (ToolbarMenu(actions::ToolbarMenu::Format), L),
+                                (ToolbarMenu(actions::ToolbarMenu::ConvertTo), L),
                             ],
                         ),
                         group(
-                            "toolbar-group-clipboard",
-                            vec![(Paste, L), (Cut, S), (Copy, S), (SelectAll, S)],
+                            "toolbar-group-recipes",
+                            vec![
+                                (ToolbarMenu(actions::ToolbarMenu::Recipes), L),
+                                (ToggleRecipeRecording, S),
+                                (RunLastRecipe, S),
+                            ],
                         ),
-                        group("toolbar-group-history", vec![(Undo, S), (Redo, S)]),
                         group(
                             "toolbar-group-find",
-                            vec![
-                                (Find, L),
-                                (Replace, L),
-                                (FindInFiles, S),
-                                (GoToLine, S),
-                                (ToggleBookmark, S),
-                            ],
+                            vec![(Find, S), (Replace, S), (CommandPalette, S)],
                         ),
                         group(
-                            "toolbar-group-tabs",
-                            vec![(CloseTab, S), (CloseAll, S), (TabList, S)],
-                        ),
-                        group(
-                            "toolbar-group-help",
+                            "toolbar-group-quick",
                             vec![
-                                (UserManual, L),
-                                (WebManual, S),
-                                (CheckForUpdates, S),
-                                (About, S),
+                                (ToolbarMenu(actions::ToolbarMenu::Case), S),
+                                (
+                                    SortLines {
+                                        kind: SortKind::Lexical,
+                                        desc: false,
+                                    },
+                                    S,
+                                ),
+                                (RemoveDuplicateLines, S),
                             ],
                         ),
                     ],
@@ -386,6 +508,19 @@ impl Default for Layout {
                 tab(
                     "toolbar-tab-edit",
                     vec![
+                        group(
+                            "toolbar-group-clipboard",
+                            vec![(Paste, L), (Cut, S), (Copy, S), (SelectAll, S)],
+                        ),
+                        group("toolbar-group-history", vec![(Undo, S), (Redo, S)]),
+                        group(
+                            "toolbar-group-search",
+                            vec![(FindInFiles, S), (GoToLine, S), (ToggleBookmark, S)],
+                        ),
+                        group(
+                            "toolbar-group-tabs",
+                            vec![(CloseTab, S), (CloseAll, S), (TabList, S)],
+                        ),
                         group(
                             "toolbar-group-lines",
                             vec![
@@ -826,9 +961,11 @@ pub fn default_icon(action: &Action) -> &'static str {
         RunRecipeOnAllTabs(_) => ph::STACK,
         ToggleRecipeRecording => ph::RECORD,
         OpenRecipesFolder => ph::FOLDER_OPEN,
+        RunLastRecipe => ph::ARROW_CLOCKWISE,
         PlayMacro | PlaySavedMacro(_) => ph::PLAY,
         RunMacroMultiple => ph::REPEAT,
         SaveMacro => ph::FLOPPY_DISK,
+        SaveMacroAsRecipe => ph::CHEF_HAT,
         DeleteSavedMacro(_) => ph::TRASH,
         PluginCommand { .. } => PLUGIN_ICON,
         ManagePlugins | ReloadPlugins | InstallSamplePlugins => ph::PUZZLE_PIECE,
@@ -847,6 +984,13 @@ pub fn default_icon(action: &Action) -> &'static str {
         CustomiseToolbar => ph::TOOLBOX,
         ToggleToolbar => ph::SQUARES_FOUR,
         CollapseToolbar => ph::CARET_UP,
+        ToggleSimplifiedToolbar => ph::ROWS,
+        ToolbarMenu(m) => match m {
+            actions::ToolbarMenu::Format => ph::BRACKETS_CURLY,
+            actions::ToolbarMenu::ConvertTo => ph::ARROWS_LEFT_RIGHT,
+            actions::ToolbarMenu::Recipes => ph::CHEF_HAT,
+            actions::ToolbarMenu::Case => ph::TEXT_AA,
+        },
         ToggleMenuBar => ph::LIST,
         SelectTab(_) | SelectTabInView(..) | CloseTabInView(..) => GENERIC_ICON,
     }
@@ -857,6 +1001,15 @@ pub fn default_icon(action: &Action) -> &'static str {
 pub fn short_label(action: &Action) -> Option<String> {
     match action {
         Action::TransformDialog(DialogKind::Pipe) => Some(t!("toolbar-filter-command")),
+        Action::TransformDialog(DialogKind::FilterLines { keep: true }) => {
+            Some(t!("toolbar-keep-matching"))
+        }
+        Action::SortLines {
+            kind: SortKind::Lexical,
+            desc: false,
+        } => Some(t!("sort-lines")),
+        Action::RemoveDuplicateLines => Some(t!("toolbar-remove-duplicates")),
+        Action::ToolbarMenu(menu) => Some(menu.label()),
         Action::Transform(TransformOp::ConvertTo { to, .. }) => Some(t!(
             "toolbar-convert-to",
             format = match to {
@@ -917,50 +1070,77 @@ mod tests {
         assert_eq!(button_label("Save"), "Save");
     }
 
-    #[test]
-    fn home_tab_has_the_help_menu() {
-        let layout = Layout::default();
-        let help = layout.tabs[0]
-            .groups
+    /// The default layout as Ettin Edit 2.0.2 had it.
+    fn layout_2_0() -> Layout {
+        let mut layout = Layout::default();
+        layout.tabs[0] = home_2_0();
+        layout.tabs[1].groups.retain(|g| {
+            !g.name
+                .id
+                .as_deref()
+                .is_some_and(|id| EDIT_GROUPS_FROM_HOME.contains(&id))
+        });
+        layout
+    }
+
+    fn group_ids(tab: &Tab) -> Vec<&str> {
+        tab.groups
             .iter()
-            .find(|g| g.name.id.as_deref() == Some("toolbar-group-help"))
-            .unwrap();
-        let actions: Vec<_> = help.items.iter().filter_map(Item::action).collect();
-        for a in [Action::UserManual, Action::CheckForUpdates, Action::About] {
-            assert!(actions.contains(&a), "{a:?}");
-        }
+            .map(|g| g.name.id.as_deref().unwrap_or(""))
+            .collect()
     }
 
     #[test]
-    fn older_layouts_get_the_help_group() {
-        let mut old = Layout {
-            version: 1,
-            ..Default::default()
-        };
-        old.tabs[0]
+    fn home_is_transform_first() {
+        let layout = Layout::default();
+        assert_eq!(
+            group_ids(&layout.tabs[0]),
+            [
+                "toolbar-group-file",
+                "toolbar-group-transform",
+                "toolbar-group-recipes",
+                "toolbar-group-find",
+                "toolbar-group-quick"
+            ]
+        );
+        // Help is under ? beside the tab names, not on a tab.
+        assert!(
+            layout
+                .tabs
+                .iter()
+                .all(|t| !group_ids(t).contains(&"toolbar-group-help"))
+        );
+        // Clipboard, Undo and Tabs are first on Edit.
+        assert_eq!(group_ids(&layout.tabs[1])[..4], EDIT_GROUPS_FROM_HOME[..]);
+    }
+
+    #[test]
+    fn an_untouched_2_0_toolbar_gets_the_new_home() {
+        let mut old = layout_2_0();
+        old.version = 5;
+        assert!(old.upgrade());
+        assert_eq!(old, Layout::default());
+        assert!(!old.upgrade());
+    }
+
+    #[test]
+    fn a_customised_home_is_kept() {
+        let mut old = layout_2_0();
+        old.version = 5;
+        old.tabs[0].groups.remove(1); // no Clipboard group
+        let before = old.clone();
+        assert!(!old.upgrade());
+        assert_eq!(old.version, LAYOUT_VERSION);
+        assert_eq!(old.tabs, before.tabs);
+        // The same for a layout from before 1.7 without the Help group.
+        let mut older = layout_2_0();
+        older.version = 1;
+        older.tabs[0]
             .groups
             .retain(|g| g.name.id.as_deref() != Some("toolbar-group-help"));
-        old.tabs[0].groups.remove(0); // a customisation the upgrade must keep
-        let mut upgraded = old.clone();
-        assert!(upgraded.upgrade());
-        assert_eq!(upgraded.version, LAYOUT_VERSION);
-        let ids: Vec<_> = upgraded.tabs[0]
-            .groups
-            .iter()
-            .map(|g| g.name.show())
-            .collect();
-        assert_eq!(ids.len(), old.tabs[0].groups.len() + 1);
-        assert_eq!(
-            upgraded.tabs[0].groups.last().unwrap().name.id.as_deref(),
-            Some("toolbar-group-help")
-        );
-        // Upgrading again, or a layout that already has it, adds nothing.
-        assert!(!upgraded.clone().upgrade());
-        let mut current = Layout {
-            version: 1,
-            ..Default::default()
-        };
-        assert!(!current.upgrade());
+        let home = older.tabs[0].clone();
+        older.upgrade();
+        assert_eq!(older.tabs[0], home);
         // A layout without the built-in Home tab is left alone.
         let mut mine: Layout =
             serde_json::from_str(r#"{"tabs":[{"name":{"text":"Mine"}}]}"#).unwrap();
@@ -974,7 +1154,7 @@ mod tests {
         let is = |t: &Tab, id: &str| t.name.id.as_deref() == Some(id);
         let mut old = Layout {
             version: 2,
-            ..Default::default()
+            ..layout_2_0()
         };
         old.tabs.retain(|t| !is(t, "toolbar-tab-transform"));
         old.tabs[1].visible = false; // a customisation the upgrade must keep
@@ -984,11 +1164,13 @@ mod tests {
         assert!(is(&upgraded.tabs[1], "toolbar-tab-edit") && !upgraded.tabs[1].visible);
         assert!(is(&upgraded.tabs[2], "toolbar-tab-transform"));
         assert!(!upgraded.upgrade());
-        // Without the built-in Edit tab, nothing is added.
+        // Without the built-in Edit tab, no Transform tab is added.
         let mut mine = old.clone();
         mine.tabs.retain(|t| !is(t, "toolbar-tab-edit"));
         mine.version = 2;
-        assert!(!mine.upgrade());
+        let tabs = mine.tabs.len();
+        mine.upgrade();
+        assert_eq!(mine.tabs.len(), tabs);
     }
 
     #[test]
@@ -996,7 +1178,7 @@ mod tests {
         let is = |name: &Name, id: &str| name.id.as_deref() == Some(id);
         let mut old = Layout {
             version: 3,
-            ..Default::default()
+            ..layout_2_0()
         };
         let transform = old
             .tabs

@@ -10,10 +10,7 @@ use super::EttinApp;
 use crate::actions::Action;
 use crate::recipe_ui::{CommandConfirm, ConfirmAnswer, PREVIEW_CHARS, PreviewInput, RecipeEvent};
 use crate::recipes::{self, Env, Failure, Recipe, Step};
-use crate::search::SearchOptions;
-use crate::tools::json::JsonOp;
-use crate::tools::transform::TransformOp;
-use crate::tools::xml::XmlOp;
+use crate::transforms::step_for;
 
 /// Seconds a recipe may take before its progress and Stop button show.
 const SHOW_RUNNING_AFTER: f64 = 0.3;
@@ -36,95 +33,6 @@ pub(super) struct RecipeJob {
     output: Receiver<Vec<Result<Vec<String>, Failure>>>,
     started: f64,
     all_tabs: bool,
-}
-
-/// The recipe step a command adds while a recipe is being recorded.
-/// Replace All takes the find bar's text and options.
-pub(super) fn step_for(
-    action: &Action,
-    find: &str,
-    replace: &str,
-    opts: &SearchOptions,
-) -> Option<Step> {
-    Some(match action {
-        Action::ReplaceAll if !find.is_empty() => Step::Replace {
-            find: find.to_owned(),
-            replace: replace.to_owned(),
-            regex: opts.regex,
-            match_case: opts.match_case,
-            whole_word: opts.whole_word,
-            extended: opts.extended && !opts.regex,
-        },
-        Action::Transform(op) => match op.clone() {
-            TransformOp::FilterLines {
-                pattern,
-                regex,
-                match_case,
-                keep,
-            } => Step::FilterLines {
-                pattern,
-                regex,
-                match_case,
-                keep,
-            },
-            TransformOp::CountLines => Step::CountDistinct,
-            TransformOp::AffixLines {
-                prefix,
-                suffix,
-                skip_empty,
-            } => Step::AffixLines {
-                prefix,
-                suffix,
-                skip_empty,
-            },
-            TransformOp::NumberLines {
-                start,
-                step,
-                separator,
-                pad,
-                skip_empty,
-            } => Step::NumberLines {
-                start,
-                step,
-                separator,
-                pad,
-                skip_empty,
-            },
-            TransformOp::Reflow { width } => Step::Reflow { width },
-            TransformOp::Convert { from, to } => Step::Convert { from, to },
-            TransformOp::ConvertTo { to, from } => Step::ConvertTo { to, from },
-            TransformOp::Hash(kind) => Step::Hash { kind },
-            TransformOp::HexEncode => Step::HexEncode,
-            TransformOp::HexDecode => Step::HexDecode,
-            TransformOp::JwtDecode => Step::JwtDecode,
-            TransformOp::Pipe { command } => Step::Command { command },
-        },
-        Action::SortLines { kind, desc } => Step::SortLines {
-            kind: *kind,
-            descending: *desc,
-        },
-        Action::ReverseLines => Step::ReverseLines,
-        Action::RemoveDuplicateLines => Step::RemoveDuplicates { consecutive: false },
-        Action::RemoveConsecutiveDuplicates => Step::RemoveDuplicates { consecutive: true },
-        Action::RemoveEmptyLines { blank } => Step::RemoveEmptyLines { blank: *blank },
-        Action::Trim(kind) => Step::Trim { kind: *kind },
-        Action::EolToSpace => Step::JoinLines,
-        Action::TabsToSpaces => Step::TabsToSpaces,
-        Action::SpacesToTabs { all } => Step::SpacesToTabs { all: *all },
-        Action::ConvertCase(kind) => Step::Case { kind: *kind },
-        Action::Mime(kind) => Step::Mime { kind: *kind },
-        Action::Json(kind @ (JsonOp::Format | JsonOp::Minify | JsonOp::SortKeys)) => {
-            Step::Json { kind: *kind }
-        }
-        Action::Xml(
-            kind @ (XmlOp::PrettyPrint
-            | XmlOp::PrettyPrintAttributes
-            | XmlOp::Linearize
-            | XmlOp::Escape
-            | XmlOp::Unescape),
-        ) => Step::Xml { kind: *kind },
-        _ => return None,
-    })
 }
 
 /// The command key `key` should become now that recipes have ids: a
@@ -262,6 +170,98 @@ impl EttinApp {
         }
     }
 
+    /// The recipe that ran last, if it is still there.
+    pub(super) fn last_recipe(&self) -> Option<&Recipe> {
+        let id = self.settings.last_recipe.as_deref()?;
+        recipes::find(&self.recipes, id)
+    }
+
+    /// Transform > Macros > Save Macro as Recipe: the recorded macro
+    /// becomes a recipe with the same steps, opened in the Recipes window.
+    pub(super) fn save_macro_as_recipe(&mut self, ctx: &egui::Context) {
+        match crate::transforms::macro_steps(&self.recorder.current) {
+            Ok(steps) if !steps.is_empty() => {
+                let mut recipe = Recipe::new(&t!("recipe-from-macro-name"));
+                recipe.steps = steps.into_iter().map(Into::into).collect();
+                self.add_recipe(recipe);
+            }
+            Ok(_) => self.notify(ctx, t!("recipe-nothing-recorded"), None),
+            Err(_) => self.update_macro_recipe_block(ctx),
+        }
+    }
+
+    /// Works out whether the recorded macro can become a recipe, and if
+    /// not, which step stops it.
+    pub(super) fn update_macro_recipe_block(&mut self, ctx: &egui::Context) {
+        use crate::macros::MacroStep;
+        let steps = &self.recorder.current;
+        self.macro_recipe_block = match crate::transforms::macro_steps(steps) {
+            Ok(_) => None,
+            Err(mut i) => {
+                // Typing a letter records its key and then its text; name
+                // the text.
+                if let (
+                    MacroStep::Key {
+                        ctrl: false,
+                        alt: false,
+                        ..
+                    },
+                    Some(MacroStep::Text(_)),
+                ) = (&steps[i], steps.get(i + 1))
+                {
+                    i += 1;
+                }
+                let step = match &steps[i] {
+                    MacroStep::Text(_) => {
+                        // The whole run of typing, past the key presses
+                        // that came with each letter.
+                        let typed: String = steps[i..]
+                            .iter()
+                            .take_while(|s| {
+                                matches!(
+                                    s,
+                                    MacroStep::Text(_)
+                                        | MacroStep::Key {
+                                            ctrl: false,
+                                            alt: false,
+                                            ..
+                                        }
+                                ) && s.key().is_none_or(|(k, _)| k.name().chars().count() == 1)
+                            })
+                            .filter_map(|s| match s {
+                                MacroStep::Text(t) => Some(t.as_str()),
+                                _ => None,
+                            })
+                            .collect();
+                        let mut text: String = typed.chars().take(20).collect();
+                        if text.len() < typed.len() {
+                            text.push('…');
+                        }
+                        t!("macro-step-typing", text = text)
+                    }
+                    MacroStep::Key { .. } => {
+                        let key = steps[i]
+                            .key()
+                            .map(|(k, m)| ctx.format_shortcut(&egui::KeyboardShortcut::new(m, k)))
+                            .unwrap_or_default();
+                        t!("macro-step-key", key = key)
+                    }
+                    MacroStep::Paste(_) => t!("paste"),
+                    MacroStep::Copy => t!("copy"),
+                    MacroStep::Cut => t!("cut"),
+                    MacroStep::ReplaceAll { .. } => t!("replace-all"),
+                    MacroStep::Action(a) => self
+                        .command_catalog(ctx)
+                        .into_iter()
+                        .find(|c| &c.action == a)
+                        .map(|c| c.palette_name())
+                        .unwrap_or_else(|| format!("{a:?}")),
+                };
+                Some(t!("macro-not-recipe", step = step))
+            }
+        };
+    }
+
     /// Adds the step for `action` to the recipe being recorded.
     pub(super) fn record_recipe_step(&mut self, action: &Action) {
         if self.recipe_recording.is_none() {
@@ -297,6 +297,9 @@ impl EttinApp {
         let Some(recipe) = recipes::find(&self.recipes, name).cloned() else {
             return self.recipe_notice(ctx, t!("recipe-not-found", name = name.to_owned()), true);
         };
+        if !all_tabs {
+            self.settings.last_recipe = Some(recipe.id.clone());
+        }
         let commands = recipe.commands();
         if !commands.is_empty()
             && !self
@@ -723,6 +726,9 @@ impl EttinApp {
 mod tests {
     use super::*;
     use crate::editor::lines::TrimKind;
+    use crate::search::SearchOptions;
+    use crate::tools::transform::TransformOp;
+    use crate::tools::xml::XmlOp;
 
     #[test]
     fn shortcuts_by_name_move_to_the_id() {

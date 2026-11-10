@@ -151,7 +151,7 @@ Only use grammars whose licence lets you use them.
 
 Grammars only label the text (a keyword, a string, a comment). The theme
 decides the colours, so a new language follows whichever theme you pick from
-the **Theme** menu.
+**View > Theme**.
 
 ## Code folding
 

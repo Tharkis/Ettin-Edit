@@ -90,7 +90,10 @@ fn flatten(prefix: &str, entries: &[MenuEntry], m: &MenuModel, out: &mut Vec<Com
             MenuEntry::Submenu { label, entries } => {
                 flatten(&format!("{prefix} › {label}"), entries, m, out)
             }
-            MenuEntry::Separator | MenuEntry::Heading(_) | MenuEntry::Busy(_) => {}
+            MenuEntry::Separator
+            | MenuEntry::Heading(_)
+            | MenuEntry::Note(_)
+            | MenuEntry::Busy(_) => {}
         }
     }
 }
@@ -295,14 +298,36 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
         (&["menu-view", "reset-zoom"], ZoomReset),
         (&["menu-view", "summary-dots"], Summary),
         (&["menu-view", "command-palette"], CommandPalette),
-        (&["menu-view", "toolbar-show"], ToggleToolbar),
-        (&["menu-view", "toolbar-collapse-menu"], CollapseToolbar),
+        (
+            &["menu-view", "menu-toolbar", "toolbar-show"],
+            ToggleToolbar,
+        ),
+        (
+            &["menu-view", "menu-toolbar", "toolbar-simplified"],
+            ToggleSimplifiedToolbar,
+        ),
+        (
+            &["menu-view", "menu-toolbar", "toolbar-collapse-menu"],
+            CollapseToolbar,
+        ),
         (&["menu-view", "menu-bar-show"], ToggleMenuBar),
-        (&["menu-view", "customise-toolbar-dots"], CustomiseToolbar),
-        (&["menu-theme", "edit-theme-colours"], StyleConfigurator),
-        (&["menu-theme", "open-themes-folder"], OpenThemesFolder),
-        (&["menu-theme", "reload-themes"], ReloadThemes),
-        (&["menu-theme", "restore-built-in-themes"], RestoreThemes),
+        (
+            &["menu-view", "menu-toolbar", "customise-toolbar-dots"],
+            CustomiseToolbar,
+        ),
+        (
+            &["menu-view", "menu-theme", "edit-theme-colours"],
+            StyleConfigurator,
+        ),
+        (
+            &["menu-view", "menu-theme", "open-themes-folder"],
+            OpenThemesFolder,
+        ),
+        (&["menu-view", "menu-theme", "reload-themes"], ReloadThemes),
+        (
+            &["menu-view", "menu-theme", "restore-built-in-themes"],
+            RestoreThemes,
+        ),
         (&["menu-language", "new-language"], NewLanguage),
         (
             &["menu-language", "open-languages-folder"],
@@ -332,12 +357,9 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
         ),
         (&["menu-settings", "auto-reload"], ToggleAutoReload),
         (
-            &["menu-macro", "start-or-stop-recording"],
+            &["menu-transform", "menu-macros", "start-or-stop-recording"],
             ToggleMacroRecording,
         ),
-        (&["menu-macro", "playback"], PlayMacro),
-        (&["menu-macro", "run-macro-multiple"], RunMacroMultiple),
-        (&["menu-macro", "save-current-macro"], SaveMacro),
         (&["menu-plugins", "manage-plugins"], ManagePlugins),
         (&["menu-plugins", "plugin-log"], ShowPluginLog),
         (&["menu-plugins", "open-plugins-folder"], OpenPluginsFolder),
@@ -385,10 +407,12 @@ impl EttinApp {
             ));
         }
         let mut m = MenuModel::new(ctx);
-        let edit = self.edit_menu(&mut m, self.active);
-        flatten(&t!("menu-edit"), &edit, &m, &mut out);
+        // Transform first: Edit > Line Operations repeats Transform > Lines,
+        // and the palette and shortcut mapper show the Transform place.
         let transform = self.transform_menu(&mut m);
         flatten(&t!("menu-transform"), &transform, &m, &mut out);
+        let edit = self.edit_menu(&mut m, self.active);
+        flatten(&t!("menu-edit"), &edit, &m, &mut out);
         let tools = self.tools_menu(&mut m);
         flatten(&t!("menu-tools"), &tools, &m, &mut out);
         let plugins: Vec<PluginCommands> = self
@@ -409,7 +433,12 @@ impl EttinApp {
         add_recipes_and_plugins(&mut out, &self.recipes, &plugins);
         for (i, mac) in self.settings.macros.iter().enumerate() {
             out.push(Command::menu(
-                format!("{} › {}", t!("menu-macro"), mac.name),
+                format!(
+                    "{} › {} › {}",
+                    t!("menu-transform"),
+                    t!("menu-macros"),
+                    mac.name
+                ),
                 Action::PlaySavedMacro(i),
             ));
         }

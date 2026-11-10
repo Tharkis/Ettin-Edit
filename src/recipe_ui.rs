@@ -317,85 +317,20 @@ fn catalog_label(step: &Step) -> String {
     }
 }
 
-/// The steps offered by Add Step, by group.
+/// The steps offered by Add Step, by group: the Transform menu's groups
+/// (see [`crate::transforms`]), each with the steps a recipe can do.
 fn catalog() -> Vec<(String, Vec<Step>)> {
-    let lines = vec![
-        Step::FilterLines {
-            pattern: String::new(),
-            regex: false,
-            match_case: false,
-            keep: true,
-        },
-        Step::FilterLines {
-            pattern: String::new(),
-            regex: false,
-            match_case: false,
-            keep: false,
-        },
-        Step::CountDistinct,
-        Step::AffixLines {
-            prefix: String::new(),
-            suffix: String::new(),
-            skip_empty: true,
-        },
-        Step::NumberLines {
-            start: 1,
-            step: 1,
-            separator: ". ".into(),
-            pad: NumberPad::None,
-            skip_empty: false,
-        },
-        Step::Reflow { width: 80 },
-        Step::SortLines {
-            kind: SortKind::Lexical,
-            descending: false,
-        },
-        Step::ReverseLines,
-        Step::RemoveDuplicates { consecutive: false },
-        Step::RemoveEmptyLines { blank: true },
-        Step::Trim {
-            kind: TrimKind::Both,
-        },
-        Step::JoinLines,
-        Step::TabsToSpaces,
-        Step::SpacesToTabs { all: false },
-    ];
-    let convert = DataFormat::TARGETS
-        .iter()
-        .map(|&to| Step::ConvertTo { to, from: None })
-        .collect();
-    let mut encode: Vec<Step> = MIME_OPS.iter().map(|&kind| Step::Mime { kind }).collect();
-    encode.extend(HASHES.iter().map(|&kind| Step::Hash { kind }));
-    encode.extend([Step::HexEncode, Step::HexDecode, Step::JwtDecode]);
-    let mut formats: Vec<Step> = JSON_OPS.iter().map(|&kind| Step::Json { kind }).collect();
-    formats.extend(XML_OPS.iter().map(|&kind| Step::Xml { kind }));
-    vec![
-        (
-            tr("recipe-group-replace"),
-            vec![Step::Replace {
-                find: String::new(),
-                replace: String::new(),
-                regex: false,
-                match_case: false,
-                whole_word: false,
-                extended: false,
-            }],
-        ),
-        (tr("menu-transform-lines"), lines),
-        (
-            tr("menu-convert-case"),
-            CASES.iter().map(|&kind| Step::Case { kind }).collect(),
-        ),
-        (tr("menu-convert-to"), convert),
-        (tr("recipe-group-encode"), encode),
-        (tr("recipe-group-format"), formats),
-        (
-            tr("recipe-group-command"),
-            vec![Step::Command {
-                command: String::new(),
-            }],
-        ),
-    ]
+    crate::transforms::catalogue()
+        .into_iter()
+        .map(|g| (g.id.label(), g.steps()))
+        .filter(|(_, steps)| !steps.is_empty())
+        .collect()
+}
+
+/// The names of the Add Step groups.
+#[cfg(test)]
+pub fn add_step_groups() -> Vec<String> {
+    catalog().into_iter().map(|(g, _)| g).collect()
 }
 
 /// The steps whose name (or group) has every word of `query`, in catalog
