@@ -10,6 +10,71 @@ fn main() {
         }
     }
     manual_pages();
+    release_notes();
+}
+
+/// The release notes in the AppStream metainfo, as Markdown, for the
+/// Welcome tab's What's new: `RELEASE_NOTES: &[(version, markdown)]`,
+/// newest first.
+fn release_notes() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("packaging/linux/io.github.tharkis.EttinEdit.metainfo.xml");
+    println!("cargo:rerun-if-changed={}", path.display());
+    let xml = std::fs::read_to_string(&path).expect("metainfo.xml");
+    let mut code = String::from(
+        "/// The metainfo's release notes as Markdown: (version, notes), newest first.\n\
+         pub const RELEASE_NOTES: &[(&str, &str)] = &[\n",
+    );
+    let mut rest = xml.as_str();
+    while let Some(start) = rest.find("<release ") {
+        rest = &rest[start..];
+        let end = rest.find("</release>").unwrap_or(rest.len());
+        let release = &rest[..end];
+        rest = &rest[end..];
+        let Some(version) = attr(release, "version") else {
+            continue;
+        };
+        let mut notes = Vec::new();
+        let mut body = release;
+        loop {
+            let p = body.find("<p>");
+            let li = body.find("<li>");
+            let (open, tag, close, bullet) = match (p, li) {
+                (Some(p), Some(li)) if li < p => (li, "<li>", "</li>", true),
+                (Some(p), _) => (p, "<p>", "</p>", false),
+                (None, Some(li)) => (li, "<li>", "</li>", true),
+                (None, None) => break,
+            };
+            body = &body[open + tag.len()..];
+            let end = body.find(close).unwrap_or(body.len());
+            let text = unescape(&body[..end].split_whitespace().collect::<Vec<_>>().join(" "));
+            notes.push(if bullet {
+                format!("- {text}")
+            } else {
+                format!("\n{text}\n")
+            });
+            body = &body[end..];
+        }
+        let markdown = notes.join("\n").trim().to_owned();
+        code += &format!("    ({version:?}, {markdown:?}),\n");
+    }
+    code += "];\n";
+    let out = Path::new(&std::env::var("OUT_DIR").unwrap()).join("release_notes.rs");
+    std::fs::write(out, code).unwrap();
+}
+
+fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let start = tag.find(&format!("{name}=\""))? + name.len() + 2;
+    let len = tag[start..].find('"')?;
+    Some(&tag[start..start + len])
+}
+
+fn unescape(text: &str) -> String {
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
 }
 
 /// Builds the user manual's pages into the app: every page named in

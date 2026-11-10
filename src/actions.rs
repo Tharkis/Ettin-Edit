@@ -55,6 +55,8 @@ pub enum Action {
     ClearRecent,
     About,
     UserManual,
+    /// Help > Welcome: the Welcome tab.
+    Welcome,
     WebManual,
     CheckForUpdates,
     NewLanguage,

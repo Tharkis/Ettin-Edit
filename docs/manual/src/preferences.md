@@ -93,6 +93,14 @@ Opened files always keep their own line ending and encoding.
 - **Check that XML is well-formed each time it's saved**. Also **Tools > Check
   Syntax When Saving**.
 
+**Suggestions**
+
+- **Suggest transforms for files I open or paste**: the bar that offers
+  Format for one-line JSON, Decode for a token and so on. On by default. See
+  [Suggestions](suggestions.md).
+- **Show the dismissed suggestions again**: shown when you have turned some
+  kinds off with **Don't suggest this again**.
+
 **Printing**
 
 - **Print line numbers**

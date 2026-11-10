@@ -122,6 +122,22 @@ pub struct Settings {
     pub recent_commands: Vec<String>,
     /// The id of the recipe that ran last, for Run Last Recipe.
     pub last_recipe: Option<String>,
+    /// Where each Transform dialog sent its result last time (This tab,
+    /// New tab or Clipboard), by [`crate::transform_ui::DialogKind::key`].
+    pub transform_results: BTreeMap<String, crate::transform_ui::Dest>,
+    /// Show the suggestion bar ("This JSON is on one line. Format?").
+    pub suggestions: bool,
+    /// Suggestion kinds turned off with "Don't suggest this again", by
+    /// [`crate::suggest::Kind::key`].
+    pub dismissed_suggestions: Vec<String>,
+    /// The version whose Welcome or What's new tab was shown last.
+    pub welcome_shown_version: String,
+    /// Open the Welcome tab every time Ettin Edit starts.
+    pub show_welcome: bool,
+    /// True when these settings were read from the settings file (false on
+    /// a fresh profile).
+    #[serde(skip)]
+    pub loaded_from_file: bool,
 }
 
 /// How the toolbar is drawn.
@@ -215,6 +231,12 @@ impl Default for Settings {
             allowed_recipes: Vec::new(),
             recent_commands: Vec::new(),
             last_recipe: None,
+            transform_results: BTreeMap::new(),
+            suggestions: true,
+            dismissed_suggestions: Vec::new(),
+            welcome_shown_version: String::new(),
+            show_welcome: false,
+            loaded_from_file: false,
         }
     }
 }
@@ -292,6 +314,7 @@ impl Settings {
                 if let Some(name) = renamed_theme(&s.theme) {
                     s.theme = name.to_owned();
                 }
+                s.loaded_from_file = true;
                 s
             })
             .unwrap_or_default()

@@ -369,6 +369,7 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
             InstallSamplePlugins,
         ),
         (&["menu-plugins", "plugin-guide"], PluginGuide),
+        (&["menu-help", "welcome"], Welcome),
         (&["menu-help", "user-manual"], UserManual),
         (&["menu-help", "user-manual-web"], WebManual),
         (&["menu-help", "check-for-updates"], CheckForUpdates),

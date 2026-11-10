@@ -1039,12 +1039,59 @@ impl Editor {
                 );
             }
 
+            // Keep/Remove Matching Lines: kept lines green, removed lines red
+            // and struck through. Only the lines on screen are worked out.
+            // Over the selection, so the colours show through it; the
+            // strike-through goes over the text, below.
+            let mut struck: Vec<(f32, f32, f32)> = Vec::new();
+            if let Some(preview) = &self.line_preview {
+                let mut verdicts: std::collections::HashMap<usize, Option<bool>> =
+                    std::collections::HashMap::new();
+                let (keep_bg, drop_bg) = if palette.dark {
+                    (
+                        egui::Color32::from_rgba_unmultiplied(70, 190, 110, 40),
+                        egui::Color32::from_rgba_unmultiplied(225, 85, 85, 40),
+                    )
+                } else {
+                    (
+                        egui::Color32::from_rgba_unmultiplied(70, 190, 110, 55),
+                        egui::Color32::from_rgba_unmultiplied(225, 85, 85, 55),
+                    )
+                };
+                for (r, row) in &rows {
+                    let verdict = *verdicts.entry(row.line).or_insert_with(|| {
+                        preview.verdict(row.line, &self.buffer.line_text(row.line))
+                    });
+                    let Some(kept) = verdict else {
+                        continue;
+                    };
+                    let band = Rect::from_min_max(
+                        Pos2::new(origin.x + viewport.min.x, row_y(*r)),
+                        Pos2::new(origin.x + viewport.max.x, row_y(*r) + metrics.row_h),
+                    );
+                    painter.rect_filled(band, 0.0, if kept { keep_bg } else { drop_bg });
+                    if !kept && row.galley.size().x > 0.0 {
+                        let y = (row_y(*r) + metrics.row_h / 2.0).round() + 0.5;
+                        let x0 = text_x + row.x_offset;
+                        struck.push((x0, x0 + row.galley.size().x, y));
+                    }
+                }
+            }
+
             // Text.
             for (r, row) in &rows {
                 painter.galley(
                     Pos2::new(text_x + row.x_offset, row_y(*r)),
                     row.galley.clone(),
                     palette.editor_fg,
+                );
+            }
+
+            for (x0, x1, y) in struck {
+                painter.hline(
+                    x0..=x1,
+                    y,
+                    Stroke::new(1.0, palette.editor_fg.gamma_multiply(0.75)),
                 );
             }
 

@@ -28,6 +28,7 @@ asking for one more plugin. You'll see their opinions in the odd tip box.
 | If you want to… | Read |
 | --- | --- |
 | Install it, or get the newest version | [Installing and updating](installing.md) |
+| Try the main ideas in two minutes | **Help > Welcome**, then **Try it on sample text** ([The Welcome tab](tour.md#the-welcome-tab)) |
 | Know what everything on screen is | [A tour of the window](tour.md) |
 | Open, save and juggle files | [Files and tabs](files.md) |
 | Edit faster: multiple carets, line tools, completion | [Editing text](editing.md) |

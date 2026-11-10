@@ -46,6 +46,7 @@ mod settings;
 mod shortcut_ui;
 mod startup_window;
 mod style_ui;
+mod suggest;
 mod system;
 mod text_tools_ui;
 mod theme;

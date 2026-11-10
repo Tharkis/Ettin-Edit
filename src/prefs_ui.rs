@@ -424,6 +424,18 @@ fn general(ui: &mut Ui, settings: &mut Settings) {
     heading(ui, &t!("prefs-files"));
     ui.checkbox(&mut settings.auto_reload, t!("prefs-auto-reload"));
     ui.checkbox(&mut settings.xml_check_on_save, t!("prefs-xml-check"));
+    heading(ui, &t!("prefs-suggestions-heading"));
+    ui.checkbox(&mut settings.suggestions, t!("prefs-suggestions"));
+    if !settings.dismissed_suggestions.is_empty()
+        && ui
+            .button(t!(
+                "prefs-suggestions-reset",
+                count = settings.dismissed_suggestions.len()
+            ))
+            .clicked()
+    {
+        settings.dismissed_suggestions.clear();
+    }
     heading(ui, &t!("prefs-printing"));
     ui.checkbox(
         &mut settings.print_line_numbers,

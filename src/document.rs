@@ -51,6 +51,14 @@ impl LineEnding {
         }
     }
 
+    /// Whether `text` has more than one kind of line break.
+    pub(crate) fn is_mixed(text: &str) -> bool {
+        let crlf = text.matches("\r\n").count();
+        let cr = text.matches('\r').count() - crlf;
+        let lf = text.matches('\n').count() - crlf;
+        [crlf, cr, lf].iter().filter(|&&n| n > 0).count() > 1
+    }
+
     /// Picks the most common line ending in `text`.
     pub(crate) fn detect(text: &str) -> Option<Self> {
         let crlf = text.matches("\r\n").count();
@@ -127,6 +135,11 @@ pub struct Document {
     /// The bytes came from the tab's text, so it turns back into text as
     /// soon as they're valid again.
     pub binary_from_text: bool,
+    /// The file had more than one kind of line break when it was read.
+    /// Saving writes `line_ending` throughout, which fixes it.
+    pub mixed_line_endings: bool,
+    /// The built-in Welcome tab rather than a document.
+    pub welcome: bool,
 }
 
 impl Document {
@@ -149,6 +162,8 @@ impl Document {
             live_view: 0,
             binary: None,
             binary_from_text: false,
+            mixed_line_endings: false,
+            welcome: false,
         }
     }
 
@@ -162,9 +177,10 @@ impl Document {
         let bytes = fs::read(path)?;
         let disk = DiskStamp::read(path).ok();
         let encoding = TextEncoding::detect(&bytes, hint);
-        let (text, line_ending, lossy) = decode(&bytes, encoding);
+        let (text, line_ending, lossy, mixed) = decode(&bytes, encoding);
 
         let mut doc = Self::new_untitled(id, 0);
+        doc.mixed_line_endings = mixed;
         doc.path = Some(path.to_path_buf());
         doc.editor = Editor::new(&text);
         doc.line_ending = line_ending;
@@ -205,7 +221,8 @@ impl Document {
         let bytes = fs::read(&path)?;
         let encoding =
             encoding.unwrap_or_else(|| TextEncoding::detect(&bytes, Some(self.encoding)));
-        let (text, line_ending, lossy) = decode(&bytes, encoding);
+        let (text, line_ending, lossy, mixed) = decode(&bytes, encoding);
+        self.mixed_line_endings = mixed;
         self.editor.reload_text(&text);
         self.editor.buffer.mark_saved();
         self.encoding = encoding;
@@ -295,6 +312,9 @@ impl Document {
     }
 
     pub fn title(&self) -> String {
+        if self.welcome {
+            return t!("welcome-tab");
+        }
         match &self.path {
             Some(p) => p
                 .file_name()
@@ -306,6 +326,7 @@ impl Document {
 
     pub fn is_pristine_untitled(&self) -> bool {
         self.path.is_none()
+            && !self.welcome
             && !self.is_dirty()
             && self.editor.buffer.is_empty()
             && self.binary.is_none()
@@ -317,15 +338,17 @@ impl Document {
 }
 
 /// Decodes file bytes and normalises line endings to `\n`.
-fn decode(bytes: &[u8], encoding: TextEncoding) -> (String, LineEnding, bool) {
+/// Also says whether the file mixed line endings.
+fn decode(bytes: &[u8], encoding: TextEncoding) -> (String, LineEnding, bool, bool) {
     let (raw, lossy) = encoding.decode(bytes);
     let line_ending = LineEnding::detect(&raw).unwrap_or_else(LineEnding::platform_default);
+    let mixed = raw.contains('\r') && LineEnding::is_mixed(&raw);
     let text = if raw.contains('\r') {
         raw.replace("\r\n", "\n").replace('\r', "\n")
     } else {
         raw
     };
-    (text, line_ending, lossy)
+    (text, line_ending, lossy, mixed)
 }
 
 #[cfg(test)]
@@ -338,6 +361,9 @@ mod tests {
         assert_eq!(LineEnding::detect("a\nb\n"), Some(LineEnding::Lf));
         assert_eq!(LineEnding::detect("a\rb\r"), Some(LineEnding::Cr));
         assert_eq!(LineEnding::detect("abc"), None);
+        assert!(LineEnding::is_mixed("a\r\nb\nc\r\n"));
+        assert!(!LineEnding::is_mixed("a\r\nb\r\n"));
+        assert!(!LineEnding::is_mixed("a\nb\n"));
     }
 
     #[test]

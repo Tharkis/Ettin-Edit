@@ -5,6 +5,26 @@ Windows and follows the colours of the theme you pick.
 
 <p><img class="screenshot" src="images/dark.png" alt="Ettin Edit with a JSON file open and the JSON tree panel beside it"></p>
 
+## The Welcome tab
+
+The first time Ettin Edit starts, it opens a **Welcome** tab: what the
+editor is for, the four things to try first (Transform, the command palette,
+recipes and Filter Through Command), and what's new in this version. Click a
+card to open it.
+
+<p><img class="screenshot" src="images/welcome.png" alt="The Welcome tab: Welcome to Ettin Edit, cards for Transform, Command palette (F1), Recipes (Ctrl+Alt+R) and Filter Through Command (Ctrl+Alt+P), buttons Try it on sample text, Open the manual and Open a file, and What's new in 2.2.0 on the right"></p>
+
+- **Try it on sample text** opens a new tab with a few log lines and a line
+  of JSON, and a two-step guided tour above it: keep only the ERROR lines
+  with Keep Matching Lines, then turn the JSON into YAML with Convert to.
+  **Show me** does each step for you; **End tour** puts the tour away.
+- After an update, the tab opens once more, headed **What's new**, with the
+  new version's release notes.
+- **Show this tab when Ettin Edit starts** opens it every time.
+  **Help > Welcome** (or **?** on the toolbar) opens it whenever you like.
+
+The Welcome tab can't be edited or saved, and isn't kept between sessions.
+
 From top to bottom:
 
 ## The menu bar
@@ -30,7 +50,7 @@ remembers both choices.
 | **Tools** | Tools that look at the text without changing it: Compare, CsvQuery, JSON Tree, the XPath panel, XML checks and XSL Transform |
 | **Plugins** | Your plugins' commands, and managing plugins |
 | **Settings** | Preferences, the Shortcut Mapper, Customise Toolbar and quick on/off switches |
-| **Help** | This manual, update checks and About |
+| **Help** | The Welcome tab, this manual, update checks and About |
 
 Until 2.1 there were also **Theme** and **Macro** menus; they are
 **View > Theme** and **Transform > Macros** now.

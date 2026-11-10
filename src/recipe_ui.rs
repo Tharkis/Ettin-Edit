@@ -88,6 +88,10 @@ pub struct RecipeWindow {
     focus_step_search: bool,
     /// The selected recipe's shortcut, as menus show it.
     shortcut_text: Option<String>,
+    /// Preview on the recipe's sample text rather than the active tab.
+    use_sample: bool,
+    /// Show the text as it is after this step (`None`: after the last).
+    show_after: Option<usize>,
 }
 
 fn tr(id: &str) -> String {
@@ -624,12 +628,43 @@ fn preview_box(ui: &mut Ui, id: &str, text: &str, width: f32, color: Option<Colo
         });
 }
 
+/// The recipe's sample text, editable. Returns true when it changed.
+fn sample_box(ui: &mut Ui, sample: &mut String, width: f32) -> bool {
+    let mut changed = false;
+    egui::Frame::new()
+        .fill(ui.visuals().extreme_bg_color)
+        .inner_margin(Margin::same(4))
+        .corner_radius(4.0)
+        .show(ui, |ui| {
+            ui.set_width(width - 8.0);
+            egui::ScrollArea::vertical()
+                .id_salt("recipe-sample")
+                .max_height(110.0)
+                .min_scrolled_height(110.0)
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    changed = ui
+                        .add(
+                            egui::TextEdit::multiline(sample)
+                                .id(Id::new("recipe-sample-text"))
+                                .font(egui::TextStyle::Monospace)
+                                .frame(egui::Frame::NONE)
+                                .desired_rows(6)
+                                .desired_width(f32::INFINITY),
+                        )
+                        .changed();
+                });
+        });
+    changed
+}
+
 impl RecipeWindow {
     pub fn show_window(&mut self, select: Option<usize>) {
         self.open = true;
         if select.is_some() {
             self.selected = select;
             self.expanded = None;
+            self.show_after = None;
         }
         self.confirm_delete = false;
         self.preview = None;
@@ -1151,14 +1186,23 @@ impl RecipeWindow {
         ui.add_space(6.0);
         ui.label(RichText::new(tr("recipe-steps")).strong());
 
+        // The step the last preview failed at, to show beside that step.
+        let failed_at = self
+            .preview
+            .as_ref()
+            .and_then(|(_, _, p)| p.text.as_ref().err().map(|f| (f.step, f.message.clone())));
+        if self.show_after.is_some_and(|i| i >= recipe.steps.len()) {
+            self.show_after = None;
+        }
+
         // The steps, each with a switch, its settings when open, and buttons
         // to move or remove it.
         let mut action: Option<(usize, i32)> = None; // (step, -1 up / 1 down / 0 remove)
         let count = recipe.steps.len();
         egui::ScrollArea::vertical()
             .id_salt(("recipe-steps", index))
-            .max_height(180.0)
-            .min_scrolled_height(180.0)
+            .max_height(150.0)
+            .min_scrolled_height(150.0)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if count == 0 {
@@ -1228,11 +1272,23 @@ impl RecipeWindow {
                             ui.painter().galley(pos, galley, color);
                             if resp.clicked() {
                                 self.expanded = if open { None } else { Some(i) };
+                                // The preview follows the step you pick.
+                                self.show_after = Some(i);
                             }
                         });
                     });
                     if let Err(e) = step.op.check() {
                         ui.label(RichText::new(e).color(palette.modified).size(12.0));
+                    } else if let Some(message) = failed_at
+                        .as_ref()
+                        .and_then(|(at, m)| (*at == i).then_some(m))
+                    {
+                        // Where the preview failed, under the step that failed.
+                        ui.label(
+                            RichText::new(format!("{} {message}", ph::WARNING))
+                                .color(palette.modified)
+                                .size(12.0),
+                        );
                     }
                     if open {
                         egui::Frame::new()
@@ -1296,47 +1352,83 @@ impl RecipeWindow {
             changed = true;
         }
 
-        // The preview: the recipe run on the text, without its commands.
+        // The preview: the recipe run on the text, without its commands,
+        // up to the step picked in "Show output after".
         ui.add_space(6.0);
-        let what = if input.selection {
-            tr("recipe-preview-selection")
-        } else {
-            tr("recipe-preview-document")
-        };
-        ui.label(RichText::new(what).strong());
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tr("recipe-preview-input")).strong());
+            let tab = if input.selection {
+                tr("recipe-preview-selection")
+            } else {
+                tr("recipe-preview-active-tab")
+            };
+            ui.radio_value(&mut self.use_sample, false, tab);
+            ui.radio_value(&mut self.use_sample, true, tr("recipe-sample-text"));
+            ui.add_space(8.0);
+            ui.label(tr("recipe-show-after"));
+            let name = |i: Option<usize>| match i {
+                Some(i) => t!("recipe-after-step", step = i + 1),
+                None => tr("recipe-after-last-step"),
+            };
+            egui::ComboBox::from_id_salt(("recipe-show-after", index))
+                .selected_text(name(self.show_after))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.show_after, None, name(None));
+                    for (i, step) in recipe.steps.iter().enumerate() {
+                        let label = format!("{}  {}", name(Some(i)), short(&step_label(&step.op)));
+                        ui.selectable_value(&mut self.show_after, Some(i), label);
+                    }
+                });
+        });
         let key = {
             use std::hash::{Hash, Hasher};
             let mut h = std::collections::hash_map::DefaultHasher::new();
-            input.key.hash(&mut h);
+            if self.use_sample {
+                recipe.sample.hash(&mut h);
+            } else {
+                input.key.hash(&mut h);
+            }
+            self.use_sample.hash(&mut h);
+            self.show_after.hash(&mut h);
             recipe.to_json().hash(&mut h);
             h.finish()
         };
         if self.preview.as_ref().is_none_or(|(k, _, _)| *k != key) {
-            let before = (input.text)();
+            let before = if self.use_sample {
+                recipe.sample.chars().take(PREVIEW_CHARS).collect()
+            } else {
+                (input.text)()
+            };
             let env = Env {
                 indent: input.indent,
                 ..Default::default()
             };
-            let result = recipe.preview(&before, &env);
+            let result = recipe.preview_until(&before, &env, self.show_after);
             self.preview = Some((key, before, result));
         }
         let half = (ui.available_width() - 8.0) / 2.0;
+        let mut sample_changed = false;
         if let Some((_, before, result)) = &self.preview {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new(tr("recipe-before"))
-                            .size(12.0)
-                            .color(palette.text_dim),
-                    );
-                    preview_box(ui, "recipe-before", before, half, None);
+                    let label = if self.use_sample {
+                        tr("recipe-sample-hint")
+                    } else {
+                        tr("recipe-before")
+                    };
+                    ui.label(RichText::new(label).size(12.0).color(palette.text_dim));
+                    if self.use_sample {
+                        sample_changed = sample_box(ui, &mut recipe.sample, half);
+                    } else {
+                        preview_box(ui, "recipe-before", before, half, None);
+                    }
                 });
                 ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new(tr("recipe-after"))
-                            .size(12.0)
-                            .color(palette.text_dim),
-                    );
+                    let label = match self.show_after {
+                        Some(i) => t!("recipe-output-after-step", step = i + 1),
+                        None => tr("recipe-after"),
+                    };
+                    ui.label(RichText::new(label).size(12.0).color(palette.text_dim));
                     match &result.text {
                         Ok(after) => preview_box(ui, "recipe-after", after, half, None),
                         Err(f) => preview_box(
@@ -1361,6 +1453,7 @@ impl RecipeWindow {
                 );
             }
         }
+        changed |= sample_changed;
         if let Some(m) = &self.message {
             ui.label(RichText::new(m).color(palette.modified).size(12.0));
         }

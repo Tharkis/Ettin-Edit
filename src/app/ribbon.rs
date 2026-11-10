@@ -444,6 +444,7 @@ impl EttinApp {
     /// The ? button's menu at the right of the toolbar's tab names.
     fn help_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
         vec![
+            m.item_named(&t!("welcome"), &t!("welcome"), true, Action::Welcome),
             m.item_named(
                 &t!("user-manual"),
                 &t!("user-manual"),

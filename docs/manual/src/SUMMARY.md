@@ -20,6 +20,7 @@
 # Tools
 
 - [Transforming text](transform.md)
+- [Suggestions](suggestions.md)
 - [Recipes](recipes.md)
 - [JSON and JavaScript](json.md)
 - [XML Tools](xml.md)

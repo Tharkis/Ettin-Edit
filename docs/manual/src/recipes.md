@@ -49,10 +49,19 @@ its steps on the right. Double-click a recipe to run it.
 - **Add Step** lists every step, by group (below). Type in the search box at
   its top to list every step whose name has those words, from all groups;
   the arrow keys move the highlight and <kbd>Enter</kbd> adds it.
-- **Preview** shows the text of the active tab (the selection, or the
-  document) before and after the recipe, and updates as you change any step.
-  It uses the first 20,000 characters, and stops before a step that runs a
-  shell command.
+- **Preview input** picks the text the preview runs on: the **Active tab**
+  (the selection, or the document) or **Sample text** you type or paste
+  into the left pane. The sample is saved with the recipe (as `"sample"` in
+  its file), so it travels with an export and is there next time.
+- **Show output after** picks the step whose result the right pane shows:
+  **The last step**, or any step before it. Clicking a step picks it too, so
+  you can walk through a recipe one step at a time. If a step fails, its
+  message shows under that step and in the right pane.
+- The preview updates as you change any step. It uses the first 20,000
+  characters, and stops before a step that runs a shell command.
+
+<p><img class="screenshot" src="images/recipes-sample.png" alt="The Recipes window with Count Errors and Warnings selected: Preview input is set to Sample text, Show output after is Step 2, the sample pane holds INFO a, ERROR b, WARN c and the After step 2 pane shows ERROR b and WARN c"></p>
+
 Every change is saved straight away. The buttons along the bottom make a
 **New** recipe, **Duplicate**, **Delete**, **Export…** or **Import…** one,
 open the recipes **Folder**, and **Reload** it after you've changed files
@@ -154,7 +163,8 @@ A recipe file looks like this:
 ```
 
 Each step has an `op` and its settings; settings you leave out take their
-defaults, and `"enabled": false` switches a step off. A file without an `id`
+defaults, and `"enabled": false` switches a step off. An optional `"sample"`
+holds the recipe window's sample text. A file without an `id`
 gets one when Ettin Edit reads it (and it is written back), and so does a
 copied file whose id another recipe already has. A Convert to step looks like
 `{ "op": "convert_to", "to": "Yaml" }`, with `"from": "Json"` when it reads
