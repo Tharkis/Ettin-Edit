@@ -11,9 +11,11 @@ mod plugins;
 mod printing;
 mod recipes;
 mod ribbon;
+mod suggest;
 mod text_tools;
 mod transform;
 mod views;
+mod welcome;
 mod xml_schema;
 
 use std::collections::HashMap;
@@ -99,6 +101,16 @@ pub struct EttinApp {
     transform_dialog: crate::transform_ui::TransformDialog,
     /// The command Filter Through Command is waiting for.
     pipe: Option<transform::PipeJob>,
+    /// Where the transform about to run sends its result (set by the
+    /// Transform dialogs; anything else replaces the text).
+    transform_dest: crate::transform_ui::Dest,
+    /// The suggestion bar's suggestion for each tab, by document id.
+    suggestions: HashMap<u64, suggest::Suggestion>,
+    /// The Welcome tab's guided tour, while it runs.
+    tour: Option<welcome::Tour>,
+    welcome: welcome::WelcomeState,
+    /// Where the text area was drawn last frame.
+    editor_rect: Option<Rect>,
     run_macro: RunMacroDialog,
     save_macro: SaveMacroDialog,
     recorder: Recorder,
@@ -305,6 +317,11 @@ impl EttinApp {
             column: ColumnDialog::default(),
             transform_dialog: Default::default(),
             pipe: None,
+            transform_dest: Default::default(),
+            suggestions: HashMap::new(),
+            tour: None,
+            welcome: Default::default(),
+            editor_rect: None,
             run_macro: RunMacroDialog::default(),
             save_macro: SaveMacroDialog::default(),
             recorder: Recorder::default(),
@@ -414,6 +431,9 @@ impl EttinApp {
         if app.docs.is_empty() {
             app.new_tab();
         }
+        if owner {
+            app.startup_welcome();
+        }
         app
     }
 
@@ -515,6 +535,7 @@ impl EttinApp {
                 if record_recent {
                     self.settings.push_recent(path);
                 }
+                self.check_suggestions(self.active);
             }
             Err(e) => self.errors.push(t!(
                 "open-failed",
@@ -1288,6 +1309,7 @@ impl EttinApp {
                 self.manual.show("languages.md", None);
                 drop_focus(ctx);
             }
+            Action::Welcome => self.open_welcome(false),
             Action::UserManual => {
                 self.manual.show("introduction.md", None);
                 drop_focus(ctx);
@@ -2545,6 +2567,7 @@ impl EttinApp {
                 });
             });
             ui.menu_button(t!("menu-help"), |ui| {
+                self.menu_item(ui, &t!("welcome"), Action::Welcome);
                 self.menu_item(ui, &t!("user-manual"), Action::UserManual);
                 self.menu_item(ui, &t!("user-manual-web"), Action::WebManual);
                 ui.separator();
@@ -2946,7 +2969,6 @@ impl EttinApp {
     /// Draws tab `index` in `view`. Returns true when its editor has keyboard focus.
     fn editor_pane(&mut self, ui: &mut Ui, view: usize, index: usize) -> bool {
         let palette = self.palette();
-        let theme_def = &self.themes[self.theme_idx];
         let focused_view = view == self.split.focused;
         let request_focus =
             focused_view && std::mem::take(&mut self.focus_editor) && !self.any_dialog_open();
@@ -2956,9 +2978,18 @@ impl EttinApp {
         let Some(language) = self.docs.get(index).map(|d| d.syntax.clone()) else {
             return false;
         };
+        if self.docs[index].welcome {
+            self.welcome_pane(ui);
+            return false;
+        }
         if self.hex_views.contains_key(&self.docs[index].id) || self.docs[index].binary.is_some() {
             return self.hex_pane(ui, view, index, request_focus);
         }
+        if focused_view {
+            self.tour_bar(ui);
+        }
+        self.suggestion_bar(ui, view, index);
+        let theme_def = &self.themes[self.theme_idx];
         let api = self.apis.get(&language);
         let Some(doc) = self.docs.get_mut(index) else {
             return false;
@@ -3719,7 +3750,7 @@ impl eframe::App for EttinApp {
             self.doc_map_panel(ui);
         }
         self.record_editor_input(&ctx);
-        egui::CentralPanel::no_frame()
+        let central = egui::CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.editor_bg))
             .show(ui, |ui| {
                 if self.distraction_free {
@@ -3737,7 +3768,9 @@ impl eframe::App for EttinApp {
                     self.editor_area(ui)
                 }
             });
+        self.editor_rect = Some(central.response.rect);
 
+        self.check_paste();
         self.close_queue_ui(&ctx);
         self.dialogs(&ctx);
         self.toolbar_dialog(&ctx);

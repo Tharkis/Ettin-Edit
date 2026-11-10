@@ -68,6 +68,21 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.2.0" date="2026-11-10">
+      <description>
+        <p>Try before you apply: see what a transform will do before it
+        changes your text, and send the result somewhere safe.</p>
+        <ul>
+          <li>Keep or Remove Matching Lines marks kept lines green and removed lines red as you type</li>
+          <li>Filter Through Command, Prefix and Suffix, Number Lines and Reflow show Input and Output panes</li>
+          <li>Send a result to this tab, a new tab or the clipboard</li>
+          <li>Suggestions for the file you open, such as Format for one-line JSON</li>
+          <li>Recipe preview after any step, on the tab or on saved sample text</li>
+          <li>A Welcome tab, and What's new after each update</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.2.0</url>
+    </release>
     <release version="2.1.1" date="2026-11-10">
       <description>
         <p>Fixes a flicker on Windows when Ettin Edit starts with the window

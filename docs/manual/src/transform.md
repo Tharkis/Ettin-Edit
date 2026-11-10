@@ -15,6 +15,42 @@ text is left as it was.
 To run several of these commands one after another, again and again, save
 them as a [recipe](recipes.md).
 
+## Try before you apply
+
+The dialogs show what they will do before they change anything:
+
+- **Keep or Remove Matching Lines** marks the lines in the editor as you
+  type: lines that stay are green, lines that go are red and struck through.
+  The dialog sits at the top right so the lines stay in view, and the marks
+  go away when you press **Cancel** (or <kbd>Esc</kbd>). The marks follow
+  your typing after a short pause; on files over 50,000 lines only the lines
+  on screen are marked and the count is worked out in the background.
+- **Add Prefix and Suffix**, **Number Lines** and **Reflow Paragraphs** show
+  an **Input** and an **Output** pane, worked out on the first 200 lines as
+  you change the settings.
+- **Filter Through Command** shows the same two panes, but runs the command
+  only when you press **Preview** (or **Run**), never while you type. The
+  Output pane says how long the command took and its exit code; if it
+  failed, it shows the command's error output instead.
+
+<p><img class="screenshot" src="images/transform-preview.png" alt="Keep Matching Lines with ERROR typed: lines 1 and 4 are green, lines 2, 3 and 5 are red and struck through, and the dialog says 2 of 5 lines kept"></p>
+
+### Result goes to
+
+Every one of these dialogs asks where the result goes:
+
+| Choice | What happens |
+| --- | --- |
+| **This tab** | The result replaces the text, as one undo step |
+| **New tab** | The result opens in a new tab with the same language; this tab is left exactly as it was |
+| **Clipboard** | The result is copied; this tab is left exactly as it was |
+
+Each dialog remembers your last choice. Filter Through Command starts on
+**New tab**, so a command that does something unexpected can't spoil your
+text, and when its preview failed, **This tab** can't be picked.
+
+<p><img class="screenshot" src="images/pipe-preview.png" alt="Filter Through Command with sort | uniq -c | sort -rn: the Input pane shows the log lines, the Output pane shows them counted, with the run time and exit code 0 above it, and Result goes to set to New tab"></p>
+
 ## The Transform menu
 
 <p><img class="screenshot" src="images/transform-menu.png" alt="The Transform menu with Lines open: Keep Matching Lines, Count Distinct Lines, Sort Lines, Remove Duplicate Lines, Trim, Add Prefix and Suffix, Number Lines, Reflow Paragraphs and Tabs to Spaces"></p>
@@ -64,7 +100,9 @@ Commands** (the rest of the Edit menu).
 ## Filter through a command
 
 **Transform > Filter Through Command…** (<kbd>Ctrl+Alt+P</kbd>) sends the
-text to a shell command and puts the command's output in its place. Anything
+text to a shell command and puts the command's output in its place, in a new
+tab or on the clipboard ([Result goes to](#result-goes-to)). Press
+**Preview** to see the output first. Anything
 that reads standard input and writes standard output works: `sort -u`,
 `jq .`, `column -t`, `awk '{print $2}'`, `python3 -c "…"` and so on.
 
@@ -75,7 +113,8 @@ that reads standard input and writes standard output works: `sort -u`,
   is read as UTF-8. When the selection doesn't end with a line break, a final
   line break in the output is dropped, so the text around it stays put.
 - While the command runs, the dialog shows it with a **Stop** button. Nothing
-  changes until it finishes.
+  changes until it finishes. A preview runs in the background and changes
+  nothing at all.
 - If the command fails (a non-zero exit code), the dialog shows its error
   output and the text stays as it was.
 - **Recent commands** in the dialog lists the last 15 commands you ran.
@@ -104,7 +143,8 @@ that reads standard input and writes standard output works: `sort -u`,
 The same commands are also in **Edit > Line Operations**.
 
 The matching-lines dialog has **Match case** and **Regular expression**
-options, and shows how many lines match as you type. Regular expressions use
+options, shows how many lines it keeps as you type, and marks the lines
+green and red in the editor ([Try before you apply](#try-before-you-apply)). Regular expressions use
 the same syntax as [Find](search.md#regular-expressions).
 
 Reflow joins the lines of each paragraph and breaks them again at spaces. A

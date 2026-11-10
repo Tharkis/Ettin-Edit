@@ -160,7 +160,7 @@ fn separators(line: &str, sep: char) -> usize {
     count
 }
 
-fn looks_like_csv(text: &str) -> bool {
+pub(crate) fn looks_like_csv(text: &str) -> bool {
     let lines: Vec<&str> = text
         .lines()
         .map(|l| l.trim_end_matches('\r'))

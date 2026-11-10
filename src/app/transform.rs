@@ -9,7 +9,7 @@ use super::EttinApp;
 use crate::tools::convert;
 use crate::tools::pipe::{Output, pipe_output, spawn};
 use crate::tools::transform::{self, LineMatcher, TransformOp};
-use crate::transform_ui::{DialogAction, DialogKind, MAX_COMMANDS};
+use crate::transform_ui::{Dest, DialogAction, DialogKind, MAX_COMMANDS, Source};
 
 /// A shell command running for Filter Through Command: one run per
 /// selection, one after another.
@@ -23,6 +23,8 @@ pub(super) struct PipeJob {
     child: Option<Child>,
     /// Standard output and error of the running command, read on threads.
     output: Option<Output>,
+    /// Where the output goes.
+    dest: Dest,
 }
 
 impl EttinApp {
@@ -57,10 +59,46 @@ impl EttinApp {
         } else {
             80
         };
-        self.transform_dialog.show_dialog(kind, width);
+        let dest = self.settings.transform_results.get(kind.key()).copied();
+        self.transform_dialog.show_dialog(kind, width, dest);
     }
 
     pub(super) fn run_transform(&mut self, ctx: &egui::Context, op: TransformOp) {
+        self.run_transform_op(ctx, op);
+        // Only the run a dialog started sends its result elsewhere.
+        self.transform_dest = Dest::ThisTab;
+    }
+
+    /// Sends a transform's result to a new tab or the clipboard, leaving
+    /// the tab as it is. `syntax` is the new tab's language.
+    pub(super) fn send_result(
+        &mut self,
+        ctx: &egui::Context,
+        dest: Dest,
+        text: String,
+        syntax: &str,
+    ) {
+        match dest {
+            Dest::ThisTab => {}
+            Dest::Clipboard => {
+                let lines = text.lines().count().max(1);
+                ctx.copy_text(text);
+                self.notify(ctx, t!("result-copied", lines = lines), None);
+            }
+            Dest::NewTab => {
+                self.new_tab();
+                let doc = &mut self.docs[self.active];
+                doc.editor = crate::editor::Editor::new(&text);
+                doc.editor.buffer.mark_modified();
+                if self.languages.iter().any(|l| l == syntax) {
+                    doc.syntax = syntax.to_owned();
+                }
+                self.focus_editor = true;
+            }
+        }
+    }
+
+    fn run_transform_op(&mut self, ctx: &egui::Context, op: TransformOp) {
         if self.docs.is_empty() {
             return;
         }
@@ -210,8 +248,9 @@ impl EttinApp {
         if self.pipe.is_some() {
             return;
         }
+        let dest = self.transform_dest;
         let doc = &self.docs[self.active];
-        if doc.editor.buffer.read_only {
+        if doc.editor.buffer.read_only && dest == Dest::ThisTab {
             self.transform_dialog.close();
             return self.tool_error(ctx, &t!("pipe-title"), &t!("tool-read-only"), None, false);
         }
@@ -233,6 +272,7 @@ impl EttinApp {
             outputs: Vec::new(),
             child: None,
             output: None,
+            dest,
         });
         self.transform_dialog.running = Some(command);
         self.transform_dialog.error = None;
@@ -307,6 +347,12 @@ impl EttinApp {
         let Some(index) = self.docs.iter().position(|d| d.id == job.doc) else {
             return;
         };
+        if job.dest != Dest::ThisTab {
+            // The tab is left as it was, even if it changed meanwhile.
+            let syntax = self.docs[index].syntax.clone();
+            let text = job.outputs.join("\n");
+            return self.send_result(ctx, job.dest, text, &syntax);
+        }
         if self.docs[index].editor.buffer.version() != job.version {
             return self.tool_error(
                 ctx,
@@ -341,15 +387,42 @@ impl EttinApp {
         self.transform_dialog.running = None;
     }
 
-    /// The Transform dialogs, when one is open.
+    /// The Transform dialogs, when one is open, and the green and red line
+    /// marks of Keep or Remove Matching Lines.
     pub(super) fn transform_dialog_ui(&mut self, ctx: &egui::Context) {
         if !self.transform_dialog.is_open() || self.docs.is_empty() {
+            for doc in &mut self.docs {
+                doc.editor.line_preview = None;
+            }
             return;
         }
         let palette = self.palette();
         let history = self.settings.pipe_commands.clone();
-        let editor = &self.docs[self.active].editor;
         let targets = self.line_targets();
+        let editor = &self.docs[self.active].editor;
+        let doc = &self.docs[self.active];
+        let selection = editor.selections.has_selection();
+        let key = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            doc.id.hash(&mut h);
+            editor.buffer.version().hash(&mut h);
+            targets.hash(&mut h);
+            h.finish()
+        };
+        let line_ranges: Vec<Range<usize>> = targets
+            .iter()
+            .map(|r| {
+                let first = editor.buffer.char_to_line(r.start);
+                let mut last = editor.buffer.char_to_line(r.end);
+                // The empty "line" after a final line break isn't one.
+                if last > first && editor.buffer.line_start(last) == r.end {
+                    last -= 1;
+                }
+                first..last + 1
+            })
+            .collect();
+        let lines = line_ranges.iter().map(|r| r.len()).sum();
         let text = || {
             targets
                 .iter()
@@ -357,10 +430,45 @@ impl EttinApp {
                 .collect::<Vec<_>>()
                 .join("\n")
         };
-        let action = self.transform_dialog.ui(ctx, &palette, &history, &text);
+        let dir = doc
+            .path
+            .as_deref()
+            .and_then(|p| p.parent())
+            .map(|p| p.to_owned())
+            .or_else(dirs::home_dir);
+        let source = Source {
+            key,
+            text: &text,
+            lines,
+            selection,
+            dir,
+            file: doc.path.clone(),
+        };
+        let kind = self.transform_dialog.kind;
+        let action = self
+            .transform_dialog
+            .ui(ctx, &palette, &history, &source, self.editor_rect);
+        let marks = self.transform_dialog.line_preview();
+        let active = self.active;
+        for (i, doc) in self.docs.iter_mut().enumerate() {
+            doc.editor.line_preview = match (&marks, i == active) {
+                (Some((matcher, keep)), true) => Some(crate::editor::LinePreview {
+                    matcher: matcher.clone(),
+                    keep: *keep,
+                    lines: line_ranges.clone(),
+                }),
+                _ => None,
+            };
+        }
         match action {
-            Some(DialogAction::Run(op)) => {
+            Some(DialogAction::Run(op, dest)) => {
+                if let Some(kind) = kind {
+                    self.settings
+                        .transform_results
+                        .insert(kind.key().to_owned(), dest);
+                }
                 let pipe = matches!(op, TransformOp::Pipe { .. });
+                self.transform_dest = dest;
                 self.pending.push(crate::actions::Action::Transform(op));
                 if !pipe {
                     self.focus_editor = true;

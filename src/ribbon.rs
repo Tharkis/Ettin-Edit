@@ -825,6 +825,7 @@ pub fn default_icon(action: &Action) -> &'static str {
         SetLineEnding(_) => ph::KEY_RETURN,
         ClearRecent => ph::BROOM,
         About => ph::INFO,
+        Welcome => ph::HAND_WAVING,
         UserManual | LanguageGuide | PluginGuide => ph::BOOK_OPEN,
         WebManual => ph::GLOBE,
         CheckForUpdates | ToggleUpdateCheck => ph::DOWNLOAD,

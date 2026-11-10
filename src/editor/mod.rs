@@ -31,6 +31,25 @@ pub use hints::CallHint;
 pub use smart::EditOptions;
 pub use view::ViewConfig;
 
+/// What Keep or Remove Matching Lines would do, for marking the lines.
+pub struct LinePreview {
+    pub matcher: Arc<crate::tools::transform::LineMatcher>,
+    pub keep: bool,
+    /// The lines it looks at (0-based, end exclusive); the rest are left alone.
+    pub lines: Vec<Range<usize>>,
+}
+
+impl LinePreview {
+    /// Whether `line` stays (`Some(true)`), goes (`Some(false)`), or isn't
+    /// looked at (`None`).
+    pub fn verdict(&self, line: usize, text: &str) -> Option<bool> {
+        if !self.lines.iter().any(|r| r.contains(&line)) {
+            return None;
+        }
+        Some(self.matcher.is_match(text) == self.keep)
+    }
+}
+
 pub struct Editor {
     pub buffer: Buffer,
     pub selections: Selections,
@@ -57,6 +76,12 @@ pub struct Editor {
     pub marks: Vec<Range<usize>>,
     /// Bookmarked lines (0-based). Bookmarks move with edits.
     pub bookmarks: BTreeSet<usize>,
+    /// Lines that Keep or Remove Matching Lines would keep (green) and
+    /// remove (red), shown while its dialog is open.
+    pub line_preview: Option<LinePreview>,
+    /// Bytes pasted since the app last looked (it may suggest a transform
+    /// for a big paste).
+    pub pasted: usize,
     /// Typing behaviour (auto-close, indentation, completion), set by the app.
     pub opts: EditOptions,
     /// The completion list, while it is open.
@@ -162,6 +187,8 @@ impl Editor {
             last_click: None,
             text_cache: None,
             search_hits: Arc::default(),
+            line_preview: None,
+            pasted: 0,
             marks: Vec::new(),
             bookmarks: BTreeSet::new(),
             opts: EditOptions::default(),
@@ -492,6 +519,7 @@ impl Editor {
 
     /// Pastes `text`; one line per caret when the line count matches the caret count.
     pub fn paste(&mut self, ctx: &egui::Context, text: &str) {
+        self.pasted += text.len();
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
         let lines: Vec<&str> = text.split('\n').collect();
         let per_caret = self.selections.len() > 1 && lines.len() == self.selections.len();

@@ -111,18 +111,23 @@ impl EttinApp {
         targets: Vec<std::ops::Range<usize>>,
         f: impl Fn(&str) -> ToolResult,
     ) -> bool {
+        let dest = self.transform_dest;
         let editor = &self.docs[self.active].editor;
-        if editor.buffer.read_only {
+        if editor.buffer.read_only && dest == crate::transform_ui::Dest::ThisTab {
             self.tool_error(ctx, what, &t!("tool-read-only"), None, false);
             return false;
         }
         let whole = !editor.selections.has_selection();
         let mut edits = Vec::new();
+        // Every target's result, for a new tab or the clipboard.
+        let mut results = Vec::new();
         for range in targets {
             let text = editor.buffer.slice_string(range.clone());
             match f(&text) {
                 Ok(new) => {
-                    if new != text {
+                    if dest != crate::transform_ui::Dest::ThisTab {
+                        results.push(new);
+                    } else if new != text {
                         edits.push((range, new));
                     }
                 }
@@ -137,6 +142,11 @@ impl EttinApp {
                     return false;
                 }
             }
+        }
+        if dest != crate::transform_ui::Dest::ThisTab {
+            let syntax = self.docs[self.active].syntax.clone();
+            self.send_result(ctx, dest, results.join("\n"), &syntax);
+            return false;
         }
         let changed = !edits.is_empty();
         self.docs[self.active]

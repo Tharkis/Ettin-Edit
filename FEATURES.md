@@ -19,6 +19,19 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.2: Try before you apply
+
+Requested on 2026-11-10: the fourth release of the UX plan (review items R4, R10, R16 second half and R22). See what a transform will do before it does it, send the result somewhere safe, and get suggestions for the file you just opened.
+
+- [x] **Keep or Remove Matching Lines** marks lines in the editor as you type: kept lines green, removed lines red and struck through. Updates 150 ms after typing pauses; only the lines on screen are worked out, and on files over 50,000 lines the count runs in the background. Cancel removes the marks. The dialog sits at the top right of the text so the lines stay in view ([Try before you apply](docs/manual/src/transform.md#try-before-you-apply))
+- [x] **Input / Output panes** in Add Prefix and Suffix, Number Lines and Reflow Paragraphs, worked out live on the first 200 lines
+- [x] **Filter Through Command** has the same panes and a **Preview** button; commands run only on Preview or Run, never while typing. The Output pane shows run time and exit code, or the error output when the command fails, and then **This tab** can't be picked
+- [x] **Result goes to: This tab / New tab / Clipboard** in every Transform dialog, remembered per dialog (`transform_results` in `settings.json`). New tab keeps the tab's language; New tab and Clipboard leave the tab exactly as it was. Filter Through Command starts on New tab ([Result goes to](docs/manual/src/transform.md#result-goes-to))
+- [x] **Suggestion bar** (`src/suggest.rs` detectors, `src/app/suggest.rs` bar) after opening a file or pasting more than 1 KB, from the first 64 KB: one-line JSON (Format, Show as Tree), one-line XML (Format), JWT (Decode), Base64 that decodes to text (Decode), CSV (Open in CsvQuery, Show as Table), mixed line endings and mixed indentation (Fix ▾). At most one per tab; it goes when the tab is edited. **Don't suggest this again** per kind (`dismissed_suggestions`), and a Preferences switch for all of them (`suggestions`, on by default). Tests for every kind, and against prose, Markdown tables and short words that are valid Base64 ([Suggestions](docs/manual/src/suggestions.md))
+- [x] **Recipes window**: Preview input *Active tab / Sample text* (the sample is saved in the recipe file as `sample`, so it travels with an export), and *Show output after* any step; clicking a step picks it. A failing step shows its message under that step. Tested: the preview after step N equals running the first N steps ([Recipes](docs/manual/src/recipes.md#the-recipes-window))
+- [x] **Welcome tab**: opens once on a fresh profile, and after an update opens once headed *What's new*, with the release notes read from the AppStream metainfo at build time (`build.rs`). Cards for Transform, the command palette, Recipes and Filter Through Command; **Try it on sample text** opens log lines and JSON with a two-step guided tour (Keep Matching Lines, then Convert to YAML) and a Show me button for each step. **Help > Welcome** (also under **?**) reopens it; *Show this tab when Ettin Edit starts* (`show_welcome`). Its text is in the translation files ([The Welcome tab](docs/manual/src/tour.md#the-welcome-tab))
+- [x] New text in all four interface languages
+
 ### 2.1.1: No flicker when starting maximized
 
 Requested on 2026-11-10 from [issue #30](https://github.com/Tharkis/Ettin-Edit/issues/30): on Windows, a window left maximized flickered on the next start (it showed, vanished and came back maximized).
@@ -60,7 +73,7 @@ Requested on 2026-11-10: the second release of the UX plan (review items R3, R8 
 - [x] Recipes: a new **Convert to** step (`convert_to`, Read as Auto or a format). Recipe files from 2.0.0 with the old Convert step still load and run
 - [x] Command palette ranking: used recently (last 20, kept in the settings) → name starts with the query → a word in the name starts with it → name contains it → only the menu path matches. Ties go to the shorter name ([Command palette](docs/manual/src/view.md#command-palette))
 - [x] The palette shows each command's name first with the menu path after it, smaller and dim; every recipe (*Recipe · N steps*) and plugin command (*Plugin · name*) is listed; commands that can't run in this tab are dimmed, marked *not for this tab* and listed last
-- [x] Recipes have a stable **id** (name slug + 4 hex digits), written on first save and added to older files when they're read. Menus, shortcuts and toolbar buttons use it, so renaming a recipe keeps its shortcut and button; shortcuts and buttons saved by name are moved to the id on start-up ([Recipes](docs/manual/src/recipes.md))
+- [x] Recipes have a stable **id** (name slug + 4 hex digits), written on first save and added to older files when they're read. Menus, shortcuts and toolbar buttons use it, so renaming a recipe keeps its shortcut and button; shortcuts and buttons saved by name are moved to the id on start-up ([Recipes](docs/manual/src/recipes.md#the-recipes-window))
 - [x] `--recipe` on the command line takes a recipe's name or id
 - [x] Recipes window: a **Shortcut** field with **Set…** and **Clear** (with the Shortcut Mapper's "already used by" check and Move It Here), the recipe's id under it, a search box at the top of **Add Step** (arrow keys and Enter), and text labels on New, Duplicate, Delete, Export…, Import…, Folder and Reload, with Run and Run on All Tabs on the same bottom row (icons only if a translation doesn't fit)
 - [x] New text in all four interface languages
@@ -84,7 +97,7 @@ Requested on 2026-11-10: the first release of the UX plan, from the 2.0.0 UX rev
 
 Requested on 2026-10-19: saved, replayable Transform recipes, building on the 1.9.5 Transform menu.
 
-- [x] Recipes: a named list of Transform steps that run one after another on the selections or the whole document, as one undo step; a failing step is named and the text is left alone ([Recipes](docs/manual/src/recipes.md))
+- [x] Recipes: a named list of Transform steps that run one after another on the selections or the whole document, as one undo step; a failing step is named and the text is left alone ([Recipes](docs/manual/src/recipes.md#the-recipes-window))
 - [x] Steps: find and replace (match case, whole word, regex, extended), keep or remove matching lines, count distinct lines, prefix and suffix, number lines, reflow, sort, reverse, remove duplicates or empty lines, trim, join lines, tabs and spaces, every case and identifier case, JSON/YAML/TOML/XML/CSV/Markdown conversion, MIME Tools encodings, hashes, hex, JWT, JSON format/minify/sort keys, Format XML/linearize/escape/unescape, and shell commands
 - [x] Recipes window (Transform > Recipes > Manage Recipes…, <kbd>Ctrl+Alt+R</kbd>): add, switch off, reorder and edit steps with a live before-and-after preview of the active tab; new, duplicate, delete, import and export; every change is saved at once
 - [x] Record Recipe: run commands as usual and they become steps (Replace All takes the find bar's text and options)

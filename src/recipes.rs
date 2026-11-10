@@ -47,6 +47,10 @@ pub struct Recipe {
     pub description: String,
     #[serde(default)]
     pub steps: Vec<RecipeStep>,
+    /// Text to try the recipe on in the Recipes window's preview. Saved with
+    /// the recipe so it travels with an export.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sample: String,
     /// The file it was read from or saved to.
     #[serde(skip)]
     pub path: Option<PathBuf>,
@@ -469,6 +473,7 @@ impl Recipe {
             id: new_id(name),
             description: String::new(),
             steps: Vec::new(),
+            sample: String::new(),
             path: None,
         }
     }
@@ -516,10 +521,14 @@ impl Recipe {
     }
 
     /// Like [`Self::run`], but stops before the first command step instead
-    /// of running it.
-    pub fn preview(&self, text: &str, env: &Env) -> Preview {
+    /// of running it. The preview of the steps up to and including step `last` (all
+    /// of them when `None`): the text as it is after that step.
+    pub fn preview_until(&self, text: &str, env: &Env, last: Option<usize>) -> Preview {
         let mut text = text.to_owned();
         for (i, step) in self.enabled() {
+            if last.is_some_and(|last| i > last) {
+                break;
+            }
             if step.is_command() {
                 return Preview {
                     text: Ok(text),
@@ -963,7 +972,7 @@ mod tests {
             .into(),
         );
         r.steps.push(Step::ReverseLines.into());
-        let p = r.preview("a\nb", &Env::default());
+        let p = r.preview_until("a\nb", &Env::default(), None);
         assert_eq!(p.text.unwrap(), "A\nB");
         assert_eq!(p.stopped_at, Some(1));
         assert_eq!(r.commands(), vec!["rm -rf /nothing".to_owned()]);
@@ -972,6 +981,49 @@ mod tests {
             command: "true".into(),
         };
         assert_ne!(r.fingerprint(), before);
+    }
+
+    #[test]
+    fn preview_after_a_step_matches_running_the_steps_before_it() {
+        let steps = [
+            Step::Case {
+                kind: CaseKind::Upper,
+            },
+            Step::ReverseLines,
+            Step::AffixLines {
+                prefix: "> ".into(),
+                suffix: String::new(),
+                skip_empty: true,
+            },
+            Step::RemoveEmptyLines { blank: true },
+        ];
+        let mut r = Recipe::new("t");
+        r.steps = steps.iter().cloned().map(RecipeStep::from).collect();
+        // A switched-off step is skipped in both.
+        r.steps[1].enabled = false;
+        let text = "one\n\ntwo\nthree";
+        for n in 0..steps.len() {
+            let mut first = Recipe::new("first");
+            first.steps = r.steps[..=n].to_vec();
+            let after = r.preview_until(text, &Env::default(), Some(n));
+            assert_eq!(
+                after.text.unwrap(),
+                first.run(text, &Env::default()).unwrap()
+            );
+        }
+        assert_eq!(
+            r.preview_until(text, &Env::default(), None).text.unwrap(),
+            r.run(text, &Env::default()).unwrap()
+        );
+    }
+
+    #[test]
+    fn sample_text_is_saved_with_the_recipe() {
+        let mut r = Recipe::new("Sample");
+        assert!(!r.to_json().contains("\"sample\":"));
+        r.sample = "{\"id\": 1}".into();
+        let back = Recipe::from_json(&r.to_json()).unwrap();
+        assert_eq!(back.sample, r.sample);
     }
 
     #[cfg(unix)]
