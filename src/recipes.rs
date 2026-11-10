@@ -1057,7 +1057,6 @@ mod tests {
         assert_eq!(back.sample, r.sample);
     }
 
-    #[cfg(unix)]
     struct Upper;
 
     impl crate::plugins::headless::PluginTransforms for Upper {
@@ -1108,6 +1107,7 @@ mod tests {
         assert!(empty.check().is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn command_steps_run() {
         let r = Recipe {
