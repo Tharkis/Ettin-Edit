@@ -19,6 +19,13 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.1.1: No flicker when starting maximized
+
+Requested on 2026-11-10 from [issue #30](https://github.com/Tharkis/Ettin-Edit/issues/30): on Windows, a window left maximized flickered on the next start (it showed, vanished and came back maximized).
+
+- [x] A window saved maximized opens hidden at its normal size; on Windows it is cloaked, maximized, and shown once a frame has been drawn at the maximized size (`src/startup_window.rs`). Linux is unchanged
+- [x] Un-maximizing a window that started maximized gives the first-launch size, centred on the same monitor, instead of a window as big as the screen ([The toolbar](docs/manual/src/toolbar.md#when-the-window-is-narrow))
+
 ### 2.1: Transform first
 
 Requested on 2026-11-10: the third release of the UX plan (review items R2, R9, R14, R15, R23 and R24). Everything that changes text is under Transform, and the right-click menu and the toolbar's Home tab put transforms first.
@@ -583,6 +590,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| On Windows, starting with the window maximized made it flicker: it showed, vanished and came back maximized ([#30](https://github.com/Tharkis/Ettin-Edit/issues/30)) | 2.1.1 |
 | Macros recorded commands but not typing: text typed while recording was left out | 2.1 |
 | At the default window size the toolbar's Transform, View and Tools tabs ran off the right edge and had to be scrolled sideways | 2.0.1 |
 | Closing Theme Colours with unsaved changes threw them away without asking | 2.0.1 |

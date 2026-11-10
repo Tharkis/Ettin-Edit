@@ -44,6 +44,7 @@ mod self_update;
 mod session;
 mod settings;
 mod shortcut_ui;
+mod startup_window;
 mod style_ui;
 mod system;
 mod text_tools_ui;
@@ -103,6 +104,9 @@ fn main() -> eframe::Result {
                 ))
                 .expect("bundled icon is a valid PNG"),
             )),
+        // A window saved maximized is maximized by `startup_window`, which
+        // avoids a flicker on Windows (issue #30).
+        window_builder: Some(Box::new(startup_window::take_maximized)),
         ..Default::default()
     };
 

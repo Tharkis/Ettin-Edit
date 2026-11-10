@@ -68,6 +68,15 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.1.1" date="2026-11-10">
+      <description>
+        <p>Fixes a flicker on Windows when Ettin Edit starts with the window
+        maximized: the window now appears once, already maximized.
+        Un-maximizing it afterwards gives the first-launch size instead of a
+        window as big as the screen.</p>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.1.1</url>
+    </release>
     <release version="2.1.0" date="2026-11-10">
       <description>
         <p>Transform first: everything that changes text is in one Transform
