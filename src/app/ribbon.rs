@@ -155,7 +155,9 @@ impl EttinApp {
             .collect();
         list.into_iter()
             .map(|(action, path)| {
-                let label = ribbon::button_label(path.rsplit(" › ").next().unwrap_or(&path));
+                let label = ribbon::short_label(&action).unwrap_or_else(|| {
+                    ribbon::button_label(path.rsplit(" › ").next().unwrap_or(&path))
+                });
                 let icon = match &action {
                     Action::PluginCommand { plugin, command } => plugins
                         .iter()
@@ -292,7 +294,7 @@ impl EttinApp {
                                 .map(|(s, _)| *s)
                         })
                         .map(|s| ctx.format_shortcut(&s));
-                    let tooltip = match shortcut {
+                    let tooltip = match &shortcut {
                         Some(s) => format!("{} ({s})", entry.path),
                         None => entry.path.clone(),
                     };
@@ -305,6 +307,7 @@ impl EttinApp {
                         label: item.label.clone().unwrap_or_else(|| entry.label.clone()),
                         icon,
                         tooltip,
+                        shortcut,
                         enabled,
                         checked,
                         size: item.size,

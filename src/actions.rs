@@ -610,3 +610,19 @@ pub fn shortcut_label_in(
         .find(|(_, a)| a == action)
         .map(|(s, _)| ctx.format_shortcut(s))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::xml::XmlOp;
+
+    /// 2.0.1 renamed Pretty Print to Format XML; the command's id stays the
+    /// same so saved shortcuts, toolbars and recipes keep working.
+    #[test]
+    fn format_xml_keeps_its_old_id() {
+        let key = command_key(&Action::Xml(XmlOp::PrettyPrint));
+        assert_eq!(key, r#"{"Xml":"PrettyPrint"}"#);
+        let back: Action = serde_json::from_str(&key).unwrap();
+        assert_eq!(back, Action::Xml(XmlOp::PrettyPrint));
+    }
+}

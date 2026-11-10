@@ -32,6 +32,10 @@ pub struct ShortcutMapper {
     error: Option<String>,
     /// A key press taken at the start of the frame, before the editor sees it.
     grabbed: Option<Result<KeyboardShortcut, String>>,
+    /// Frames left to keep the window on top after it opens (it can open
+    /// from Preferences, which would otherwise stay in front).
+    raise: u8,
+    focus_filter: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -126,6 +130,8 @@ fn captured(ctx: &egui::Context) -> Option<Result<KeyboardShortcut, String>> {
 impl ShortcutMapper {
     pub fn show(&mut self) {
         self.open = true;
+        self.raise = 2;
+        self.focus_filter = true;
         self.capture = None;
         self.conflict = None;
         self.error = None;
@@ -201,7 +207,7 @@ impl ShortcutMapper {
         }
 
         let mut open = true;
-        egui::Window::new(t!("shortcut-mapper"))
+        let shown = egui::Window::new(t!("shortcut-mapper"))
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
             .id(Id::new("shortcut-mapper"))
@@ -212,11 +218,14 @@ impl ShortcutMapper {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(t!("font-find-label"));
-                    ui.add(
+                    let find = ui.add(
                         egui::TextEdit::singleline(&mut self.filter)
                             .hint_text(t!("command-or-shortcut"))
                             .desired_width(260.0),
                     );
+                    if std::mem::take(&mut self.focus_filter) {
+                        find.request_focus();
+                    }
                     ui.checkbox(&mut self.only_assigned, t!("only-assigned"));
                 });
                 ui.add_space(4.0);
@@ -224,6 +233,12 @@ impl ShortcutMapper {
                 ui.separator();
                 self.table(ui, rows, saved, palette);
             });
+        if self.raise > 0
+            && let Some(shown) = shown
+        {
+            ctx.move_to_top(shown.response.layer_id);
+            self.raise -= 1;
+        }
         if !open {
             self.open = false;
             self.capture = None;

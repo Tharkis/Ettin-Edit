@@ -4,7 +4,9 @@
 window. Changes take effect as you make them; there's no OK button to press.
 The sections are on the left, with buttons for the
 [Shortcut Mapper](shortcuts.md), [Theme Colours](themes.md#edit-theme-colours)
-and [Customise Toolbar](toolbar.md#customising) below them.
+and [Customise Toolbar](toolbar.md#customising) below them. Those open in
+front of Preferences. The window keeps one width whichever section you pick;
+drag its bottom edge to make it taller.
 
 The most-used switches are also in the **Settings** menu, so you can flip them
 without opening Preferences.

@@ -565,10 +565,19 @@ pub struct Store {
     pub error: Option<String>,
     pub tab: Tab,
     pub filter: String,
+    /// The search box of the Installed tab.
+    pub installed_filter: String,
     /// A plugin waiting for the user to confirm removing it.
     pub confirm_remove: Option<String>,
     tx: Sender<Done>,
     rx: Receiver<Done>,
+}
+
+/// Whether the index lists only the sample plugins that come with Ettin Edit
+/// (so far nobody else has submitted one).
+pub fn only_samples(list: &[IndexEntry]) -> bool {
+    list.iter()
+        .all(|e| super::SAMPLES.iter().any(|(id, _)| *id == e.id))
 }
 
 impl Default for Store {
@@ -581,6 +590,7 @@ impl Default for Store {
             error: None,
             tab: Tab::default(),
             filter: String::new(),
+            installed_filter: String::new(),
             confirm_remove: None,
             tx,
             rx,
@@ -982,5 +992,18 @@ mod tests {
         assert!(valid_id("hl7-viewer"));
         assert!(!valid_id(".sdk"));
         assert!(!valid_id("a/b"));
+    }
+
+    #[test]
+    fn knows_when_the_index_has_only_the_samples() {
+        let list = parse_index(include_str!("../../plugins/index.json"), "https://x/")
+            .expect("bundled index reads");
+        assert!(only_samples(&list));
+        let mut more = list.clone();
+        more.push(IndexEntry {
+            id: "shout".to_owned(),
+            ..list[0].clone()
+        });
+        assert!(!only_samples(&more));
     }
 }

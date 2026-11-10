@@ -30,8 +30,9 @@ one, set the program in **Plugins > Manage Plugins** or
 | **Markdown Preview** | Python | A live preview of the Markdown tab you're editing (see below) |
 | **HL7 Viewer** | Python | Browse and edit HL7 v2 messages (see below) |
 
-Their commands appear in the **Plugins** menu, under each plugin's name, and
-in the editor's right-click menu.
+A notice says how many were installed. Their commands appear in the
+**Plugins** menu, under each plugin's name, and in the editor's right-click
+menu.
 
 ### Markdown Preview
 
@@ -82,6 +83,9 @@ delimiters work too. HL7 files are coloured by the built-in HL7 language.
 
 - **Available** lists the plugins in the Ettin Edit plugin index. Type in the
   filter box to search by name, author or description, and click **Install**.
+  So far the index holds only the sample plugins; while that's so, the tab
+  says so and links to
+  [how to submit yours](plugin-guide.md#submitting-a-plugin-to-the-index).
 - **Installed** lists your plugins, and offers **Update to x.y** when the
   index has a newer version.
 
@@ -104,9 +108,13 @@ The samples you install from the Plugins menu don't ask.
 ## Managing plugins
 
 In the **Installed** tab of **Plugins > Manage Plugins…**, each plugin shows
-whether it's running, stopped or waiting for permission, and has:
+whether it's running, stopped or waiting for permission. Under its
+description, **Adds:** lists the commands it adds and the shortcut each one
+runs with now (after any change you made in the Shortcut Mapper). Type in
+the **Filter** box at the top to find a plugin by its name, description or
+one of its commands. Each plugin has:
 
-- a switch to turn it on or off,
+- an **Enabled** tick box to turn it on or off,
 - **Start**, **Stop** and **Restart**,
 - **Open Folder**, to see or edit its files,
 - **Remove…**, which moves its folder to the trash (so you can get it back),

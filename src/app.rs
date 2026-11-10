@@ -77,6 +77,9 @@ pub struct EttinApp {
     app_icon: Option<egui::TextureHandle>,
     /// The menu bar is hidden but showing for now, after a tap of Alt.
     menu_peek: bool,
+    /// First launch (no saved window size): size the window to the monitor
+    /// once its size is known.
+    size_window: bool,
     /// Alt is down: true while nothing else has been pressed with it.
     alt_tap: Option<bool>,
     /// Where the menu bar was last drawn.
@@ -276,6 +279,7 @@ impl EttinApp {
             show_about: false,
             app_icon: None,
             menu_peek: false,
+            size_window: cc.storage.is_none_or(|s| s.get_string("window").is_none()),
             alt_tap: None,
             menu_rect: None,
             quitting: false,
@@ -3534,6 +3538,25 @@ impl EttinApp {
         }
     }
 
+    /// On first launch, opens the window at 80 % of the monitor (see
+    /// [`first_window_size`]), centred. A saved window size wins.
+    fn first_window_size(&mut self, ctx: &egui::Context) {
+        if !self.size_window {
+            return;
+        }
+        let Some(monitor) = ctx.input(|i| i.viewport().monitor_size) else {
+            return;
+        };
+        self.size_window = false;
+        if monitor.x <= 0.0 || monitor.y <= 0.0 {
+            return;
+        }
+        let size = first_window_size(monitor);
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        let pos = ((monitor - size) / 2.0).max(egui::Vec2::ZERO);
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos.to_pos2()));
+    }
+
     fn update_title(&mut self, ctx: &egui::Context) {
         let title = match self.docs.get(self.active) {
             Some(doc) => {
@@ -3561,6 +3584,7 @@ impl eframe::App for EttinApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.apply_style(&ctx);
+        self.first_window_size(&ctx);
         self.poll_instance(&ctx);
         self.check_disk(&ctx);
         if self.session.is_some() {
@@ -3818,4 +3842,38 @@ fn binary_to_text(
     hex.resync();
     hex.message = (!asked).then(|| t!("hex-text-again"));
     true
+}
+
+/// The window size on first launch: 80 % of the monitor, at most 1400×900
+/// and at least 1100×720 (but never bigger than the monitor).
+pub fn first_window_size(monitor: egui::Vec2) -> egui::Vec2 {
+    let fit = |m: f32, min: f32, max: f32| (m * 0.8).clamp(min, max).min(m);
+    egui::Vec2::new(fit(monitor.x, 1100.0, 1400.0), fit(monitor.y, 720.0, 900.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::first_window_size;
+    use egui::Vec2;
+
+    #[test]
+    fn first_window_size_follows_the_monitor() {
+        assert_eq!(
+            first_window_size(Vec2::new(1920.0, 1080.0)),
+            Vec2::new(1400.0, 864.0)
+        );
+        assert_eq!(
+            first_window_size(Vec2::new(2560.0, 1440.0)),
+            Vec2::new(1400.0, 900.0)
+        );
+        assert_eq!(
+            first_window_size(Vec2::new(1366.0, 768.0)),
+            Vec2::new(1100.0, 720.0)
+        );
+        // A small screen: never bigger than the screen itself.
+        assert_eq!(
+            first_window_size(Vec2::new(1024.0, 600.0)),
+            Vec2::new(1024.0, 600.0)
+        );
+    }
 }

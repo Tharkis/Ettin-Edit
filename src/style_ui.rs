@@ -48,6 +48,11 @@ pub struct StyleEditor {
     /// The theme as last saved, for Discard Changes.
     saved: String,
     focus_name: bool,
+    /// The window was closed with unsaved changes: ask Save / Discard / Cancel.
+    confirm_close: bool,
+    /// Frames left to keep the window on top after it opens (it can open
+    /// from Preferences, which would otherwise stay in front).
+    raise: u8,
 }
 
 fn color_of(dict: &Dictionary, key: &str) -> Option<Color32> {
@@ -80,11 +85,7 @@ fn optional_color(ui: &mut Ui, color: &mut Option<Color32>, fallback: Color32) -
     match color {
         Some(c) => {
             changed |= color_edit_button_srgba(ui, c, Alpha::OnlyBlend).changed();
-            if ui
-                .small_button("×")
-                .on_hover_text(t!("unset-colour"))
-                .clicked()
-            {
+            if crate::a11y::name(ui.small_button("×"), &t!("unset-colour")).clicked() {
                 *color = None;
                 changed = true;
             }
@@ -107,6 +108,7 @@ impl StyleEditor {
     /// Opens the editor on `name`, reading its `.tmTheme` text.
     pub fn show(&mut self, name: &str, source: &str) {
         self.open = true;
+        self.raise = 2;
         self.load(name, source);
     }
 
@@ -145,7 +147,7 @@ impl StyleEditor {
         }
         let mut open = true;
         let mut changed = false;
-        egui::Window::new(t!("theme-colours"))
+        let shown = egui::Window::new(t!("theme-colours"))
             .id(Id::new("style-editor"))
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
@@ -171,6 +173,12 @@ impl StyleEditor {
                         changed |= rules(ui, doc, &mut self.filter, palette);
                     });
             });
+        if self.raise > 0
+            && let Some(shown) = shown
+        {
+            ctx.move_to_top(shown.response.layer_id);
+            self.raise -= 1;
+        }
         if changed {
             self.dirty = true;
             if let Some(source) = self.source() {
@@ -181,13 +189,82 @@ impl StyleEditor {
             }
         }
         if !open {
-            self.open = false;
             if self.dirty {
-                events.push(StyleEvent::Discard);
-                self.dirty = false;
+                self.confirm_close = true;
+            } else {
+                self.open = false;
             }
         }
+        if self.confirm_close {
+            self.close_prompt(ctx, palette, &mut events);
+        }
         events
+    }
+
+    /// Asks whether to keep the changes before the window closes.
+    fn close_prompt(
+        &mut self,
+        ctx: &egui::Context,
+        palette: &Palette,
+        events: &mut Vec<StyleEvent>,
+    ) {
+        let count = match (self.doc.as_ref(), saved_doc(&self.saved)) {
+            (Some(now), Some(saved)) => count_changes(&saved, now),
+            _ => 0,
+        };
+        let mut choice = None;
+        egui::Modal::new(Id::new("style-close")).show(ctx, |ui| {
+            ui.set_width(380.0);
+            ui.heading(t!("theme-colours"));
+            ui.add_space(6.0);
+            ui.label(t!("theme-save-before-closing", name = self.name.clone()));
+            ui.label(
+                RichText::new(t!("theme-changes-count", count = count))
+                    .small()
+                    .weak(),
+            );
+            ui.add_space(12.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .add(egui::Button::new(t!("save")).fill(palette.accent.gamma_multiply(0.6)))
+                    .clicked()
+                {
+                    choice = Some(Close::Save);
+                }
+                if ui.button(t!("cancel")).clicked()
+                    || ui.input(|i| i.key_pressed(egui::Key::Escape))
+                {
+                    choice = Some(Close::Cancel);
+                }
+                if ui.button(t!("discard")).clicked() {
+                    choice = Some(Close::Discard);
+                }
+            });
+        });
+        match choice {
+            Some(Close::Save) => {
+                if let Some(source) = self.source() {
+                    self.saved = source.clone();
+                    events.push(StyleEvent::Save {
+                        name: self.name.clone(),
+                        source,
+                    });
+                }
+                self.close();
+            }
+            Some(Close::Discard) => {
+                events.push(StyleEvent::Discard);
+                self.close();
+            }
+            Some(Close::Cancel) => self.confirm_close = false,
+            None => {}
+        }
+    }
+
+    fn close(&mut self) {
+        self.dirty = false;
+        self.confirm_close = false;
+        self.open = false;
     }
 
     fn toolbar(
@@ -298,6 +375,38 @@ impl StyleEditor {
             }
         }
         ui.label(RichText::new(t!("theme-colours-hint")).small().weak());
+    }
+}
+
+enum Close {
+    Save,
+    Discard,
+    Cancel,
+}
+
+fn saved_doc(source: &str) -> Option<Value> {
+    Value::from_reader_xml(Cursor::new(source.as_bytes())).ok()
+}
+
+/// How many settings (colours and font styles) differ between two themes.
+fn count_changes(a: &Value, b: &Value) -> usize {
+    match (a, b) {
+        (Value::Dictionary(a), Value::Dictionary(b)) => {
+            let mut keys: Vec<&String> = a.keys().chain(b.keys()).collect();
+            keys.sort();
+            keys.dedup();
+            keys.into_iter()
+                .map(|k| match (a.get(k), b.get(k)) {
+                    (Some(x), Some(y)) => count_changes(x, y),
+                    _ => 1,
+                })
+                .sum()
+        }
+        (Value::Array(a), Value::Array(b)) => {
+            let shared: usize = a.iter().zip(b).map(|(x, y)| count_changes(x, y)).sum();
+            shared + a.len().abs_diff(b.len())
+        }
+        (x, y) => usize::from(x != y),
     }
 }
 
@@ -448,7 +557,11 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
                         .unwrap_or_default()
                         .to_owned();
                     let mut words: Vec<&str> = style.split_whitespace().collect();
-                    for (word, label) in [("bold", "B"), ("italic", "I"), ("underline", "U")] {
+                    for (word, label, name) in [
+                        ("bold", "B", t!("style-bold")),
+                        ("italic", "I", t!("style-italic")),
+                        ("underline", "U", t!("style-underline")),
+                    ] {
                         let on = words.contains(&word);
                         let mut text = RichText::new(label);
                         text = match word {
@@ -456,14 +569,16 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
                             "italic" => text.italics(),
                             _ => text.underline(),
                         };
-                        if ui
-                            .add(
+                        if crate::a11y::toggle(
+                            ui.add(
                                 egui::Button::new(text)
                                     .selected(on)
                                     .min_size(egui::vec2(22.0, 0.0)),
-                            )
-                            .on_hover_text(word)
-                            .clicked()
+                            ),
+                            on,
+                            &name,
+                        )
+                        .clicked()
                         {
                             if on {
                                 words.retain(|w| *w != word);
@@ -480,11 +595,7 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
                         }
                     }
                 });
-                if ui
-                    .small_button("🗑")
-                    .on_hover_text(t!("delete-rule"))
-                    .clicked()
-                {
+                if crate::a11y::name(ui.small_button("🗑"), &t!("delete-rule")).clicked() {
                     remove = Some(i);
                 }
                 ui.end_row();
@@ -552,5 +663,34 @@ mod tests {
         let theme = crate::theme::from_source("T", &source, true).unwrap();
         assert!(theme.syntax.settings.caret.is_some());
         assert_eq!(theme.syntax.scopes.len(), 1);
+    }
+
+    #[test]
+    fn counts_changed_settings() {
+        let saved = saved_doc(THEME).unwrap();
+        let mut ed = StyleEditor::default();
+        ed.show("T", THEME);
+        assert_eq!(count_changes(&saved, ed.doc.as_ref().unwrap()), 0);
+        let list = entries(ed.doc.as_mut().unwrap()).unwrap();
+        let global = list[0]
+            .as_dictionary_mut()
+            .and_then(|d| d.get_mut("settings"))
+            .and_then(Value::as_dictionary_mut)
+            .unwrap();
+        set_color(global, "background", Some(Color32::from_rgb(1, 2, 3)));
+        set_color(global, "caret", Some(Color32::from_rgb(255, 0, 0)));
+        assert_eq!(count_changes(&saved, ed.doc.as_ref().unwrap()), 2);
+    }
+
+    #[test]
+    fn closing_with_changes_asks_first() {
+        let mut ed = StyleEditor::default();
+        ed.show("T", THEME);
+        ed.dirty = true;
+        // What the window's × does with unsaved changes.
+        ed.confirm_close = true;
+        assert!(ed.open);
+        ed.close();
+        assert!(!ed.open && !ed.dirty && !ed.confirm_close);
     }
 }

@@ -759,6 +759,11 @@ impl EttinApp {
             ManagerAction::InstallSamples => self.run(ctx, Action::InstallSamplePlugins),
             ManagerAction::ShowLog => self.plugin_ui.log_open = true,
             ManagerAction::ShowGuide => self.run(ctx, Action::PluginGuide),
+            ManagerAction::ShowSubmitGuide => {
+                self.manual
+                    .show("plugin-guide.md", Some("submitting-a-plugin-to-the-index"));
+                super::drop_focus(ctx);
+            }
             ManagerAction::RefreshIndex => {
                 let url = index_url(&self.settings.plugin_index_url);
                 self.plugin_ui.store.fetch_index(&url, ctx);
@@ -1010,7 +1015,7 @@ impl EttinApp {
         let text = if names.is_empty() {
             t!("samples-already-installed")
         } else {
-            t!("samples-installed", names = names.join(", "))
+            t!("samples-installed", count = names.len())
         };
         self.notice = Some(Notice {
             text,

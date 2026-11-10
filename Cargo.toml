@@ -1,12 +1,12 @@
 [package]
 name = "ettin-edit"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 license = "MIT"
 
 [dependencies]
-eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "persistence"] }
+eframe = { version = "0.36", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11", "persistence"] }
 egui = "0.36"
 syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy", "parsing", "plist-load", "yaml-load"] }
 rfd = "0.17"

@@ -172,7 +172,7 @@ unpin-tab = Desanclar pestaña
 pin-tab = Anclar pestaña
 copy-full-path = Copiar ruta completa
 copy-file-name = Copiar nombre de archivo
-status-length-lines = longitud: { $length }   líneas: { $lines }
+status-length-lines = Longitud: { $length }   Líneas: { $lines }
 click-to-copy = Clic para copiar
 recording-macro = Grabando macro
 read-only-status = Solo lectura
@@ -279,8 +279,8 @@ json-minify = Minimizar
 json-validate = Validar JSON
 json-sort-keys = Ordenar claves JSON
 json-tree = Árbol JSON
-xml-pretty-print = Formatear
-xml-pretty-print-attributes = Formatear, atributos en líneas nuevas
+xml-pretty-print = Formatear XML
+xml-pretty-print-attributes = Formatear XML, atributos en líneas nuevas
 xml-linearize = Linealizar
 xml-check-syntax = Comprobar sintaxis
 xml-check-on-save = Comprobar sintaxis al guardar
@@ -347,7 +347,15 @@ plugins-running = { $count ->
 }
 sample-install-failed = No se pudo instalar el complemento de ejemplo { $name } en { $folder }: { $error }
 samples-already-installed = Los complementos de ejemplo ya están en la carpeta de complementos.
-samples-installed = Se instaló { $names }. Búscalos en el menú Complementos.
+plugin-enabled = Activado
+plugin-adds = Añade:
+plugin-search-installed = Buscar en los complementos instalados
+plugins-only-samples = Por ahora solo aparecen los complementos de ejemplo. ¿Has escrito un complemento?
+plugins-submit-link = Envíalo al índice
+samples-installed = { $count ->
+    [one] Se instaló 1 complemento.
+   *[other] Se instalaron { $count } complementos.
+} Búscalos en el menú Complementos.
 no-plugin-commands = No hay comandos de complementos
 
 ## Text tools (src/app/text_tools.rs)
@@ -616,17 +624,26 @@ style-whitespace = Símbolos de espacios en blanco
 style-search-matches = Coincidencias de búsqueda
 style-accent = Énfasis (pestañas, botones, plegado)
 unset-colour = No definir este color
+style-bold = Negrita
+style-italic = Cursiva
+style-underline = Subrayado
 set-colour = Definir
 choose-colour = Elige un color
 theme-read-failed = No se pudo leer el archivo del tema: { $error }
 theme-colours = Colores del tema
 theme-label = Tema:
 discard-changes = Descartar cambios
+discard = Descartar
 save-as-new-theme = Guardar como tema nuevo…
 new-theme-name = Nombre del tema nuevo:
 new-theme-name-hint = Nombre para el tema nuevo
 theme-name-taken = Ya hay un tema con este nombre
-theme-colours-hint = Los cambios se ven al instante. Guardar los conserva; cerrar esta ventana sin guardar los descarta.
+theme-colours-hint = Los cambios se ven al instante. Guardar los conserva; al cerrar esta ventana se pregunta si quiere guardarlos.
+theme-save-before-closing = ¿Guardar los cambios en «{ $name }» antes de cerrar?
+theme-changes-count = { $count ->
+    [one] 1 ajuste cambiado.
+   *[other] { $count } ajustes cambiados.
+} Descartar los restablece.
 style-editor = Editor
 style-syntax = Sintaxis
 rule-filter-hint = Nombre o ámbito de la regla, como string o keyword
@@ -859,6 +876,7 @@ self-update-failed = No se pudo actualizar Ettin Edit.
 back = Atrás
 forward = Adelante
 search-manual = Buscar en el manual
+clear-search = Borrar la búsqueda
 open-on-web = Abrir en la web
 web-manual-failed = No se pudo abrir el manual web: { $error }
 open-url-failed = No se pudo abrir { $url }: { $error }
@@ -1025,6 +1043,9 @@ toolbar-collapse-menu = Contraer barra de herramientas
 toolbar-collapse = Contraer la barra de herramientas
 toolbar-expand = Mostrar los botones de la barra de herramientas
 toolbar-hide = Ocultar la barra de herramientas
+toolbar-more = Más comandos
+toolbar-hidden-groups = GRUPOS OCULTOS
+toolbar-filter-command = Filtro de comando
 menu-bar-show = Barra de menús
 menu-bar-hide = Ocultar la barra de menús
 menu-bar-show-again = Mostrar la barra de menús

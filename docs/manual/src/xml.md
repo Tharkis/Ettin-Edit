@@ -8,8 +8,8 @@ selection or on the whole document, as one undo step.
 
 | Command | Shortcut | What it does |
 | --- | --- | --- |
-| **Pretty Print** | <kbd>Ctrl+Alt+Shift+B</kbd> | Indents the XML, one element per line |
-| **Pretty Print, Attributes on New Lines** | | The same, with each attribute on a line of its own |
+| **Format XML** | <kbd>Ctrl+Alt+Shift+B</kbd> | Indents the XML, one element per line |
+| **Format XML, Attributes on New Lines** | | The same, with each attribute on a line of its own |
 | **Linearize** | <kbd>Ctrl+Alt+Shift+L</kbd> | Removes the indentation and line breaks between elements |
 
 Text inside elements, comments, CDATA sections and processing instructions

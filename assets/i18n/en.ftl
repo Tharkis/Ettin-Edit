@@ -170,7 +170,7 @@ unpin-tab = Unpin Tab
 pin-tab = Pin Tab
 copy-full-path = Copy Full Path
 copy-file-name = Copy File Name
-status-length-lines = length: { $length }   lines: { $lines }
+status-length-lines = Length: { $length }   Lines: { $lines }
 click-to-copy = Click to copy
 recording-macro = Recording macro
 read-only-status = Read-only
@@ -277,8 +277,8 @@ json-minify = Minify
 json-validate = Validate JSON
 json-sort-keys = Sort JSON Keys
 json-tree = JSON Tree
-xml-pretty-print = Pretty Print
-xml-pretty-print-attributes = Pretty Print, Attributes on New Lines
+xml-pretty-print = Format XML
+xml-pretty-print-attributes = Format XML, Attributes on New Lines
 xml-linearize = Linearize
 xml-check-syntax = Check Syntax
 xml-check-on-save = Check Syntax When Saving
@@ -345,7 +345,15 @@ plugins-running = { $count ->
 }
 sample-install-failed = Couldn't install the sample plugin { $name } in { $folder }: { $error }
 samples-already-installed = The sample plugins are already in the plugins folder.
-samples-installed = Installed { $names }. Find them in the Plugins menu.
+plugin-enabled = Enabled
+plugin-adds = Adds:
+plugin-search-installed = Search installed plugins
+plugins-only-samples = Only the sample plugins are listed so far. Wrote a plugin?
+plugins-submit-link = Submit it to the index
+samples-installed = { $count ->
+    [one] 1 plugin installed.
+   *[other] { $count } plugins installed.
+} Find them in the Plugins menu.
 no-plugin-commands = No plugin commands
 
 ## Text tools (src/app/text_tools.rs)
@@ -614,17 +622,26 @@ style-whitespace = Whitespace symbols
 style-search-matches = Search matches
 style-accent = Accent (tabs, buttons, folds)
 unset-colour = Don't set this colour
+style-bold = Bold
+style-italic = Italic
+style-underline = Underline
 set-colour = Set
 choose-colour = Choose a colour
 theme-read-failed = Couldn't read the theme file: { $error }
 theme-colours = Theme Colours
 theme-label = Theme:
 discard-changes = Discard Changes
+discard = Discard
 save-as-new-theme = Save As New Theme…
 new-theme-name = New theme name:
 new-theme-name-hint = Name for the new theme
 theme-name-taken = A theme has this name
-theme-colours-hint = Changes show at once. Save keeps them; closing this window without saving drops them.
+theme-colours-hint = Changes show at once. Save keeps them; closing this window asks whether to save them.
+theme-save-before-closing = Save the changes to “{ $name }” before closing?
+theme-changes-count = { $count ->
+    [one] 1 setting changed.
+   *[other] { $count } settings changed.
+} Discarding puts them back.
 style-editor = Editor
 style-syntax = Syntax
 rule-filter-hint = Rule name or scope, like string or keyword
@@ -857,6 +874,7 @@ self-update-failed = Couldn't update Ettin Edit.
 back = Back
 forward = Forward
 search-manual = Search the manual
+clear-search = Clear the search
 open-on-web = Open on the Web
 web-manual-failed = Couldn't open the web manual: { $error }
 open-url-failed = Couldn't open { $url }: { $error }
@@ -1023,6 +1041,9 @@ toolbar-collapse-menu = Collapse Toolbar
 toolbar-collapse = Collapse the toolbar
 toolbar-expand = Show the toolbar's buttons
 toolbar-hide = Hide the toolbar
+toolbar-more = More commands
+toolbar-hidden-groups = HIDDEN GROUPS
+toolbar-filter-command = Filter Command
 menu-bar-show = Menu Bar
 menu-bar-hide = Hide the menu bar
 menu-bar-show-again = Show the menu bar

@@ -4,6 +4,7 @@
 
 #[macro_use]
 mod i18n;
+mod a11y;
 mod actions;
 mod app;
 mod bytes;

@@ -108,11 +108,23 @@ The plugin's id (its folder name) comes from the index, otherwise from the
 folder in the zip, otherwise from the zip's file name. Zips with absolute
 paths or `..` in them are refused.
 
+## Submitting a plugin to the index
+
+The **Available** tab lists the plugins in the plugin index. While it holds
+only the sample plugins, the tab says so and links here. To list your plugin:
+
+1. Zip it as shown above and put the zip somewhere with a stable `https://`
+   address, such as a release on your own GitHub repository.
+2. Fork [Ettin Edit on GitHub](https://github.com/Tharkis/Ettin-Edit), add an
+   entry for your plugin to `plugins/index.json` (example below), and open a
+   pull request. Say in it what the plugin does and which runtime it needs.
+3. Once the pull request is merged, everyone sees your plugin under
+   **Available** after **Refresh**.
+
 The index is a JSON file; Ettin Edit reads
 `https://raw.githubusercontent.com/Tharkis/Ettin-Edit/main/plugins/index.json`
-unless you change the address at the bottom of the Available tab. To list a
-plugin there, add an entry to `plugins/index.json` in the Ettin Edit
-repository and open a pull request:
+unless you change the address at the bottom of the Available tab. Each entry
+looks like this:
 
 ```json
 {

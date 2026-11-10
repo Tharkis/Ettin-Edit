@@ -137,25 +137,13 @@ impl FolderPanel {
             ui.label(RichText::new(name).strong())
                 .on_hover_text(root.display().to_string());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button("×")
-                    .on_hover_text(t!("close-folder-panel"))
-                    .clicked()
-                {
+                if crate::a11y::name(ui.small_button("×"), &t!("close-folder-panel")).clicked() {
                     action = Some(FolderAction::Close);
                 }
-                if ui
-                    .small_button("⟳")
-                    .on_hover_text(t!("refresh-folder"))
-                    .clicked()
-                {
+                if crate::a11y::name(ui.small_button("⟳"), &t!("refresh-folder")).clicked() {
                     self.refresh();
                 }
-                if ui
-                    .small_button("⊟")
-                    .on_hover_text(t!("collapse-folders"))
-                    .clicked()
-                {
+                if crate::a11y::name(ui.small_button("⊟"), &t!("collapse-folders")).clicked() {
                     self.expanded.clear();
                     self.expanded.insert(root.clone());
                 }
