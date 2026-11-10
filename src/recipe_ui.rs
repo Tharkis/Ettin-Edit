@@ -92,6 +92,8 @@ pub struct RecipeWindow {
     use_sample: bool,
     /// Show the text as it is after this step (`None`: after the last).
     show_after: Option<usize>,
+    /// The preview stopped before a plugin step (not a command).
+    preview_stopped_at_plugin: bool,
 }
 
 fn tr(id: &str) -> String {
@@ -296,6 +298,16 @@ pub fn step_label(step: &Step) -> String {
         Step::Json { kind } => json_label(*kind),
         Step::Xml { kind } => xml_label(*kind),
         Step::Command { command } => t!("recipe-step-command", command = short(command)),
+        Step::Plugin {
+            plugin, transform, ..
+        } => match crate::plugins::transform_title(plugin, transform) {
+            Some((title, name)) => t!("recipe-step-plugin", title = title, plugin = name),
+            None => t!(
+                "recipe-step-plugin",
+                title = transform.clone(),
+                plugin = plugin.clone()
+            ),
+        },
     }
 }
 
@@ -600,6 +612,17 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
                     .size(12.0)
                     .color(palette.text_dim),
             );
+        }
+        Step::Plugin { options, .. } => {
+            if options.is_empty() {
+                ui.label(
+                    RichText::new(tr("recipe-no-settings"))
+                        .size(12.0)
+                        .color(palette.text_dim),
+                );
+            } else {
+                changed |= crate::plugin_transform_ui::options_form(ui, id, options);
+            }
         }
     }
     changed
@@ -1220,6 +1243,8 @@ impl RecipeWindow {
                         };
                         let icon = if step.op.is_command() {
                             format!(" {}", ph::TERMINAL)
+                        } else if step.op.is_plugin() {
+                            format!(" {}", ph::PUZZLE_PIECE)
                         } else {
                             String::new()
                         };
@@ -1404,10 +1429,14 @@ impl RecipeWindow {
                 ..Default::default()
             };
             let result = recipe.preview_until(&before, &env, self.show_after);
+            self.preview_stopped_at_plugin = result
+                .stopped_at
+                .is_some_and(|i| recipe.steps.get(i).is_some_and(|s| s.op.is_plugin()));
             self.preview = Some((key, before, result));
         }
         let half = (ui.available_width() - 8.0) / 2.0;
         let mut sample_changed = false;
+        let stopped_at_plugin = self.preview_stopped_at_plugin;
         if let Some((_, before, result)) = &self.preview {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
@@ -1446,11 +1475,12 @@ impl RecipeWindow {
                 });
             });
             if let Some(i) = result.stopped_at {
-                ui.label(
-                    RichText::new(t!("recipe-preview-stopped", step = i + 1))
-                        .size(12.0)
-                        .color(palette.text_dim),
-                );
+                let text = if stopped_at_plugin {
+                    t!("recipe-preview-stopped-plugin", step = i + 1)
+                } else {
+                    t!("recipe-preview-stopped", step = i + 1)
+                };
+                ui.label(RichText::new(text).size(12.0).color(palette.text_dim));
             }
         }
         changed |= sample_changed;

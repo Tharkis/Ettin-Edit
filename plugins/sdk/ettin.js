@@ -15,6 +15,13 @@
 // characters (Unicode code points) from the start of the document, and lines
 // end with "\n".
 //
+// A transform is a function from text to text. Ettin Edit runs it on each
+// selection (or the whole tab) as one undo step, previews it and records it
+// into recipes:
+//
+//     ettin.transform('Upper Words', {}, (text) =>
+//       text.replace(/\b\w/g, (c) => c.toUpperCase()));
+//
 // The full guide is in Ettin Edit under Plugins > Plugin Guide.
 
 'use strict';
@@ -30,12 +37,26 @@ for (const name of ['log', 'info', 'debug']) {
 let nextId = 0;
 const pending = new Map();
 const commands = new Map();
+const transforms = new Map();
 const handlers = new Map();
 const panelHandlers = new Map();
 /** What Ettin Edit sent at start: plugin id, Ettin Edit version, API version. */
 const info = {};
+/** The plugin's settings: the options in plugin.json and anything stored with
+ *  setSettings(). Filled in before any command, event or transform runs. */
+const settings = {};
 
 class EttinError extends Error {}
+
+/** Throw it from a transform to say why the text can't be transformed;
+ *  line and column (from 1) point at the problem in the text. */
+class TransformError extends Error {
+  constructor(message, { line, column } = {}) {
+    super(message);
+    this.line = line;
+    this.column = column;
+  }
+}
 
 function send(msg) {
   msg.jsonrpc = '2.0';
@@ -124,6 +145,15 @@ class Document {
   activate() { return call('documents.activate', { doc: this.id }); }
   /** Closes the tab (asks first if it has unsaved changes). */
   close() { return call('documents.close', { doc: this.id }); }
+  /** Marks text: ranges is an array of [start, end] pairs. style:
+   *  'underline-squiggle', 'background' or 'gutter-icon'; color: 'error',
+   *  'warning', 'info' or 'accent'; message shows when the mouse is over it.
+   *  Marking with the same id again replaces those marks. Marks move with edits. */
+  mark(id, ranges, { style = 'underline-squiggle', color = 'error', message } = {}) {
+    return call('marks.set', { doc: this.id, id, ranges, style, color, message });
+  }
+  /** Removes the marks made with this id. */
+  clearMarks(id) { return call('marks.clear', { doc: this.id, id }); }
 }
 
 /** The document in the tab that has focus. */
@@ -155,6 +185,38 @@ function runAction(action) { return call('editor.runAction', { action }); }
 /** Writes a line to the plugin log. */
 function log(...args) { notify('log', { text: args.map(String).join(' ') }); }
 
+/** Shows a list to pick from by typing. items are strings or {label, detail}.
+ *  Resolves the chosen item, or null if the user pressed Escape. */
+async function choose(items, { title, placeholder } = {}) {
+  const list = Array.from(items);
+  const shown = list.map((i) => (typeof i === 'object' && i !== null
+    ? { label: String(i.label ?? ''), detail: String(i.detail ?? '') }
+    : { label: String(i), detail: '' }));
+  const index = await call('ui.choose', { items: shown, title, placeholder });
+  return index === null || index === undefined ? null : list[index];
+}
+
+/** Shows text on the status bar (or changes it); empty text removes it.
+ *  command is the id of one of your commands, run when it's clicked. */
+function status(id, text, { tooltip, command } = {}) {
+  return call('status.set', { id, text: String(text ?? ''), tooltip, command });
+}
+
+/** Saves settings: an object of keys and values. Resolves all settings. */
+async function setSettings(values) {
+  const all = await call('settings.set', { values });
+  for (const k of Object.keys(settings)) delete settings[k];
+  Object.assign(settings, all || {});
+  return settings;
+}
+
+/** A folder for your plugin's own files, kept when it's updated. */
+function dataDir() {
+  if (!info.dataDir) throw new EttinError('Ettin Edit has no folder for plugin data');
+  require('fs').mkdirSync(info.dataDir, { recursive: true });
+  return info.dataDir;
+}
+
 // ----------------------------------------------------------------------
 // Commands, events and panels
 
@@ -168,7 +230,24 @@ async function command(title, fn, options = {}) {
   return call('commands.register', { id, title, shortcut: options.shortcut, icon: options.icon });
 }
 
-const EVENTS = ['opened', 'saved', 'closed', 'activated', 'changed', 'caret', 'shutdown'];
+/** Adds a transform: fn(text, options) returns (or resolves) the new text.
+ *  Ettin Edit runs it on each selection (or the whole tab) as one undo step,
+ *  previews it and records it into recipes. options is an object of option
+ *  names and defaults; Ettin Edit asks for them before running it from a
+ *  menu. extra: {id, languages}; languages (like ['JSON']) puts it on the
+ *  right-click menu of tabs in those languages. */
+function transform(title, options, fn, extra = {}) {
+  if (typeof options === 'function') {
+    [options, fn, extra] = [{}, options, fn || {}];
+  }
+  const id = extra.id || title;
+  transforms.set(id, { fn, defaults: { ...(options || {}) } });
+  const languages = typeof extra.languages === 'string' ? [extra.languages] : extra.languages;
+  return call('transforms.register', { id, title, options: options || {}, languages });
+}
+
+const EVENTS = ['opened', 'saved', 'closed', 'activated', 'changed', 'caret', 'shutdown',
+  'settings.changed'];
 
 /** Calls fn(doc) when the event happens: opened, saved, closed, activated
  *  (another tab got focus), changed (the text was edited; sent after a short
@@ -180,7 +259,9 @@ function on(event, fn) {
   }
   if (!handlers.has(event)) handlers.set(event, []);
   handlers.get(event).push(fn);
-  return event === 'shutdown' ? Promise.resolve() : call('events.subscribe', { events: [event] });
+  return event === 'shutdown' || event === 'settings.changed'
+    ? Promise.resolve()
+    : call('events.subscribe', { events: [event] });
 }
 
 /** Shows a panel (or updates it, if it's open). position: 'right' or 'bottom'. */
@@ -248,11 +329,34 @@ async function shutdown() {
   process.exit(0);
 }
 
+async function runTransform(msg) {
+  const params = msg.params || {};
+  const found = transforms.get(params.id);
+  try {
+    if (!found) throw new TransformError(`this plugin has no transform "${params.id}"`);
+    // Options missing from an older recipe get their defaults.
+    const out = await found.fn(params.text ?? '', { ...found.defaults, ...(params.options || {}) });
+    if (typeof out !== 'string') throw new TransformError(`the transform returned ${typeof out}, not text`);
+    send({ id: msg.id, result: { text: out } });
+  } catch (err) {
+    if (!(err instanceof TransformError)) console.error((err && err.stack) || String(err));
+    const data = {};
+    if (Number.isInteger(err && err.line)) data.line = err.line;
+    if (Number.isInteger(err && err.column)) data.column = err.column;
+    send({ id: msg.id, error: { code: -32000, message: (err && err.message) || String(err), data } });
+  }
+}
+
 function dispatch(msg) {
   const params = msg.params || {};
+  if (msg.method === 'transform.run' && msg.id !== undefined) {
+    runTransform(msg);
+    return;
+  }
   switch (msg.method) {
     case 'initialize':
       Object.assign(info, params);
+      Object.assign(settings, params.settings || {});
       break;
     case 'command': {
       const fn = commands.get(params.id);
@@ -260,8 +364,13 @@ function dispatch(msg) {
       break;
     }
     case 'event': {
-      const doc = params.doc ? new Document(params.doc) : null;
-      for (const fn of handlers.get(params.event) || []) runHandler(fn, doc);
+      let arg = params.doc ? new Document(params.doc) : null;
+      if (params.event === 'settings.changed') {
+        for (const k of Object.keys(settings)) delete settings[k];
+        Object.assign(settings, params.settings || {});
+        arg = { ...settings };
+      }
+      for (const fn of handlers.get(params.event) || []) runHandler(fn, arg);
       break;
     }
     case 'panel': {
@@ -273,6 +382,9 @@ function dispatch(msg) {
       shutdown();
       break;
     default:
+      if (msg.id !== undefined) {
+        send({ id: msg.id, error: { code: -32601, message: `unknown method ${msg.method}` } });
+      }
       break;
   }
 }
@@ -299,14 +411,17 @@ input.on('line', (line) => {
 // Ettin Edit closed.
 input.on('close', () => shutdown());
 process.on('unhandledRejection', report);
+// Runs once the plugin's own script has finished loading: every command and
+// transform is added by then.
+setImmediate(() => notify('ready'));
 
 /** Kept for symmetry with Python; a Node plugin keeps running on its own. */
 function run() {}
 
 module.exports = {
-  EttinError, Document, ui, info,
-  command, on, onPanel, run,
+  EttinError, TransformError, Document, ui, info, settings,
+  command, transform, on, onPanel, run,
   activeDocument, documents, openFile, newDocument,
-  message, prompt, setClipboard, runAction, uiLanguage, log,
-  showPanel, closePanel, call, notify,
+  message, prompt, choose, status, setClipboard, runAction, uiLanguage, log,
+  showPanel, closePanel, call, notify, setSettings, dataDir,
 };

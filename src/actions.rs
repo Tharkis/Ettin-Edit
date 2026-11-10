@@ -246,6 +246,14 @@ pub enum Action {
         plugin: String,
         command: String,
     },
+    /// Run a transform a plugin added: asks for its options first, when it
+    /// has any.
+    PluginTransform {
+        plugin: String,
+        transform: String,
+    },
+    /// Plugins > New Plugin: a dialog that writes a working plugin.
+    NewPlugin,
     ManagePlugins,
     ShowPluginLog,
     OpenPluginsFolder,
@@ -267,6 +275,8 @@ pub enum Action {
     /// Show the active tab's bytes in hex, or its text again.
     ToggleHexView,
     ToggleCharPanel,
+    /// View > Markdown Preview: the active Markdown tab, rendered, beside it.
+    ToggleMarkdownPreview,
     // Toolbar
     CustomiseToolbar,
     /// Show or hide the whole toolbar.
@@ -338,6 +348,8 @@ impl Action {
                 | Action::Summary
                 | Action::ToggleXPathPanel
                 | Action::ManagePlugins
+                | Action::NewPlugin
+                | Action::PluginTransform { .. }
                 | Action::ShowPluginLog
                 | Action::Preferences
                 | Action::ShortcutMapper
@@ -544,6 +556,7 @@ pub fn default_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(NONE, Key::F7), Action::NextDifference),
         (s(CMD, Key::Comma), Action::Preferences),
         (s(CMD, Key::F1), Action::CollapseToolbar),
+        (s(CMD_SHIFT, Key::M), Action::ToggleMarkdownPreview),
         (s(CMD, Key::M), Action::ToggleMenuBar),
         (s(SHIFT, Key::F1), Action::UserManual),
         (s(NONE, Key::F1), Action::CommandPalette),
@@ -655,6 +668,18 @@ pub fn shortcut_label_in(
     all.iter()
         .find(|(_, a)| a == action)
         .map(|(s, _)| ctx.format_shortcut(s))
+}
+
+/// The id plugins pass to `run_action` / `runAction` to run a command:
+/// its name, like `Duplicate`, or JSON for one with settings, like
+/// `{"ConvertCase":"Upper"}`. Settings > Shortcut Mapper and the command
+/// palette copy it (Copy Command ID).
+pub fn command_id(action: &Action) -> String {
+    match serde_json::to_value(action) {
+        Ok(serde_json::Value::String(name)) => name,
+        Ok(v) => v.to_string(),
+        Err(_) => String::new(),
+    }
 }
 
 #[cfg(test)]

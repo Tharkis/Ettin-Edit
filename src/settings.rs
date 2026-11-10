@@ -159,6 +159,8 @@ pub struct PluginPrefs {
     pub approved: Option<String>,
     /// Don't ask again when its files change (for plugins the user is writing).
     pub trust_changes: bool,
+    /// Restart it when its files change (for plugins the user is writing).
+    pub reload_on_change: bool,
 }
 
 impl Default for Settings {

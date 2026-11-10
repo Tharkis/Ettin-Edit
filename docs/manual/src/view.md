@@ -172,6 +172,36 @@ after saving. Unsaved changes to files up to 64 MB come back next time like
 any other tab's; for bigger files, Ettin Edit asks whether to save them when
 you quit. **Copy** copies at most 16 MB.
 
+## Markdown Preview
+
+**View > Markdown Preview** (<kbd>Ctrl+Shift+M</kbd>, or the Markdown button
+on the toolbar's View tab) shows the Markdown tab you're editing, rendered,
+in a panel on the right: headings, lists, tables, quotes, code blocks,
+links, **bold**, *italic* and ~~strikethrough~~, drawn like the user manual.
+It updates a moment after you stop typing, keeps its place as you edit, and
+follows you when you switch tabs. Press the shortcut again, or click **×**
+on the panel, to close it.
+
+- Click a web link to open it in your browser, a link to a heading
+  (`#install`) to scroll there, or a link to another file (`notes.md`) to
+  open it in a tab.
+- Images show: PNG, JPEG, GIF, BMP, WebP and SVG, from files next to the
+  Markdown file (`![Logo](img/logo.png)`) or from the web. An image that
+  can't be found or read shows its description instead. Images in an unsaved
+  tab only load from the web, as there's no folder to look in yet.
+- The preview scrolls along with the text: scroll the editor and the preview
+  shows the same place. Untick **Scroll with the text** at the top of the
+  preview to scroll it on its own.
+- YAML front matter (the `---` block some sites put at the top) isn't shown.
+- Raw HTML is left out.
+- Tabs that aren't Markdown (by language, or a `.md` / `.markdown` name) show
+  a note instead. Tabs over 2 million characters aren't previewed, so typing
+  stays smooth.
+
+Before Ettin Edit 2.3 the preview was a sample plugin; it's still a sample,
+**Markdown Preview (plugin example)**, for anyone who wants to see how it's
+done as a [plugin](plugins.md).
+
 ## Document Map
 
 **View > Document Map** shows the whole document in miniature on the right,
@@ -225,3 +255,6 @@ The list is in this order:
 
 Commands that can't run in this tab (such as **Convert to JSON** on a tab that
 is already JSON) are dimmed, marked *not for this tab* and listed last.
+
+Right-click a command and choose **Copy Command ID** to copy the id a
+[plugin](plugin-guide.md#command-ids) uses to run it.

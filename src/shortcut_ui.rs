@@ -479,6 +479,16 @@ impl ShortcutMapper {
                         self.selected = Some(row.action.clone());
                         self.capture = Some(Capture::Replace);
                     }
+                    response.context_menu(|ui| {
+                        if ui
+                            .button(t!("copy-command-id"))
+                            .on_hover_text(t!("copy-command-id-hover"))
+                            .clicked()
+                        {
+                            ui.ctx().copy_text(actions::command_id(&row.action));
+                            ui.close();
+                        }
+                    });
                 });
             });
     }

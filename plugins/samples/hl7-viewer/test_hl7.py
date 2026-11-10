@@ -395,6 +395,36 @@ class Dictionary(unittest.TestCase):
                                 (name, f.number))
 
 
+class Explode(unittest.TestCase):
+    def test_each_field_on_its_own_line(self):
+        text = "MSH|^~\\&|APP||||||ADT^A01\nPID|1||42||Doe^Jane\n"
+        self.assertEqual(hl7.explode(text), "\n".join([
+            "MSH",
+            "  MSH-1: |",
+            "  MSH-2: ^~\\&",
+            "  MSH-3: APP",
+            "  MSH-9: ADT^A01",
+            "PID",
+            "  PID-1: 1",
+            "  PID-3: 42",
+            "  PID-5: Doe^Jane",
+        ]) + "\n")
+
+    def test_names_and_empty_fields(self):
+        text = "PID|1||42"
+        names = lambda seg, n: defs.field(seg, n).name
+        self.assertEqual(hl7.explode(text, show_empty=True, name_of=names), "\n".join([
+            "PID",
+            "  PID-1 %s: 1" % defs.field("PID", 1).name,
+            "  PID-2 %s: " % defs.field("PID", 2).name,
+            "  PID-3 %s: 42" % defs.field("PID", 3).name,
+        ]))
+
+    def test_messages_are_kept_apart(self):
+        text = "MSH|^~\\&|A\rMSH|^~\\&|B\r"
+        self.assertIn("\n\nMSH\n", hl7.explode(text))
+
+
 class Sample(unittest.TestCase):
     def test_sample_file(self):
         with open(os.path.join(HERE, "sample.hl7"), encoding="utf-8", newline="") as f:

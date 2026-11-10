@@ -1044,6 +1044,31 @@ mod tests {
         e.buffer.text()
     }
 
+    /// How a plugin transform puts back its results: three selections,
+    /// three new texts, one undo step.
+    #[test]
+    fn tool_targets_replaced_as_one_undo_step() {
+        let ctx = egui::Context::default();
+        let mut e = ed(
+            "one two three",
+            vec![
+                Selection::new(0, 3),
+                Selection::new(4, 7),
+                Selection::new(8, 13),
+            ],
+        );
+        let targets = e.tool_targets();
+        assert_eq!(targets, vec![0..3, 4..7, 8..13]);
+        let edits = targets
+            .into_iter()
+            .map(|r| (r.clone(), format!("[{}]", e.buffer.slice_string(r))))
+            .collect();
+        e.replace_ranges(&ctx, edits, true);
+        assert_eq!(text(&e), "[one] [two] [three]");
+        e.undo();
+        assert_eq!(text(&e), "one two three");
+    }
+
     #[test]
     fn duplicate_and_delete_lines() {
         let ctx = egui::Context::default();

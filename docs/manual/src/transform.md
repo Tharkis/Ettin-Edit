@@ -73,8 +73,9 @@ Then one submenu for each kind of transform:
 | **JSON and XML** | Format, Minify and Sort Keys for [JSON](json.md); Format, Linearize, Escape and Unescape for [XML](xml.md) |
 
 The groups are the same ones the recipe window's **Add Step** button offers,
-so a step is where you'd look for it in the menu. A **Plugin Transforms**
-submenu will list transforms that plugins add.
+so a step is where you'd look for it in the menu. When plugins add
+transforms, a **Plugin Transforms** submenu lists them, under each plugin's
+name (see [Plugin transforms](#plugin-transforms)).
 
 The **Tools** menu keeps the tools that look at text without changing it:
 Compare, CsvQuery, JSON Tree, Validate JSON, the XPath panel, Check XML
@@ -91,6 +92,8 @@ commands that fit what you clicked:
   and JSON Tree.
 - **In an XML file**: Format XML, Convert to, and the XPath Panel.
 - **In a CSV file**: Open in CsvQuery and Convert to.
+- **Plugin Transforms**: the plugin transforms made for the tab's language,
+  such as **Explode HL7 Segments** in an HL7 file.
 
 Below them are the whole **Transform** menu, **Recipes**, and **More Edit
 Commands** (the rest of the Edit menu).
@@ -302,6 +305,31 @@ In **Transform > Encode and Hash**:
 decodings, and **Transform > JSON and XML** formats, minifies and sorts
 [JSON](json.md) and formats, linearizes, escapes and unescapes [XML](xml.md).
 Each is described on its own page.
+
+## Plugin transforms
+
+[Plugins](plugins.md) can add transforms of their own. They behave like the
+built-in ones:
+
+- They're in **Transform > Plugin Transforms**, the
+  [command palette](view.md#command-palette) and the
+  [Shortcut Mapper](shortcuts.md), and on the right-click menu of the
+  languages they're made for.
+- They work on each selection, or the whole tab when nothing is selected,
+  and one **Undo** reverses the lot.
+- A transform with options opens a dialog first: its options, a live preview
+  of the first lines and **Result goes to**, as above. **Reset to Defaults**
+  puts the options back. A transform without options runs straight away.
+- They can be [recipe](recipes.md) steps, and recording a recipe records
+  them with the options you used.
+- If the plugin says where the text is wrong, the caret moves there and the
+  message says so.
+
+The plugin does the work in its own process. While it takes more than half a
+second, a message shows it with a **Stop** button; after 10 seconds Ettin
+Edit stops waiting and leaves the text as it was.
+
+To write one, see [Writing plugins](plugin-guide.md#transforms).
 
 ## Macros and plugins
 

@@ -269,6 +269,7 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
         (&["menu-view", "document-map"], ToggleDocMap),
         (&["menu-view", "character-panel"], ToggleCharPanel),
         (&["menu-view", "hex-view"], ToggleHexView),
+        (&["menu-view", "markdown-preview"], ToggleMarkdownPreview),
         (&["menu-view", "folder-as-workspace"], ToggleFolderPanel),
         (
             &["menu-view", "distraction-free-mode"],
@@ -361,6 +362,7 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
             ToggleMacroRecording,
         ),
         (&["menu-plugins", "manage-plugins"], ManagePlugins),
+        (&["menu-plugins", "new-plugin-dots"], NewPlugin),
         (&["menu-plugins", "plugin-log"], ShowPluginLog),
         (&["menu-plugins", "open-plugins-folder"], OpenPluginsFolder),
         (&["menu-plugins", "reload-plugins"], ReloadPlugins),
@@ -381,21 +383,86 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
     ]
 }
 
+/// The commands whose place in the menus never changes.
+fn fixed_menu_commands() -> Vec<Command> {
+    fixed_commands()
+        .into_iter()
+        .map(|(ids, action)| {
+            Command::menu(
+                ids.iter()
+                    .map(|id| crate::i18n::tr(id))
+                    .collect::<Vec<_>>()
+                    .join(" › "),
+                action,
+            )
+        })
+        .collect()
+}
+
+/// The built-in commands the plugin guide lists with their ids, in menu
+/// order: the fixed ones, the Transform menu's and the Tools menu's.
+/// (The command palette and Shortcut Mapper copy any command's id.)
+#[cfg(test)]
+pub(crate) fn documented_commands(ctx: &egui::Context) -> Vec<(String, String)> {
+    use crate::transforms::GroupId;
+    let mut out = fixed_menu_commands();
+    let mut m = MenuModel::new(ctx);
+    let transform = t!("menu-transform");
+    for id in [
+        GroupId::Command,
+        GroupId::FindReplace,
+        GroupId::Lines,
+        GroupId::Case,
+        GroupId::ConvertTo,
+        GroupId::Encode,
+        GroupId::JsonXml,
+    ] {
+        let entries = super::menus::group_entries(&mut m, id);
+        let prefix = match id {
+            GroupId::Command => transform.clone(),
+            _ => format!("{transform} › {}", id.label()),
+        };
+        flatten(&prefix, &entries, &m, &mut out);
+    }
+    let state = super::menus::ToolsState {
+        json_tree: false,
+        xpath: false,
+        csv_open: false,
+        csv_result: false,
+        xml_check_on_save: false,
+        close_tags: false,
+    };
+    let tools = super::menus::tools_entries(&mut m, &state, Vec::new());
+    flatten(&t!("menu-tools"), &tools, &m, &mut out);
+    let mut seen = Vec::new();
+    out.retain(|c| {
+        let fresh = !seen.contains(&c.action);
+        seen.push(c.action.clone());
+        fresh
+    });
+    out.into_iter()
+        .map(|c| (c.path, crate::actions::command_id(&c.action)))
+        .collect()
+}
+
+/// The list of command ids in the plugin guide, as Markdown.
+#[cfg(test)]
+fn command_id_table(ctx: &egui::Context) -> String {
+    let mut out = String::from("| Command | ID |\n|---------|----|\n");
+    for (path, id) in documented_commands(ctx) {
+        out.push_str(&format!(
+            "| {} | `{}` |\n",
+            path.replace('|', "\\|"),
+            id.replace('|', "\\|")
+        ));
+    }
+    out
+}
+
 impl EttinApp {
     /// Every command, in menu order, with plugin commands and saved macros last.
     pub(super) fn command_catalog(&self, ctx: &egui::Context) -> Vec<Command> {
-        let mut out: Vec<Command> = fixed_commands()
-            .into_iter()
-            .map(|(ids, action)| {
-                Command::menu(
-                    ids.iter()
-                        .map(|id| crate::i18n::tr(id))
-                        .collect::<Vec<_>>()
-                        .join(" › "),
-                    action,
-                )
-            })
-            .collect();
+        let mut out: Vec<Command> = fixed_menu_commands();
         for level in 1..=5 {
             out.push(Command::menu(
                 format!(
@@ -432,6 +499,16 @@ impl EttinApp {
             })
             .collect();
         add_recipes_and_plugins(&mut out, &self.recipes, &plugins);
+        // Plugin transforms (from Transform › Plugin Transforms) say which
+        // plugin they come from, like plugin commands.
+        for c in &mut out {
+            if let Action::PluginTransform { plugin, .. } = &c.action
+                && let Some(p) = self.plugins.plugins.iter().find(|p| p.id == *plugin)
+            {
+                c.kind = Kind::Plugin;
+                c.context = Some(plugin_context(p.name()));
+            }
+        }
         for (i, mac) in self.settings.macros.iter().enumerate() {
             out.push(Command::menu(
                 format!(
@@ -536,6 +613,7 @@ impl EttinApp {
                     tag,
                     enabled,
                     recent,
+                    command_id: Some(crate::actions::command_id(&c.action)),
                     value: c.action,
                 }
             })
@@ -572,6 +650,42 @@ impl EttinApp {
 mod tests {
     use super::*;
     use crate::recipes::Recipe;
+
+    /// The plugin guide's list of command ids matches the commands. Run
+    /// with ETTIN_UPDATE_DOCS=1 to rewrite it after adding a command.
+    #[test]
+    fn plugin_guide_lists_the_command_ids() {
+        const START: &str = "<!-- command-ids:start -->\n";
+        const END: &str = "<!-- command-ids:end -->";
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/docs/manual/src/plugin-guide.md"
+        );
+        let guide = std::fs::read_to_string(path).unwrap();
+        let (a, rest) = guide
+            .split_once(START)
+            .expect("start marker in the plugin guide");
+        let (now, b) = rest
+            .split_once(END)
+            .expect("end marker in the plugin guide");
+        let table = command_id_table(&egui::Context::default());
+        if now != table && std::env::var_os("ETTIN_UPDATE_DOCS").is_some() {
+            std::fs::write(path, format!("{a}{START}{table}{END}{b}")).unwrap();
+            return;
+        }
+        assert!(
+            now == table,
+            "the command list in docs/manual/src/plugin-guide.md is out of date: \
+             run ETTIN_UPDATE_DOCS=1 cargo test plugin_guide_lists_the_command_ids"
+        );
+        // Every id runs the command it names.
+        for (_, id) in documented_commands(&egui::Context::default()) {
+            let value: serde_json::Value =
+                serde_json::from_str(&id).unwrap_or(serde_json::Value::String(id.clone()));
+            let action: Action = serde_json::from_value(value).expect(&id);
+            assert_eq!(crate::actions::command_id(&action), id);
+        }
+    }
 
     #[test]
     fn recent_commands_are_newest_first_and_capped() {

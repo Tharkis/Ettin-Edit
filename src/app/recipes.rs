@@ -323,6 +323,7 @@ impl EttinApp {
             error,
             since: Some(ctx.input(|i| i.time)),
             jump: None,
+            open: None,
         });
     }
 
@@ -391,7 +392,17 @@ impl EttinApp {
         let (tx, rx) = channel();
         let stop = cancel.clone();
         let steps = recipe.clone();
+        let (plugins_dir, data_dir) = (self.plugins.dir.clone(), self.plugins.data_dir.clone());
+        let prefs = self.settings.plugins.clone();
+        let (python, node) = (
+            self.settings.python_path.clone(),
+            self.settings.node_path.clone(),
+        );
         std::thread::spawn(move || {
+            // Plugin steps run in plugins started for this recipe, so the
+            // editor's own plugins keep answering meanwhile.
+            let plugins =
+                crate::plugins::headless::Headless::new(plugins_dir, data_dir, prefs, python, node);
             let results = inputs
                 .into_iter()
                 .map(
@@ -406,6 +417,7 @@ impl EttinApp {
                             dir: dir.as_deref(),
                             file: file.as_deref(),
                             cancel: Some(&stop),
+                            plugins: Some(&plugins),
                         };
                         texts
                             .iter()

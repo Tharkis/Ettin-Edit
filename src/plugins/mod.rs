@@ -10,7 +10,10 @@
 //! about plugins themselves (registering commands, panels, logging). Calls
 //! about documents are handed to the app (see `app/plugins.rs`).
 
+pub mod data;
+pub mod headless;
 pub mod manifest;
+pub mod new_plugin;
 pub mod panel;
 pub mod process;
 pub mod shortcut;
@@ -19,12 +22,12 @@ pub mod ui;
 
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
 use egui::KeyboardShortcut;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use crate::actions::Action;
 use crate::settings::PluginPrefs;
@@ -32,11 +35,25 @@ use manifest::{Discovered, Manifest};
 use panel::{Item, Panel, PanelEvent, Position};
 use process::{Proc, ProcEvent, Waker};
 
-/// The version of the plugin API, sent to plugins at start.
-pub const API_VERSION: u32 = 1;
+/// The version of the plugin API, sent to plugins at start. 2 (Ettin Edit
+/// 2.3) added transforms, settings, marks, status items and `choose`.
+pub const API_VERSION: u32 = 2;
 
 pub const SDK_PYTHON: &str = include_str!("../../plugins/sdk/ettin.py");
 pub const SDK_JS: &str = include_str!("../../plugins/sdk/ettin.js");
+/// Type stubs for editors, copied next to new plugins.
+pub const SDK_PYTHON_STUBS: &str = include_str!("../../plugins/sdk/ettin.pyi");
+pub const SDK_JS_TYPES: &str = include_str!("../../plugins/sdk/ettin.d.ts");
+/// The files written to the plugins folder's `.sdk` folder, which is on the
+/// plugins' module path.
+pub const SDK_FILES: [(&str, &str); 6] = [
+    ("ettin.py", SDK_PYTHON),
+    ("ettin.js", SDK_JS),
+    ("ettin.pyi", SDK_PYTHON_STUBS),
+    ("ettin.d.ts", SDK_JS_TYPES),
+    ("nixpad.py", SDK_PYTHON_OLD_NAME),
+    ("nixpad.js", SDK_JS_OLD_NAME),
+];
 /// Plugins written before the rename import `nixpad`; these point it at `ettin`.
 const SDK_PYTHON_OLD_NAME: &str = "import sys\nimport ettin\n\nsys.modules[__name__] = ettin\n";
 const SDK_JS_OLD_NAME: &str = "module.exports = require('./ettin');\n";
@@ -123,6 +140,15 @@ pub const SAMPLES: &[(&str, &[(&str, &str)])] = &[
 
 const MAX_LOG: usize = 2000;
 const MAX_COMMANDS: usize = 200;
+const MAX_TRANSFORMS: usize = 200;
+const MAX_STATUS_ITEMS: usize = 4;
+/// Seconds to wait for a plugin's last error output before reporting why
+/// it stopped.
+const FAILURE_DELAY: f64 = 0.3;
+/// How often plugins that reload on change are checked (seconds), and how
+/// long their files must stay unchanged before the reload.
+const WATCH_EVERY: f64 = 0.2;
+const WATCH_SETTLE: f64 = 0.5;
 /// How long a stopping plugin gets to finish before it is killed (seconds).
 const STOP_GRACE: f64 = 1.5;
 
@@ -152,6 +178,123 @@ pub struct Command {
     pub icon: Option<String>,
 }
 
+/// A transform a plugin added: a function from text to text that Ettin Edit
+/// runs on each selection, previews and records into recipes.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Transform {
+    pub id: String,
+    pub title: String,
+    /// Its options and their defaults; Ettin Edit asks for them before it
+    /// runs from a menu.
+    pub options: Map<String, Value>,
+    /// Languages it suits (lower case); it is on the right-click menu of
+    /// tabs in these. Empty: every tab, from the Transform menu only.
+    pub languages: Vec<String>,
+}
+
+impl Transform {
+    /// True when the right-click menu of a tab in `language` offers it.
+    pub fn suits(&self, language: &str) -> bool {
+        let language = language.to_lowercase();
+        self.languages.contains(&language)
+    }
+}
+
+/// A running plugin's transform, as menus and recipes show it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct KnownTransform {
+    pub plugin: String,
+    pub plugin_name: String,
+    pub id: String,
+    pub title: String,
+    pub options: Map<String, Value>,
+}
+
+static KNOWN: std::sync::RwLock<Vec<KnownTransform>> = std::sync::RwLock::new(Vec::new());
+
+/// The transforms of the running plugins, for the Transform menu and the
+/// recipe window (see [`crate::transforms`]).
+pub fn known_transforms() -> Vec<KnownTransform> {
+    KNOWN.read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// The title of a plugin transform and its plugin's name, if it's running.
+pub fn transform_title(plugin: &str, transform: &str) -> Option<(String, String)> {
+    KNOWN
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .find(|t| t.plugin == plugin && t.id == transform)
+        .map(|t| (t.title.clone(), t.plugin_name.clone()))
+}
+
+/// Text a plugin shows on the status bar.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StatusItem {
+    pub plugin: String,
+    pub id: String,
+    pub text: String,
+    pub tooltip: Option<String>,
+    /// One of the plugin's commands, run when the item is clicked.
+    pub command: Option<String>,
+}
+
+/// A message for the user about a plugin. `open` is a file and line (from
+/// 1) to offer to open, such as where an error happened.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HostNotice {
+    pub text: String,
+    pub open: Option<(PathBuf, usize)>,
+}
+
+impl From<String> for HostNotice {
+    fn from(text: String) -> Self {
+        Self { text, open: None }
+    }
+}
+
+/// How many answers are kept waiting to be taken.
+const MAX_REPLIES: usize = 256;
+
+/// An answer to a request Ettin Edit sent a plugin.
+#[derive(Clone, Debug)]
+pub struct Reply {
+    pub plugin: String,
+    pub id: u64,
+    pub result: Result<Value, ReplyError>,
+}
+
+/// A plugin's error answer. `line` and `column` (from 1) say where in the
+/// text the problem is, when the plugin knows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReplyError {
+    pub message: String,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+}
+
+impl ReplyError {
+    fn from_json(error: &Value) -> Self {
+        let data = error.get("data").unwrap_or(&Value::Null);
+        let number = |key: &str| {
+            data.get(key)
+                .or_else(|| error.get(key))
+                .and_then(Value::as_u64)
+                .map(|n| n as usize)
+                .filter(|n| *n > 0)
+        };
+        Self {
+            message: error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("error")
+                .to_owned(),
+            line: number("line"),
+            column: number("column"),
+        }
+    }
+}
+
 pub struct Plugin {
     pub id: String,
     pub dir: PathBuf,
@@ -160,10 +303,23 @@ pub struct Plugin {
     /// The program that runs it, once started.
     pub program: Option<String>,
     pub commands: Vec<Command>,
+    pub transforms: Vec<Transform>,
+    /// It said it has added its commands and transforms.
+    pub ready: bool,
+    /// Its settings: saved values with the defaults of its options.
+    pub settings: Map<String, Value>,
     proc: Option<Proc>,
     /// Which start of the plugin `proc` is; messages from older ones are dropped.
     run: u64,
+    /// The start before `run` was reset, so its last error output still
+    /// reaches the log.
+    last_run: u64,
     events: HashSet<String>,
+    /// While it reloads on change: the files' stamp, and when they last
+    /// changed if a reload is waiting.
+    watch: Option<(u64, Option<f64>)>,
+    /// The log's line count when it last started.
+    log_from: u64,
 }
 
 impl Plugin {
@@ -176,6 +332,45 @@ impl Plugin {
 
     pub fn is_running(&self) -> bool {
         self.status == Status::Running
+    }
+
+    pub fn options(&self) -> &[manifest::PluginOption] {
+        self.manifest.as_ref().map_or(&[], |m| m.options.as_slice())
+    }
+
+    pub fn transform(&self, id: &str) -> Option<&Transform> {
+        self.transforms.iter().find(|t| t.id == id)
+    }
+
+    fn new(Discovered { id, dir, manifest }: Discovered) -> Self {
+        Plugin {
+            id,
+            dir,
+            status: match &manifest {
+                Ok(_) => Status::Stopped,
+                Err(e) => Status::Failed(e.clone()),
+            },
+            manifest,
+            program: None,
+            commands: Vec::new(),
+            transforms: Vec::new(),
+            ready: false,
+            settings: Map::new(),
+            proc: None,
+            run: 0,
+            last_run: 0,
+            events: HashSet::new(),
+            watch: None,
+            log_from: 0,
+        }
+    }
+
+    /// Forgets what the running plugin added.
+    fn clear(&mut self) {
+        self.commands.clear();
+        self.transforms.clear();
+        self.events.clear();
+        self.ready = false;
     }
 }
 
@@ -190,6 +385,9 @@ pub struct Call {
 }
 
 pub struct LogLine {
+    /// Counts up from the first line, so a plugin's lines since it started
+    /// can be found.
+    pub seq: u64,
     pub time: String,
     pub plugin: String,
     pub text: String,
@@ -211,8 +409,19 @@ pub struct PluginHost {
     pub log: VecDeque<LogLine>,
     /// Plugins waiting for the user to allow them to run.
     pub prompts: VecDeque<String>,
-    /// Errors to show the user briefly.
-    pub notices: Vec<String>,
+    /// Messages to show the user briefly.
+    pub notices: Vec<HostNotice>,
+    /// Where plugins' settings and files are kept.
+    pub data_dir: Option<PathBuf>,
+    /// Answers to requests sent with [`PluginHost::request`], for the app.
+    pub replies: Vec<Reply>,
+    next_request: u64,
+    /// Plugins' status bar items, in the order they were added.
+    pub status: Vec<StatusItem>,
+    /// Plugins that stopped on their own: (id, run, when to report it).
+    failures: Vec<(String, u64, f64)>,
+    last_watch: f64,
+    log_seq: u64,
     events_tx: Sender<(u64, ProcEvent)>,
     events_rx: Receiver<(u64, ProcEvent)>,
     /// Events taken from the channel while waiting, not handled yet.
@@ -234,6 +443,13 @@ impl PluginHost {
             log: VecDeque::new(),
             prompts: VecDeque::new(),
             notices: Vec::new(),
+            data_dir: data::data_root(),
+            replies: Vec::new(),
+            next_request: 1,
+            status: Vec::new(),
+            failures: Vec::new(),
+            last_watch: f64::NEG_INFINITY,
+            log_seq: 0,
             events_tx,
             events_rx,
             stash: VecDeque::new(),
@@ -249,7 +465,9 @@ impl PluginHost {
         if self.log.len() >= MAX_LOG {
             self.log.pop_front();
         }
+        self.log_seq += 1;
         self.log.push_back(LogLine {
+            seq: self.log_seq,
             time: chrono::Local::now().format("%H:%M:%S").to_string(),
             plugin: plugin.to_owned(),
             text,
@@ -257,47 +475,16 @@ impl PluginHost {
         });
     }
 
-    fn sdk_dir(&self) -> Option<PathBuf> {
-        self.dir.as_ref().map(|d| d.join(".sdk"))
-    }
-
     /// Writes the SDK modules plugins import, when they're missing or old.
     fn install_sdk(&mut self) -> Option<PathBuf> {
-        let sdk = self.sdk_dir()?;
-        if let Err(e) = fs::create_dir_all(&sdk) {
-            self.log(
-                "Ettin Edit",
-                t!(
-                    "make-folder-failed",
-                    path = sdk.display().to_string(),
-                    error = e.to_string()
-                ),
-                true,
-            );
-            return None;
-        }
-        for (name, text) in [
-            ("ettin.py", SDK_PYTHON),
-            ("ettin.js", SDK_JS),
-            ("nixpad.py", SDK_PYTHON_OLD_NAME),
-            ("nixpad.js", SDK_JS_OLD_NAME),
-        ] {
-            let path = sdk.join(name);
-            if fs::read_to_string(&path).ok().as_deref() != Some(text)
-                && let Err(e) = fs::write(&path, text)
-            {
-                self.log(
-                    "Ettin Edit",
-                    t!(
-                        "write-failed",
-                        path = path.display().to_string(),
-                        error = e.to_string()
-                    ),
-                    true,
-                );
+        let dir = self.dir.clone()?;
+        match headless::install_sdk(&dir) {
+            Ok(sdk) => Some(sdk),
+            Err(e) => {
+                self.log("Ettin Edit", e, true);
+                None
             }
         }
-        Some(sdk)
     }
 
     /// Stops every plugin, finds plugins again and starts the ones that are
@@ -320,23 +507,7 @@ impl PluginHost {
             }
             None => Vec::new(),
         };
-        self.plugins = found
-            .into_iter()
-            .map(|Discovered { id, dir, manifest }| Plugin {
-                id,
-                dir,
-                status: match &manifest {
-                    Ok(_) => Status::Stopped,
-                    Err(e) => Status::Failed(e.clone()),
-                },
-                manifest,
-                program: None,
-                commands: Vec::new(),
-                proc: None,
-                run: 0,
-                events: HashSet::new(),
-            })
-            .collect();
+        self.plugins = found.into_iter().map(Plugin::new).collect();
         self.scanned = true;
         for i in 0..self.plugins.len() {
             self.start_if_allowed(i, prefs, python, node);
@@ -379,6 +550,38 @@ impl PluginHost {
         self.start(index, python, node);
     }
 
+    /// Where plugin `id` keeps its settings and files.
+    pub fn plugin_data_dir(&self, id: &str) -> Option<PathBuf> {
+        self.data_dir.as_ref().map(|d| d.join(id))
+    }
+
+    /// Adds a plugin just written to the plugins folder, without restarting
+    /// the others. Returns its index.
+    pub fn add_new(&mut self, id: &str) -> Option<usize> {
+        if let Some(i) = self.index_of(id) {
+            return Some(i);
+        }
+        let found = manifest::discover(self.dir.as_ref()?)
+            .into_iter()
+            .find(|d| d.id == id)?;
+        self.plugins.push(Plugin::new(found));
+        Some(self.plugins.len() - 1)
+    }
+
+    /// Reads a plugin's `plugin.json` again, for a reload after its files
+    /// changed. Stops it first.
+    pub fn refresh(&mut self, index: usize, now: f64) {
+        self.stop(index, now);
+        let Some(p) = self.plugins.get_mut(index) else {
+            return;
+        };
+        p.manifest = manifest::load(&p.dir);
+        p.status = match &p.manifest {
+            Ok(_) => Status::Stopped,
+            Err(e) => Status::Failed(e.clone()),
+        };
+    }
+
     /// Starts a plugin without checking permission.
     fn start(&mut self, index: usize, python: &str, node: &str) {
         let Some(sdk) = self.install_sdk() else {
@@ -388,7 +591,12 @@ impl PluginHost {
         self.next_run += 1;
         let tx = self.events_tx.clone();
         let wake = self.wake.clone();
+        let data_dir = self.plugin_data_dir(&self.plugins[index].id);
         let p = &mut self.plugins[index];
+        p.settings = data_dir
+            .as_deref()
+            .map(|d| data::load_settings(d, p.options()))
+            .unwrap_or_default();
         let Ok(m) = &p.manifest else { return };
         let custom = match m.runtime {
             manifest::Runtime::Python => python,
@@ -406,14 +614,20 @@ impl PluginHost {
                         "ettin": env!("CARGO_PKG_VERSION"),
                         "api": API_VERSION,
                         "language": crate::i18n::current(),
+                        "settings": p.settings,
+                        "dataDir": data_dir,
                     }),
                 ));
                 p.program = Some(proc.program.clone());
                 p.proc = Some(proc);
                 p.run = run;
+                p.last_run = run;
+                p.log_from = self.log_seq;
                 p.status = Status::Running;
                 p.commands.clear();
+                p.transforms.clear();
                 p.events.clear();
+                p.ready = false;
                 let msg = t!(
                     "plugin-started",
                     program = p.program.clone().unwrap_or_else(|| "?".to_owned()),
@@ -459,11 +673,12 @@ impl PluginHost {
         if p.is_running() {
             p.status = Status::Stopped;
         }
-        p.commands.clear();
-        p.events.clear();
+        p.clear();
         p.run = 0;
         let id = p.id.clone();
         self.panels.retain(|panel| panel.plugin != id);
+        self.status.retain(|s| s.plugin != id);
+        self.failures.retain(|(f, ..)| *f != id);
     }
 
     /// Stops everything, for when Ettin Edit closes.
@@ -493,6 +708,11 @@ impl PluginHost {
         self.plugins
             .iter()
             .find(|p| p.id == id && p.run == run && p.proc.is_some())
+    }
+
+    /// True while plugin `id` runs.
+    pub fn is_running_plugin(&self, id: &str) -> bool {
+        self.plugins.iter().any(|p| p.id == id && p.is_running())
     }
 
     pub fn is_current(&self, id: &str, run: u64) -> bool {
@@ -527,10 +747,139 @@ impl PluginHost {
             }
             Some(p) => {
                 let msg = format!("{} isn't running, so its command can't run.", p.name());
-                self.notices.push(msg);
+                self.notices.push(msg.into());
             }
             None => {}
         }
+    }
+
+    /// Sends a request the plugin answers; its answer arrives in
+    /// [`PluginHost::replies`] with the id returned. `None` when the plugin
+    /// isn't running.
+    pub fn request(&mut self, plugin: &str, method: &str, params: Value) -> Option<u64> {
+        let id = self.next_request;
+        let proc = self
+            .plugins
+            .iter()
+            .find(|p| p.id == plugin && p.is_running())?
+            .proc
+            .as_ref()?;
+        self.next_request += 1;
+        proc.send(
+            json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }).to_string(),
+        );
+        Some(id)
+    }
+
+    /// Takes `plugin`'s answer to request `id`, once it has come.
+    pub fn take_reply(&mut self, plugin: &str, id: u64) -> Option<Reply> {
+        let i = self
+            .replies
+            .iter()
+            .position(|r| r.id == id && r.plugin == plugin)?;
+        Some(self.replies.remove(i))
+    }
+
+    /// The transform `transform` of plugin `plugin`, if it's running.
+    pub fn transform(&self, plugin: &str, transform: &str) -> Option<(&Plugin, &Transform)> {
+        let p = self
+            .plugins
+            .iter()
+            .find(|p| p.id == plugin && p.is_running())?;
+        Some((p, p.transform(transform)?))
+    }
+
+    /// Changes a plugin's settings (from Manage Plugins > Options), saves
+    /// them and tells the plugin.
+    pub fn set_settings(&mut self, plugin: &str, values: Map<String, Value>) -> Result<(), String> {
+        let dir = self
+            .plugin_data_dir(plugin)
+            .ok_or_else(|| t!("no-plugins-folder"))?;
+        let index = self
+            .index_of(plugin)
+            .ok_or_else(|| "unknown plugin".to_owned())?;
+        data::save_settings(&dir, &values)?;
+        let p = &mut self.plugins[index];
+        p.settings = data::load_settings(&dir, p.options());
+        if let Some(proc) = &p.proc {
+            proc.send(notification(
+                "event",
+                json!({ "event": "settings.changed", "settings": p.settings }),
+            ));
+        }
+        Ok(())
+    }
+
+    /// The settings plugin `id` has now, read from disk when it isn't running.
+    pub fn settings_of(&self, id: &str) -> Map<String, Value> {
+        let Some(p) = self.plugins.iter().find(|p| p.id == id) else {
+            return Map::new();
+        };
+        if p.is_running() {
+            return p.settings.clone();
+        }
+        self.plugin_data_dir(id)
+            .map(|d| data::load_settings(&d, p.options()))
+            .unwrap_or_default()
+    }
+
+    /// Plugins that reload when their files change: returns the ones whose
+    /// files changed and then stayed the same for a moment, to restart.
+    pub fn changed_plugins(&mut self, watched: &[String], now: f64) -> Vec<String> {
+        if now - self.last_watch < WATCH_EVERY {
+            return Vec::new();
+        }
+        self.last_watch = now;
+        let mut due = Vec::new();
+        for p in &mut self.plugins {
+            if !watched.contains(&p.id) {
+                p.watch = None;
+                continue;
+            }
+            let stamp = manifest::stamp(&p.dir);
+            match &mut p.watch {
+                None => p.watch = Some((stamp, None)),
+                Some((old, changed)) => {
+                    if *old != stamp {
+                        *old = stamp;
+                        *changed = Some(now);
+                    } else if changed.is_some_and(|t| now - t >= WATCH_SETTLE) {
+                        *changed = None;
+                        due.push(p.id.clone());
+                    }
+                }
+            }
+        }
+        due
+    }
+
+    /// Publishes the running plugins' transforms for menus and recipes (see
+    /// [`known_transforms`]). Cheap when nothing changed.
+    pub fn publish_transforms(&self) {
+        let list: Vec<KnownTransform> = self
+            .plugins
+            .iter()
+            .filter(|p| p.is_running())
+            .flat_map(|p| {
+                p.transforms.iter().map(|t| KnownTransform {
+                    plugin: p.id.clone(),
+                    plugin_name: p.name().to_owned(),
+                    id: t.id.clone(),
+                    title: t.title.clone(),
+                    options: t.options.clone(),
+                })
+            })
+            .collect();
+        if *KNOWN.read().unwrap_or_else(|e| e.into_inner()) != list {
+            *KNOWN.write().unwrap_or_else(|e| e.into_inner()) = list;
+        }
+    }
+
+    /// True while a watched plugin's files changed and its reload waits.
+    pub fn reload_waiting(&self) -> bool {
+        self.plugins
+            .iter()
+            .any(|p| p.watch.is_some_and(|(_, c)| c.is_some()))
     }
 
     /// True if any running plugin wants `event`.
@@ -605,15 +954,27 @@ impl PluginHost {
         events.extend(self.events_rx.try_iter());
         let mut calls = Vec::new();
         for (run, ev) in events {
+            if let ProcEvent::Log(line) = &ev {
+                // Error output can come after the plugin ended.
+                if let Some(p) = self
+                    .plugins
+                    .iter()
+                    .find(|p| run != 0 && (p.run == run || p.last_run == run))
+                {
+                    let id = p.id.clone();
+                    self.log(&id, line.clone(), false);
+                }
+                continue;
+            }
             let Some(index) = self.plugins.iter().position(|p| p.run == run && run != 0) else {
                 continue;
             };
             let id = self.plugins[index].id.clone();
             match ev {
-                ProcEvent::Log(line) => self.log(&id, line, false),
-                ProcEvent::Closed => self.ended(index),
+                ProcEvent::Log(_) => {}
+                ProcEvent::Closed => self.ended(index, now),
                 ProcEvent::Message(line) => match parse(&line) {
-                    Ok((call_id, method, params)) => {
+                    Ok(Incoming::Call(call_id, method, params)) => {
                         let call = Call {
                             plugin: id,
                             run,
@@ -625,15 +986,58 @@ impl PluginHost {
                             calls.push(call);
                         }
                     }
+                    Ok(Incoming::Reply(reply_id, result)) => {
+                        // Answers nobody takes (they came too late) don't pile up.
+                        if self.replies.len() >= MAX_REPLIES {
+                            self.replies.remove(0);
+                        }
+                        self.replies.push(Reply {
+                            plugin: id,
+                            id: reply_id,
+                            result,
+                        })
+                    }
                     Err(e) => self.log(&id, format!("Bad message from plugin: {e}"), true),
                 },
             }
         }
+        self.report_failures(now);
         calls
     }
 
+    /// Tells the user about plugins that stopped on their own, once their
+    /// last error output has had time to arrive: where the error is, when
+    /// the log shows it.
+    fn report_failures(&mut self, now: f64) {
+        let due: Vec<(String, u64, f64)> = self
+            .failures
+            .iter()
+            .filter(|(.., t)| now >= *t)
+            .cloned()
+            .collect();
+        if due.is_empty() {
+            return;
+        }
+        self.failures.retain(|(.., t)| now < *t);
+        for (id, _, _) in due {
+            let Some(p) = self.plugins.iter().find(|p| p.id == id) else {
+                continue;
+            };
+            let name = p.name().to_owned();
+            let lines: Vec<&str> = self
+                .log
+                .iter()
+                .filter(|l| l.plugin == id && l.seq > p.log_from)
+                .map(|l| l.text.as_str())
+                .collect();
+            let notice = error_notice(&name, &lines, &p.dir)
+                .unwrap_or_else(|| t!("plugin-stopped-notice", name = name).into());
+            self.notices.push(notice);
+        }
+    }
+
     /// The plugin's output closed: it ended.
-    fn ended(&mut self, index: usize) {
+    fn ended(&mut self, index: usize, now: f64) {
         let p = &mut self.plugins[index];
         let Some(mut proc) = p.proc.take() else {
             return;
@@ -653,14 +1057,15 @@ impl PluginHost {
             _ => t!("plugin-died"),
         };
         p.status = Status::Failed(why.clone());
-        p.commands.clear();
-        p.events.clear();
+        p.clear();
+        let run = p.run;
         p.run = 0;
-        let (id, name) = (p.id.clone(), p.name().to_owned());
+        let id = p.id.clone();
         self.panels.retain(|panel| panel.plugin != id);
+        self.status.retain(|s| s.plugin != id);
         self.log(&id, why.clone(), true);
         if code != Some(Some(0)) {
-            self.notices.push(t!("plugin-stopped-notice", name = name));
+            self.failures.push((id, run, now + FAILURE_DELAY));
         }
         if code.is_none() {
             self.ending.push((proc, f64::NEG_INFINITY));
@@ -672,6 +1077,16 @@ impl PluginHost {
     fn handle(&mut self, call: Call) -> Option<Call> {
         let result = match call.method.as_str() {
             "commands.register" => self.register_command(&call),
+            "transforms.register" => self.register_transform(&call),
+            "ready" => {
+                if let Some(i) = self.index_of(&call.plugin) {
+                    self.plugins[i].ready = true;
+                }
+                Ok(Value::Null)
+            }
+            "settings.get" => Ok(Value::Object(self.settings_of(&call.plugin))),
+            "settings.set" => self.plugin_sets_settings(&call),
+            "status.set" => self.set_status(&call),
             "events.subscribe" => self.subscribe(&call),
             "panel.show" => self.show_panel(&call),
             "panel.close" => {
@@ -689,15 +1104,18 @@ impl PluginHost {
             "error" => {
                 let text = str_param(&call.params, "message").unwrap_or_default();
                 self.log(&call.plugin, text, true);
-                let name = self
+                let (name, dir) = self
                     .plugins
                     .iter()
                     .find(|p| p.id == call.plugin)
-                    .map(|p| p.name().to_owned())
+                    .map(|p| (p.name().to_owned(), p.dir.clone()))
                     .unwrap_or_default();
-                let first = text.lines().last().unwrap_or("error").to_owned();
-                self.notices
-                    .push(format!("{name}: {first} (see Plugins > Plugin Log)"));
+                let lines: Vec<&str> = text.lines().collect();
+                let notice = error_notice(&name, &lines, &dir).unwrap_or_else(|| {
+                    let first = text.lines().last().unwrap_or("error").to_owned();
+                    format!("{name}: {first} (see Plugins > Plugin Log)").into()
+                });
+                self.notices.push(notice);
                 Ok(Value::Null)
             }
             _ => return Some(call),
@@ -774,6 +1192,136 @@ impl PluginHost {
             self.log(&plugin, format!("Shortcut not added: {w}"), true);
         }
         Ok(json!({ "shortcut": shortcut.is_some(), "warning": warning }))
+    }
+
+    fn register_transform(&mut self, call: &Call) -> Result<Value, CallError> {
+        let title = str_param(&call.params, "title")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or((INVALID_PARAMS, "\"title\" is required".to_owned()))?
+            .to_owned();
+        let id = str_param(&call.params, "id")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&title)
+            .to_owned();
+        let options = match call.params.get("options") {
+            None | Some(Value::Null) => Map::new(),
+            Some(Value::Object(o)) => o.clone(),
+            Some(_) => {
+                return Err((
+                    INVALID_PARAMS,
+                    "\"options\" must be a dict of option names and defaults".to_owned(),
+                ));
+            }
+        };
+        let languages = match call.params.get("languages") {
+            None | Some(Value::Null) => Vec::new(),
+            Some(Value::String(s)) => vec![s.to_lowercase()],
+            Some(Value::Array(a)) => a
+                .iter()
+                .map(|v| v.as_str().map(str::to_lowercase))
+                .collect::<Option<Vec<_>>>()
+                .ok_or((
+                    INVALID_PARAMS,
+                    "\"languages\" must be a list of language names".to_owned(),
+                ))?,
+            Some(_) => {
+                return Err((
+                    INVALID_PARAMS,
+                    "\"languages\" must be a list of language names".to_owned(),
+                ));
+            }
+        };
+        let index = self
+            .index_of(&call.plugin)
+            .ok_or((FAILED, "unknown plugin".to_owned()))?;
+        let p = &mut self.plugins[index];
+        let transform = Transform {
+            id: id.clone(),
+            title,
+            options,
+            languages,
+        };
+        let count = p.transforms.len();
+        match p.transforms.iter_mut().find(|t| t.id == id) {
+            Some(t) => *t = transform,
+            None if count >= MAX_TRANSFORMS => {
+                return Err((
+                    FAILED,
+                    format!("A plugin can add at most {MAX_TRANSFORMS} transforms"),
+                ));
+            }
+            None => p.transforms.push(transform),
+        }
+        Ok(json!({ "id": id }))
+    }
+
+    fn plugin_sets_settings(&mut self, call: &Call) -> Result<Value, CallError> {
+        let Some(Value::Object(values)) = call.params.get("values") else {
+            return Err((INVALID_PARAMS, "\"values\" must be a dict".to_owned()));
+        };
+        let dir = self
+            .plugin_data_dir(&call.plugin)
+            .ok_or((FAILED, t!("no-plugins-folder")))?;
+        let index = self
+            .index_of(&call.plugin)
+            .ok_or((FAILED, "unknown plugin".to_owned()))?;
+        let p = &mut self.plugins[index];
+        let mut all = p.settings.clone();
+        for (k, v) in values {
+            all.insert(k.clone(), v.clone());
+        }
+        data::save_settings(&dir, &all).map_err(|e| (FAILED, e))?;
+        p.settings = data::load_settings(&dir, p.options());
+        Ok(Value::Object(p.settings.clone()))
+    }
+
+    fn set_status(&mut self, call: &Call) -> Result<Value, CallError> {
+        let id = str_param(&call.params, "id")
+            .filter(|s| !s.is_empty())
+            .ok_or((INVALID_PARAMS, "\"id\" is required".to_owned()))?
+            .to_owned();
+        let text = str_param(&call.params, "text").unwrap_or_default().trim();
+        let at = self
+            .status
+            .iter()
+            .position(|s| s.plugin == call.plugin && s.id == id);
+        if text.is_empty() {
+            if let Some(i) = at {
+                self.status.remove(i);
+            }
+            return Ok(Value::Null);
+        }
+        let item = StatusItem {
+            plugin: call.plugin.clone(),
+            id,
+            text: text.chars().take(80).collect(),
+            tooltip: str_param(&call.params, "tooltip")
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
+            command: str_param(&call.params, "command")
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
+        };
+        match at {
+            Some(i) => self.status[i] = item,
+            None => {
+                let mine = self
+                    .status
+                    .iter()
+                    .filter(|s| s.plugin == call.plugin)
+                    .count();
+                if mine >= MAX_STATUS_ITEMS {
+                    return Err((
+                        FAILED,
+                        format!("A plugin can show at most {MAX_STATUS_ITEMS} status items"),
+                    ));
+                }
+                self.status.push(item);
+            }
+        }
+        Ok(Value::Null)
     }
 
     /// Who already uses a shortcut: Ettin Edit or another plugin command.
@@ -886,17 +1434,130 @@ impl PluginHost {
     }
 }
 
-/// Splits a JSON-RPC message into (id, method, params).
-fn parse(line: &str) -> Result<(Option<Value>, String, Value), String> {
+/// A message from a plugin: a call (or notification) or an answer to one
+/// of Ettin Edit's requests.
+enum Incoming {
+    /// (id, method, params); no id for a notification.
+    Call(Option<Value>, String, Value),
+    Reply(u64, Result<Value, ReplyError>),
+}
+
+/// Reads a JSON-RPC message.
+fn parse(line: &str) -> Result<Incoming, String> {
     let v: Value = serde_json::from_str(line).map_err(|e| format!("{e}: {}", clip(line)))?;
-    let method = v
-        .get("method")
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("no \"method\": {}", clip(line)))?
-        .to_owned();
     let id = v.get("id").filter(|id| !id.is_null()).cloned();
+    let Some(method) = v.get("method").and_then(Value::as_str) else {
+        let id = id
+            .and_then(|id| id.as_u64())
+            .ok_or_else(|| format!("no \"method\": {}", clip(line)))?;
+        return Ok(Incoming::Reply(
+            id,
+            match v.get("error") {
+                Some(e) if !e.is_null() => Err(ReplyError::from_json(e)),
+                _ => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
+            },
+        ));
+    };
     let params = v.get("params").cloned().unwrap_or(Value::Null);
-    Ok((id, method, params))
+    Ok(Incoming::Call(id, method.to_owned(), params))
+}
+
+/// Where an error in a plugin's own files happened, from its traceback
+/// (Python) or stack (Node): the file and line, and the error message.
+pub fn error_location(lines: &[&str], dir: &Path) -> Option<(PathBuf, usize, String)> {
+    let inside = |path: &str| -> Option<PathBuf> {
+        let path = PathBuf::from(path);
+        let full = if path.is_absolute() {
+            path
+        } else {
+            dir.join(path)
+        };
+        let canon = |p: &Path| p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+        canon(&full).starts_with(canon(dir)).then_some(full)
+    };
+    // Python: File "/plugins/x/main.py", line 12, in <module>; the last
+    // one in the plugin's files is nearest the error.
+    let mut found = None;
+    for l in lines {
+        let Some(rest) = l.trim_start().strip_prefix("File \"") else {
+            continue;
+        };
+        let Some((path, after)) = rest.split_once("\", line ") else {
+            continue;
+        };
+        let number: String = after.chars().take_while(char::is_ascii_digit).collect();
+        if let (Some(path), Ok(n)) = (inside(path), number.parse::<usize>()) {
+            found = Some((path, n));
+        }
+    }
+    let message = |python: bool| -> String {
+        let looks_like_error = |l: &&&str| {
+            let l = l.trim();
+            l.split_once(':').is_some_and(|(name, _)| {
+                !name.contains(' ') && (name.ends_with("Error") || name.ends_with("Exception"))
+            })
+        };
+        let pick = if python {
+            lines.iter().rev().find(looks_like_error)
+        } else {
+            lines.iter().find(looks_like_error)
+        };
+        pick.or_else(|| lines.iter().rev().find(|l| !l.trim().is_empty()))
+            .map(|l| l.trim().to_owned())
+            .unwrap_or_default()
+    };
+    if let Some((path, n)) = found {
+        return Some((path, n, message(true)));
+    }
+    // Node: /plugins/x/main.js:12 or (/plugins/x/main.js:12:5); the first
+    // one in the plugin's files is where it was thrown.
+    for l in lines {
+        for (start, _) in l.match_indices(['/', '\\']).chain(
+            l.char_indices()
+                .filter(|(_, c)| c.is_ascii_alphabetic())
+                .filter(|(i, _)| l[*i..].get(1..3) == Some(":\\"))
+                .map(|(i, _)| (i, "")),
+        ) {
+            let tail = &l[start..];
+            // The path ends at ":<digits>".
+            let mut search = 0;
+            while let Some(colon) = tail[search..].find(':').map(|c| c + search) {
+                let digits: String = tail[colon + 1..]
+                    .chars()
+                    .take_while(char::is_ascii_digit)
+                    .collect();
+                if !digits.is_empty()
+                    && let Some(path) = inside(&tail[..colon])
+                    && path.is_file()
+                {
+                    return Some((path, digits.parse().ok()?, message(false)));
+                }
+                search = colon + 1;
+            }
+        }
+    }
+    None
+}
+
+/// "Plugin X stopped with an error: main.py line 12: NameError…", with the
+/// file and line to open, when `lines` (its log) show where.
+fn error_notice(name: &str, lines: &[&str], dir: &Path) -> Option<HostNotice> {
+    let (path, line, error) = error_location(lines, dir)?;
+    let file = path
+        .strip_prefix(dir)
+        .unwrap_or(&path)
+        .display()
+        .to_string();
+    Some(HostNotice {
+        text: t!(
+            "plugin-error-at",
+            name = name,
+            file = file,
+            line = line,
+            error = error
+        ),
+        open: Some((path, line)),
+    })
 }
 
 fn clip(line: &str) -> String {
@@ -956,16 +1617,35 @@ mod tests {
 
     #[test]
     fn parses_requests_and_notifications() {
-        let (id, method, params) =
-            parse(r#"{"jsonrpc":"2.0","id":3,"method":"text.get","params":{"doc":1}}"#).unwrap();
+        let Ok(Incoming::Call(id, method, params)) =
+            parse(r#"{"jsonrpc":"2.0","id":3,"method":"text.get","params":{"doc":1}}"#)
+        else {
+            panic!("not a call")
+        };
         assert_eq!(id, Some(json!(3)));
         assert_eq!(method, "text.get");
         assert_eq!(params["doc"], 1);
-        let (id, method, _) = parse(r#"{"method":"log","params":{"text":"x"}}"#).unwrap();
+        let Ok(Incoming::Call(id, method, _)) = parse(r#"{"method":"log","params":{"text":"x"}}"#)
+        else {
+            panic!("not a call")
+        };
         assert_eq!(id, None);
         assert_eq!(method, "log");
         assert!(parse("not json").is_err());
-        assert!(parse(r#"{"id":1}"#).is_err());
+        assert!(parse(r#"{"id":"x"}"#).is_err());
+        let Ok(Incoming::Reply(1, Ok(v))) = parse(r#"{"id":1,"result":{"text":"hi"}}"#) else {
+            panic!("not a reply")
+        };
+        assert_eq!(v["text"], "hi");
+        let Ok(Incoming::Reply(2, Err(e))) = parse(
+            r#"{"id":2,"error":{"code":-32000,"message":"bad","data":{"line":3,"column":4}}}"#,
+        ) else {
+            panic!("not an error reply")
+        };
+        assert_eq!(
+            (e.message.as_str(), e.line, e.column),
+            ("bad", Some(3), Some(4))
+        );
     }
 
     #[test]
@@ -981,18 +1661,134 @@ mod tests {
     fn host_with(id: &str) -> PluginHost {
         let mut host = PluginHost::new(std::sync::Arc::new(|| {}));
         host.dir = None;
-        host.plugins.push(Plugin {
+        host.data_dir = None;
+        let mut p = Plugin::new(Discovered {
             id: id.to_owned(),
             dir: PathBuf::new(),
             manifest: Err("test".into()),
-            status: Status::Running,
-            program: None,
-            commands: Vec::new(),
-            proc: None,
-            run: 1,
-            events: HashSet::new(),
         });
+        p.status = Status::Running;
+        p.run = 1;
+        host.plugins.push(p);
         host
+    }
+
+    #[test]
+    fn registers_transforms() {
+        let mut host = host_with("p");
+        host.register_transform(&call(
+            "transforms.register",
+            json!({"title": "Explode HL7 Segments", "id": "explode",
+                   "options": {"separator": "\n"}, "languages": ["HL7"]}),
+        ))
+        .unwrap();
+        host.register_transform(&call("transforms.register", json!({"title": "Shout"})))
+            .unwrap();
+        let p = &host.plugins[0];
+        assert_eq!(p.transforms.len(), 2);
+        let t = p.transform("explode").unwrap();
+        assert_eq!(t.options["separator"], "\n");
+        assert!(t.suits("hl7") && t.suits("HL7") && !t.suits("JSON"));
+        // Without an id, the title is the id.
+        assert!(p.transform("Shout").is_some());
+        assert!(host.transform("p", "explode").is_some());
+        // Registering again replaces it.
+        host.register_transform(&call(
+            "transforms.register",
+            json!({"title": "Explode", "id": "explode"}),
+        ))
+        .unwrap();
+        assert_eq!(host.plugins[0].transforms.len(), 2);
+        assert_eq!(host.plugins[0].transforms[0].title, "Explode");
+        assert!(
+            host.register_transform(&call("transforms.register", json!({"options": 3})))
+                .is_err()
+        );
+        assert!(
+            host.register_transform(&call(
+                "transforms.register",
+                json!({"title": "x", "options": [1]})
+            ))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn status_items() {
+        let mut host = host_with("p");
+        host.set_status(&call(
+            "status.set",
+            json!({"id": "field", "text": "PID-5.1 Family name", "tooltip": "t", "command": "c"}),
+        ))
+        .unwrap();
+        assert_eq!(host.status.len(), 1);
+        assert_eq!(host.status[0].command.as_deref(), Some("c"));
+        host.set_status(&call("status.set", json!({"id": "field", "text": "PID-3"})))
+            .unwrap();
+        assert_eq!(host.status.len(), 1);
+        assert_eq!(host.status[0].text, "PID-3");
+        assert_eq!(host.status[0].tooltip, None);
+        for i in 0..3 {
+            host.set_status(&call(
+                "status.set",
+                json!({"id": i.to_string(), "text": "x"}),
+            ))
+            .unwrap();
+        }
+        assert!(
+            host.set_status(&call("status.set", json!({"id": "5", "text": "x"})))
+                .is_err()
+        );
+        host.set_status(&call("status.set", json!({"id": "field", "text": ""})))
+            .unwrap();
+        assert_eq!(host.status.len(), 3);
+        host.stop(0, 0.0);
+        assert!(host.status.is_empty());
+    }
+
+    #[test]
+    fn finds_where_an_error_happened() {
+        let dir = std::env::temp_dir().join(format!("ettin-errloc-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("main.py"), "x").unwrap();
+        fs::write(dir.join("main.js"), "x").unwrap();
+        let main_py = dir.join("main.py").display().to_string();
+        let python = [
+            "Traceback (most recent call last):".to_owned(),
+            format!("  File \"{main_py}\", line 12, in <module>"),
+            "    boom()".to_owned(),
+            "  File \"/usr/lib/python3/x.py\", line 3, in boom".to_owned(),
+            "NameError: name 'boom' is not defined".to_owned(),
+        ];
+        let lines: Vec<&str> = python.iter().map(String::as_str).collect();
+        let (path, line, error) = error_location(&lines, &dir).unwrap();
+        assert_eq!(path, dir.join("main.py"));
+        assert_eq!(line, 12);
+        assert_eq!(error, "NameError: name 'boom' is not defined");
+        let main_js = dir.join("main.js").display().to_string();
+        let node = [
+            format!("{main_js}:7"),
+            "  oops(".to_owned(),
+            "  ^".to_owned(),
+            String::new(),
+            "ReferenceError: oops is not defined".to_owned(),
+            format!("    at Object.<anonymous> ({main_js}:7:3)"),
+        ];
+        let lines: Vec<&str> = node.iter().map(String::as_str).collect();
+        let (path, line, error) = error_location(&lines, &dir).unwrap();
+        assert_eq!(path, dir.join("main.js"));
+        assert_eq!(line, 7);
+        assert_eq!(error, "ReferenceError: oops is not defined");
+        let n = error_notice("Mine", &lines, &dir).unwrap();
+        assert!(
+            n.text.contains("main.js") && n.text.contains('7'),
+            "{}",
+            n.text
+        );
+        assert_eq!(n.open, Some((dir.join("main.js"), 7)));
+        assert!(error_location(&["something else"], &dir).is_none());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     fn call(method: &str, params: Value) -> Call {
@@ -1247,5 +2043,165 @@ ettin.command('Echo', async () => {
 ettin.on('saved', () => {});
 "#,
         );
+    }
+
+    /// Settings with an options list, a status item, a mark, choose(), a
+    /// transform and settings.changed, through the Python SDK.
+    #[test]
+    fn python_plugin_api_2() {
+        if !have("python3") {
+            eprintln!("python3 isn't installed; skipped");
+            return;
+        }
+        let root = std::env::temp_dir().join(format!("ettin-api2-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let dir = root.join("plugins").join("api2");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("plugin.json"),
+            r#"{"name": "API 2", "options": [
+                {"key": "width", "title": "Width", "type": "number", "default": 80},
+                {"key": "mode", "title": "Mode", "type": "choice", "choices": ["a", "b"], "default": "a"}
+            ]}"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join("main.py"),
+            r#"
+import ettin
+
+@ettin.transform("Wrap", options={"mark": "!"})
+def wrap(text, options):
+    if text == "bad":
+        raise ettin.TransformError("no good", line=2, column=3)
+    return "[" + text + "]" + options["mark"]
+
+@ettin.command("Try")
+def try_it():
+    ettin.log("width", ettin.settings["width"], ettin.settings["mode"])
+    ettin.status("count", "3 words", tooltip="Words", command="try_it")
+    ettin.active().mark("lint", [(0, 2), (4, 5)], style="background", color="warning",
+                        message="look")
+    ettin.log("picked", ettin.choose(["x", {"label": "y", "detail": "why"}], title="Pick"))
+    ettin.settings["seen"] = True
+
+@ettin.on("settings.changed")
+def changed(settings):
+    ettin.log("changed", settings["width"])
+
+ettin.run()
+"#,
+        )
+        .unwrap();
+        let mut host = PluginHost::new(std::sync::Arc::new(|| {}));
+        host.dir = Some(root.join("plugins"));
+        host.data_dir = Some(root.join("plugin-data"));
+        let mut prefs = BTreeMap::new();
+        prefs.insert(
+            "api2".to_owned(),
+            PluginPrefs {
+                approved: Some(manifest::fingerprint(&dir)),
+                ..Default::default()
+            },
+        );
+        host.reload(&prefs, "", "", 0.0);
+        assert!(
+            pump(&mut host, |h| h.plugins[0].ready),
+            "{:?} {:?} {}",
+            host.log.iter().map(|l| &l.text).collect::<Vec<_>>(),
+            host.plugins[0].status,
+            host.plugins[0].transforms.len()
+        );
+        assert_eq!(host.plugins[0].transforms[0].title, "Wrap");
+        assert_eq!(host.plugins[0].settings["width"], 80);
+
+        // The command: settings, status, a mark and choose().
+        host.run_command("api2", "try_it");
+        let mut marks = None;
+        let start = Instant::now();
+        let log = |h: &PluginHost| h.log.iter().map(|l| l.text.clone()).collect::<Vec<_>>();
+        while start.elapsed() < Duration::from_secs(60)
+            && !log(&host).iter().any(|l| l.starts_with("picked"))
+        {
+            host.wait(Duration::from_millis(50));
+            for call in host.poll(0.0) {
+                let result = match call.method.as_str() {
+                    "marks.set" => {
+                        marks = Some(call.params.clone());
+                        Ok(Value::Null)
+                    }
+                    "ui.choose" => {
+                        assert_eq!(call.params["title"], "Pick");
+                        assert_eq!(call.params["items"][1]["detail"], "why");
+                        Ok(json!(1))
+                    }
+                    "documents.active" | "documents.info" => Ok(json!({"id": 1, "title": "t"})),
+                    other => Err((METHOD_NOT_FOUND, other.to_owned())),
+                };
+                if let Some(id) = call.id {
+                    host.respond(&call.plugin, call.run, id, result);
+                }
+            }
+        }
+        let lines = log(&host);
+        assert!(lines.iter().any(|l| l == "width 80 a"), "{lines:?}");
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("picked") && l.contains("'y'")),
+            "{lines:?}"
+        );
+        let marks = marks.expect("marks.set was called");
+        assert_eq!(marks["id"], "lint");
+        assert_eq!(marks["style"], "background");
+        assert_eq!(marks["color"], "warning");
+        assert_eq!(marks["ranges"], json!([[0, 2], [4, 5]]));
+        assert_eq!(host.status.len(), 1);
+        assert_eq!(host.status[0].text, "3 words");
+        assert_eq!(host.status[0].command.as_deref(), Some("try_it"));
+        assert!(pump(&mut host, |h| h.settings_of("api2").get("seen")
+            == Some(&json!(true))));
+        let saved = fs::read_to_string(root.join("plugin-data/api2/settings.json")).unwrap();
+        assert!(saved.contains("\"seen\""), "{saved}");
+
+        // The Options form saves, and the plugin hears about it.
+        let mut values = host.settings_of("api2");
+        values.insert("width".into(), json!(100));
+        host.set_settings("api2", values).unwrap();
+        assert!(pump(&mut host, |h| h
+            .log
+            .iter()
+            .any(|l| l.text == "changed 100")));
+
+        // The transform, its options and its errors.
+        let id = host
+            .request(
+                "api2",
+                "transform.run",
+                json!({"id": "Wrap", "text": "hi", "options": {}}),
+            )
+            .unwrap();
+        assert!(pump(&mut host, |h| h.replies.iter().any(|r| r.id == id)));
+        let reply = host.take_reply("api2", id).unwrap();
+        assert_eq!(
+            headless::transform_text(&reply.result.unwrap()).unwrap(),
+            "[hi]!"
+        );
+        let id = host
+            .request(
+                "api2",
+                "transform.run",
+                json!({"id": "Wrap", "text": "bad", "options": {}}),
+            )
+            .unwrap();
+        assert!(pump(&mut host, |h| h.replies.iter().any(|r| r.id == id)));
+        let err = host.take_reply("api2", id).unwrap().result.unwrap_err();
+        assert_eq!(
+            (err.message.as_str(), err.line, err.column),
+            ("no good", Some(2), Some(3))
+        );
+
+        host.shutdown();
+        let _ = fs::remove_dir_all(&root);
     }
 }

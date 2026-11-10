@@ -129,7 +129,7 @@ fn version() -> u32 {
 
 /// The layout version this build writes. Layouts saved by older versions get
 /// the default groups added since then (see [`Layout::upgrade`]).
-pub const LAYOUT_VERSION: u32 = 6;
+pub const LAYOUT_VERSION: u32 = 7;
 
 pub const FILE_NAME: &str = "toolbar.json";
 
@@ -229,8 +229,52 @@ impl Layout {
             // Home is left alone (Help is under ? beside the tab names).
             added |= self.use_transform_home();
         }
+        if self.version < 7 {
+            // 7 (Ettin Edit 2.3): Markdown Preview became built in, so it
+            // joins the View tab's Panels group.
+            added |= self.add_default_item(
+                "toolbar-tab-view",
+                "toolbar-group-panels",
+                &Action::ToggleMarkdownPreview,
+            );
+        }
         self.version = self.version.max(LAYOUT_VERSION);
         added
+    }
+
+    /// Adds a default button to the end of a group the user still has,
+    /// unless it is already somewhere in the layout.
+    fn add_default_item(&mut self, tab_id: &str, group_id: &str, action: &Action) -> bool {
+        let is = |name: &Name, id: &str| name.id.as_deref() == Some(id);
+        let anywhere = self
+            .tabs
+            .iter()
+            .flat_map(|t| &t.groups)
+            .flat_map(|g| &g.items)
+            .any(|i| i.command == actions::command_key(action));
+        if anywhere {
+            return false;
+        }
+        let Some(item) = Self::default()
+            .tabs
+            .into_iter()
+            .flat_map(|t| t.groups)
+            .flat_map(|g| g.items)
+            .find(|i| i.command == actions::command_key(action))
+        else {
+            return false;
+        };
+        let Some(group) = self
+            .tabs
+            .iter_mut()
+            .filter(|t| is(&t.name, tab_id))
+            .flat_map(|t| t.groups.iter_mut())
+            .find(|g| is(&g.name, group_id))
+        else {
+            return false;
+        };
+        group.items.push(item);
+        true
     }
 
     /// Replaces a Home tab that is the 2.0 default with the 2.1 one, and
@@ -678,6 +722,7 @@ impl Default for Layout {
                                 (ToggleFolderPanel, S),
                                 (ToggleCharPanel, S),
                                 (ToggleHexView, S),
+                                (ToggleMarkdownPreview, S),
                             ],
                         ),
                         group(
@@ -968,7 +1013,9 @@ pub fn default_icon(action: &Action) -> &'static str {
         SaveMacro => ph::FLOPPY_DISK,
         SaveMacroAsRecipe => ph::CHEF_HAT,
         DeleteSavedMacro(_) => ph::TRASH,
-        PluginCommand { .. } => PLUGIN_ICON,
+        PluginCommand { .. } | PluginTransform { .. } => PLUGIN_ICON,
+        NewPlugin => ph::FILE_PLUS,
+        ToggleMarkdownPreview => ph::MARKDOWN_LOGO,
         ManagePlugins | ReloadPlugins | InstallSamplePlugins => ph::PUZZLE_PIECE,
         ShowPluginLog => ph::SCROLL,
         OpenPluginsFolder => ph::FOLDER_OPEN,
@@ -1121,6 +1168,20 @@ mod tests {
         old.version = 5;
         assert!(old.upgrade());
         assert_eq!(old, Layout::default());
+        assert!(!old.upgrade());
+    }
+
+    #[test]
+    fn a_2_2_toolbar_gets_the_markdown_preview_button() {
+        let preview = Action::ToggleMarkdownPreview;
+        let mut old = Layout::default();
+        for g in old.tabs.iter_mut().flat_map(|t| t.groups.iter_mut()) {
+            g.items.retain(|i| i.action() != Some(preview.clone()));
+        }
+        old.version = 6;
+        assert!(old.upgrade());
+        assert_eq!(old, Layout::default());
+        // Once there, or removed after, it isn't added again.
         assert!(!old.upgrade());
     }
 

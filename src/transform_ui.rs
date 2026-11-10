@@ -197,7 +197,14 @@ fn field(ui: &mut Ui, label: &str, value: &mut String, width: f32) -> egui::Resp
 }
 
 /// A read-only box of text for the Input and Output panes.
-fn pane(ui: &mut Ui, id: &str, title: &str, text: &str, color: Option<Color32>, palette: &Palette) {
+pub(crate) fn pane(
+    ui: &mut Ui,
+    id: &str,
+    title: &str,
+    text: &str,
+    color: Option<Color32>,
+    palette: &Palette,
+) {
     ui.vertical(|ui| {
         ui.label(RichText::new(title).size(12.0).color(palette.text_dim));
         egui::Frame::new()
@@ -228,7 +235,7 @@ fn pane(ui: &mut Ui, id: &str, title: &str, text: &str, color: Option<Color32>, 
 }
 
 /// The first `n` lines of `text`.
-fn first_lines(text: &str, n: usize) -> &str {
+pub(crate) fn first_lines(text: &str, n: usize) -> &str {
     match text.match_indices('\n').nth(n.saturating_sub(1)) {
         Some((i, _)) if n > 0 => &text[..i],
         _ => text,

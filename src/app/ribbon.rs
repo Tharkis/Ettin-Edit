@@ -241,6 +241,7 @@ impl EttinApp {
             Action::ToggleColumnMode => on(self.column_mode),
             Action::ToggleCharPanel => on(s.char_panel),
             Action::ToggleHexView => on(self.hex_shown()),
+            Action::ToggleMarkdownPreview => on(self.markdown_preview.shown),
             Action::ToggleIndentGuides => on(s.indent_guides),
             Action::ToggleEdge => on(s.show_edge),
             Action::ToggleFunctionList => on(s.function_list),

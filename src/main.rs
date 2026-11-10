@@ -30,6 +30,7 @@ mod macros;
 mod manual;
 mod menu;
 mod palette_ui;
+mod plugin_transform_ui;
 mod plugins;
 mod prefs_ui;
 mod print;

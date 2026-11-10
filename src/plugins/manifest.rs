@@ -5,6 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
+use serde_json::Value;
 
 /// The program that runs a plugin.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,6 +49,105 @@ struct RawManifest {
     author: Option<String>,
     main: Option<String>,
     runtime: Option<String>,
+    options: Vec<RawOption>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct RawOption {
+    key: String,
+    title: String,
+    #[serde(rename = "type")]
+    kind: String,
+    default: Value,
+    choices: Vec<String>,
+    description: String,
+}
+
+/// What sort of value a plugin option holds, and so how its field looks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OptionKind {
+    String,
+    Bool,
+    Number,
+    /// One of `choices`.
+    Choice,
+}
+
+/// One entry of the `options` list in `plugin.json`: a setting the user
+/// changes in Manage Plugins > Options and the plugin reads from
+/// `ettin.settings`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PluginOption {
+    pub key: String,
+    pub title: String,
+    pub kind: OptionKind,
+    /// Always a value of the right kind.
+    pub default: Value,
+    pub choices: Vec<String>,
+    pub description: String,
+}
+
+impl PluginOption {
+    /// `value` if it suits this option, otherwise the default.
+    pub fn fit(&self, value: &Value) -> Value {
+        let ok = match self.kind {
+            OptionKind::String => value.is_string(),
+            OptionKind::Bool => value.is_boolean(),
+            OptionKind::Number => value.is_number(),
+            OptionKind::Choice => value
+                .as_str()
+                .is_some_and(|v| self.choices.iter().any(|c| c == v)),
+        };
+        if ok {
+            value.clone()
+        } else {
+            self.default.clone()
+        }
+    }
+}
+
+fn parse_option(raw: RawOption) -> Result<PluginOption, String> {
+    let key = raw.key.trim().to_owned();
+    if key.is_empty() {
+        return Err("every entry of \"options\" needs a \"key\"".to_owned());
+    }
+    let kind = match raw.kind.to_ascii_lowercase().as_str() {
+        "" | "string" | "text" => OptionKind::String,
+        "bool" | "boolean" => OptionKind::Bool,
+        "number" | "int" | "integer" | "float" => OptionKind::Number,
+        "choice" | "select" => OptionKind::Choice,
+        other => {
+            return Err(format!(
+                "option \"{key}\" has type \"{other}\"; use string, bool, number or choice"
+            ));
+        }
+    };
+    if kind == OptionKind::Choice && raw.choices.is_empty() {
+        return Err(format!(
+            "option \"{key}\" is a choice but has no \"choices\""
+        ));
+    }
+    let empty = match kind {
+        OptionKind::String => Value::from(""),
+        OptionKind::Bool => Value::from(false),
+        OptionKind::Number => Value::from(0),
+        OptionKind::Choice => Value::from(raw.choices[0].clone()),
+    };
+    let mut option = PluginOption {
+        title: if raw.title.trim().is_empty() {
+            key.clone()
+        } else {
+            raw.title
+        },
+        key,
+        kind,
+        default: empty,
+        choices: raw.choices,
+        description: raw.description,
+    };
+    option.default = option.fit(&raw.default);
+    Ok(option)
 }
 
 #[derive(Clone, Debug)]
@@ -59,6 +159,8 @@ pub struct Manifest {
     /// The script to run, inside the plugin's folder.
     pub main: PathBuf,
     pub runtime: Runtime,
+    /// Settings the user can change in Manage Plugins > Options.
+    pub options: Vec<PluginOption>,
 }
 
 pub const MANIFEST_FILE: &str = "plugin.json";
@@ -136,6 +238,17 @@ fn parse(dir: &Path, text: &str) -> Result<Manifest, String> {
             format!("Can't tell how to run {main}; add \"runtime\": \"python\" or \"node\"")
         })?,
     };
+    let mut options: Vec<PluginOption> = Vec::new();
+    for raw in raw.options {
+        let option = parse_option(raw).map_err(|e| format!("{MANIFEST_FILE}: {e}"))?;
+        if options.iter().any(|o| o.key == option.key) {
+            return Err(format!(
+                "{MANIFEST_FILE}: option \"{}\" is listed twice",
+                option.key
+            ));
+        }
+        options.push(option);
+    }
     let folder = dir
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -147,6 +260,7 @@ fn parse(dir: &Path, text: &str) -> Result<Manifest, String> {
         author: raw.author.unwrap_or_default(),
         main: main_path,
         runtime,
+        options,
     })
 }
 
@@ -181,6 +295,29 @@ pub fn fingerprint(dir: &Path) -> String {
         }
     }
     format!("{:016x}", h.0)
+}
+
+/// A quick check for changes while a plugin is being written: every file's
+/// name, size and modification time. Cheaper than [`fingerprint`], which
+/// reads the files.
+pub fn stamp(dir: &Path) -> u64 {
+    let mut files = Vec::new();
+    collect(dir, dir, &mut files);
+    files.sort();
+    let mut h = Fnv::new();
+    for rel in files {
+        h.write(rel.to_string_lossy().as_bytes());
+        h.write(&[0]);
+        if let Ok(meta) = fs::metadata(dir.join(&rel)) {
+            h.write(&meta.len().to_le_bytes());
+            if let Ok(time) = meta.modified()
+                && let Ok(since) = time.duration_since(std::time::UNIX_EPOCH)
+            {
+                h.write(&since.as_nanos().to_le_bytes());
+            }
+        }
+    }
+    h.0
 }
 
 fn collect(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
@@ -252,6 +389,48 @@ mod tests {
         assert!(parse(&dir, r#"{"main": "missing.py"}"#).is_err());
         assert!(parse(&dir, r#"{"main": "main.py", "runtime": "ruby"}"#).is_err());
         assert!(parse(&dir, "{oops").is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reads_options() {
+        let dir = temp_dir("options");
+        fs::write(dir.join("main.py"), "").unwrap();
+        let m = parse(
+            &dir,
+            r#"{"options": [
+                {"key": "sep", "title": "Field separator", "type": "string", "default": "|"},
+                {"key": "panel", "type": "bool", "default": "yes"},
+                {"key": "width", "type": "number", "default": 80},
+                {"key": "style", "type": "choice", "choices": ["Underline", "Background"], "default": "Nope"}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(m.options.len(), 4);
+        assert_eq!(m.options[0].title, "Field separator");
+        assert_eq!(m.options[0].default, "|");
+        // A default of the wrong kind falls back to the kind's own.
+        assert_eq!(m.options[1].title, "panel");
+        assert_eq!(m.options[1].default, false);
+        assert_eq!(m.options[2].default, 80);
+        assert_eq!(m.options[3].default, "Underline");
+        assert_eq!(m.options[3].fit(&Value::from("Background")), "Background");
+        assert_eq!(m.options[3].fit(&Value::from(3)), "Underline");
+        assert!(parse(&dir, r#"{"options": [{"key": "x", "type": "colour"}]}"#).is_err());
+        assert!(parse(&dir, r#"{"options": [{"key": "x", "type": "choice"}]}"#).is_err());
+        assert!(parse(&dir, r#"{"options": [{"key": "x"}, {"key": "x"}]}"#).is_err());
+        assert!(parse(&dir, r#"{"options": [{"title": "x"}]}"#).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stamp_changes_when_a_file_changes() {
+        let dir = temp_dir("stamp");
+        fs::write(dir.join("main.py"), "a").unwrap();
+        let first = stamp(&dir);
+        assert_eq!(first, stamp(&dir));
+        fs::write(dir.join("main.py"), "ab").unwrap();
+        assert_ne!(first, stamp(&dir));
         let _ = fs::remove_dir_all(&dir);
     }
 

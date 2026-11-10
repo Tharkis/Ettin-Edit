@@ -21,17 +21,18 @@
     {
       "id": "hl7-viewer",
       "name": "HL7 Viewer",
-      "version": "1.0.0",
-      "description": "Browse HL7 v2 messages as a tree of segments, fields and components, inspect any field (name, data type, optionality, repeatability) and change its value. Open sample.hl7 to try it. A sample plugin in Python.",
+      "version": "1.1.0",
+      "description": "Browse HL7 v2 messages as a tree of segments, fields and components, inspect any field (name, data type, optionality, repeatability) and change its value. Its Explode HL7 Segments transform puts each field on its own line, named. Open sample.hl7 to try it. A sample plugin in Python.",
       "author": "Ettin Edit",
       "homepage": "https://github.com/Tharkis/Ettin-Edit/tree/main/plugins/samples/hl7-viewer",
-      "download": "https://github.com/Tharkis/Ettin-Edit/releases/latest/download/hl7-viewer.zip"
+      "download": "https://github.com/Tharkis/Ettin-Edit/releases/latest/download/hl7-viewer.zip",
+      "min_app_version": "2.3.0"
     },
     {
       "id": "markdown-preview",
-      "name": "Markdown Preview",
-      "version": "1.1.0",
-      "description": "A live preview of the Markdown tab you are editing, with images, in a side panel that updates as you type and scrolls along with the text. A sample plugin in Python.",
+      "name": "Markdown Preview (plugin example)",
+      "version": "1.2.0",
+      "description": "How the built-in Markdown Preview (View > Markdown Preview) could be written as a plugin: a side panel that renders the Markdown tab, with images, updates as you type and scrolls along with the text. A sample plugin in Python.",
       "author": "Ettin Edit",
       "homepage": "https://github.com/Tharkis/Ettin-Edit/tree/main/plugins/samples/markdown-preview",
       "download": "https://github.com/Tharkis/Ettin-Edit/releases/latest/download/markdown-preview.zip",

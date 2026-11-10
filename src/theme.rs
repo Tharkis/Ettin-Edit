@@ -55,6 +55,23 @@ pub struct Palette {
     pub whitespace: Color32,
 }
 
+impl Palette {
+    /// The colour of a plugin's mark: red for errors, amber for warnings,
+    /// blue for information, or the theme's accent. Lighter on dark themes.
+    pub fn severity(&self, kind: crate::editor::MarkColor) -> Color32 {
+        use crate::editor::MarkColor::*;
+        match (kind, self.dark) {
+            (Error, true) => Color32::from_rgb(0xF2, 0x77, 0x7A),
+            (Error, false) => Color32::from_rgb(0xC8, 0x28, 0x28),
+            (Warning, true) => Color32::from_rgb(0xFF, 0xCC, 0x66),
+            (Warning, false) => Color32::from_rgb(0xB0, 0x76, 0x00),
+            (Info, true) => Color32::from_rgb(0x66, 0x99, 0xCC),
+            (Info, false) => Color32::from_rgb(0x1F, 0x6F, 0xC0),
+            (Accent, _) => self.accent,
+        }
+    }
+}
+
 fn to_egui(c: SyntectColor) -> Color32 {
     Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a)
 }

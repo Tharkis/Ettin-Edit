@@ -5,7 +5,9 @@ The right panel shows the message as a tree: segments, then fields,
 repetitions, components and subcomponents (empty ones are hidden). The
 bottom panel inspects the piece that is clicked in the tree or under the
 caret: its name, data type, optionality and so on from an HL7 v2.5.1
-dictionary, and a box to change its value.
+dictionary, and a box to change its value. It also adds a transform,
+Explode HL7 Segments (Transform > Plugin Transforms), which puts each field
+on its own line with its name.
 
 The parser is in hl7.py and the dictionary in hl7_defs.py; neither knows
 about the editor, so they can be tested on their own (test_hl7.py).
@@ -599,6 +601,25 @@ def on_inspector(event):
         doc = current_doc()
         if doc is not None and 0 <= index < len(rows) and rows[index] and valid(rows[index]):
             select(rows[index], doc)
+
+
+def field_name(segment, number):
+    """The dictionary name of a field, or "" for one it doesn't define."""
+    if number > len(defs.segment(segment).fields):
+        return ""
+    return defs.field(segment, number).name
+
+
+@ettin.transform("Explode HL7 Segments", options={"show_empty": False, "names": True},
+                 languages=["HL7"])
+def explode(text, options):
+    """Each field on its own line, named: easier to read and to compare."""
+    if not text.strip():
+        return text
+    if not hl7.looks_like_hl7(text) and "|" not in text:
+        raise ettin.TransformError("This doesn't look like HL7 v2 text.", line=1)
+    return hl7.explode(text, show_empty=options["show_empty"],
+                       name_of=field_name if options["names"] else None)
 
 
 ettin.run()

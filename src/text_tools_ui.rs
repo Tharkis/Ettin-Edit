@@ -27,11 +27,15 @@ pub struct Notice {
     pub since: Option<f64>,
     /// A place in a document the message is about: (doc id, char offset).
     pub jump: Option<(u64, usize)>,
+    /// A file and line (from 1) to offer to open, such as where a
+    /// plugin's error is.
+    pub open: Option<(std::path::PathBuf, usize)>,
 }
 
 pub enum NoticeResponse {
     Close,
     Jump(u64, usize),
+    Open(std::path::PathBuf, usize),
 }
 
 impl Notice {
@@ -67,6 +71,11 @@ impl Notice {
                                 && ui.small_button(t!("go-to")).clicked()
                             {
                                 response = Some(NoticeResponse::Jump(doc, pos));
+                            }
+                            if let Some((path, line)) = &self.open
+                                && ui.small_button(t!("open-file-button")).clicked()
+                            {
+                                response = Some(NoticeResponse::Open(path.clone(), *line));
                             }
                             if ui
                                 .add(egui::Button::new("×").frame(false))

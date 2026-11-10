@@ -1,6 +1,8 @@
-"""Markdown Preview: a sample Ettin Edit plugin in Python.
+"""Markdown Preview (plugin example): a sample Ettin Edit plugin in Python.
 
-Shows the Markdown tab you are editing, rendered, in a side panel. The
+Ettin Edit has a Markdown preview built in (View > Markdown Preview,
+Ctrl+Shift+M). This plugin shows how such a feature is written as a plugin.
+It shows the Markdown tab you are editing, rendered, in a side panel. The
 preview follows the tab that has focus and updates a moment after you stop
 typing. Images show, from files next to the Markdown file or from the web,
 and the preview scrolls along with the text unless you untick "Scroll with
@@ -28,7 +30,7 @@ def render(doc=None):
     doc = doc or ettin.active()
     previous = state["doc"]
     state["doc"] = doc
-    title = "Preview: " + doc.title
+    title = "Preview (plugin example): " + doc.title
     if not is_markdown(doc):
         items = [ui.label("This tab isn't Markdown. Open or switch to a .md file to "
                           "preview it.", weak=True)]
@@ -83,8 +85,8 @@ def follow(href):
         ettin.message("Can't find " + target, "warning")
 
 
-@ettin.command("Show or Hide Markdown Preview", shortcut="Ctrl+Shift+M",
-               icon="markdown-logo")
+# No shortcut: Ctrl+Shift+M opens the built-in preview.
+@ettin.command("Show or Hide Markdown Preview (plugin example)", icon="markdown-logo")
 def toggle():
     state["shown"] = not state["shown"]
     if state["shown"]:

@@ -10,10 +10,14 @@ use serde_json::{Value, json};
 
 use super::EttinApp;
 use crate::actions::Action;
+use crate::editor::{Decoration, MarkColor, MarkStyle};
 use crate::plugins::panel::Position;
 use crate::plugins::ui::{self as plugin_ui, ManagerAction, Permission, TextPrompt};
 use crate::plugins::{Call, CallError, FAILED, INVALID_PARAMS, METHOD_NOT_FOUND, str_param};
 use crate::text_tools_ui::Notice;
+
+/// The most marks one `doc.mark` call can make.
+const MAX_MARKS: usize = 100_000;
 
 /// Seconds to wait after the caret stops moving before sending `caret`.
 const CARET_DELAY: f64 = 0.15;
@@ -50,6 +54,23 @@ pub(crate) struct PluginUi {
     node: Option<String>,
     /// The plugin index, installs in progress and the manager's tabs.
     pub store: crate::plugins::store::Store,
+    /// Lists plugins asked the user to pick from (`ettin.choose`), and the
+    /// picker showing the first.
+    chooses: VecDeque<Choose>,
+    choose_picker: crate::palette_ui::Picker,
+    /// The plugin whose Options window is open, with the values shown.
+    options_open: Option<(String, serde_json::Map<String, Value>)>,
+    pub new_plugin: crate::plugins::new_plugin::NewPluginDialog,
+}
+
+/// A plugin waiting for the user to pick from a list.
+struct Choose {
+    plugin: String,
+    run: u64,
+    id: Value,
+    items: Vec<(String, String)>,
+    title: String,
+    placeholder: String,
 }
 
 fn param_usize(params: &Value, key: &str) -> Result<Option<usize>, CallError> {
@@ -112,14 +133,18 @@ impl EttinApp {
                 break;
             }
         }
-        for text in std::mem::take(&mut self.plugins.notices) {
+        for n in std::mem::take(&mut self.plugins.notices) {
             self.notice = Some(Notice {
-                text,
+                text: n.text,
                 error: true,
                 since: None,
                 jump: None,
+                open: n.open,
             });
         }
+        self.reload_changed_plugins(ctx);
+        self.plugins.publish_transforms();
+        self.drop_stopped_plugin_marks();
         self.finish_installs(ctx);
         self.plugin_events(ctx);
     }
@@ -268,6 +293,43 @@ impl EttinApp {
 
     /// Answers one call from a plugin.
     fn plugin_call(&mut self, ctx: &egui::Context, call: Call) {
+        if call.method == "ui.choose" {
+            let Some(id) = call.id else { return };
+            let items: Option<Vec<(String, String)>> =
+                call.params.get("items").and_then(Value::as_array).map(|a| {
+                    a.iter()
+                        .map(|i| match i {
+                            Value::String(s) => (s.clone(), String::new()),
+                            other => (
+                                str_param(other, "label").unwrap_or_default().to_owned(),
+                                str_param(other, "detail").unwrap_or_default().to_owned(),
+                            ),
+                        })
+                        .collect()
+                });
+            let Some(items) = items else {
+                let e = (INVALID_PARAMS, "\"items\" must be a list".to_owned());
+                return self.plugins.respond(&call.plugin, call.run, id, Err(e));
+            };
+            let name = self
+                .plugins
+                .plugins
+                .iter()
+                .find(|p| p.id == call.plugin)
+                .map(|p| p.name().to_owned())
+                .unwrap_or_default();
+            self.plugin_ui.chooses.push_back(Choose {
+                title: str_param(&call.params, "title").unwrap_or(&name).to_owned(),
+                placeholder: str_param(&call.params, "placeholder")
+                    .unwrap_or_default()
+                    .to_owned(),
+                plugin: call.plugin,
+                run: call.run,
+                id,
+                items,
+            });
+            return;
+        }
         if call.method == "ui.prompt" {
             if let Some(id) = call.id {
                 let name = self
@@ -293,7 +355,7 @@ impl EttinApp {
             }
             return;
         }
-        let result = self.plugin_answer(ctx, &call.method, &call.params);
+        let result = self.plugin_answer(ctx, &call.plugin, &call.method, &call.params);
         if let Some(id) = call.id {
             self.plugins.respond(&call.plugin, call.run, id, result);
         } else if let Err((_, message)) = result {
@@ -305,6 +367,7 @@ impl EttinApp {
     fn plugin_answer(
         &mut self,
         ctx: &egui::Context,
+        plugin: &str,
         method: &str,
         params: &Value,
     ) -> Result<Value, CallError> {
@@ -510,6 +573,7 @@ impl EttinApp {
                     error: kind != "info",
                     since: None,
                     jump: None,
+                    open: None,
                 });
                 Ok(Value::Null)
             }
@@ -518,6 +582,77 @@ impl EttinApp {
                 Ok(Value::Null)
             }
             "app.language" => Ok(json!(crate::i18n::current())),
+            "marks.set" => {
+                let i = self.plugin_doc(params)?;
+                let owner = format!("{plugin}/{}", param_str(params, "id")?);
+                let style = match str_param(params, "style") {
+                    None => MarkStyle::Squiggle,
+                    Some(s) => MarkStyle::from_name(s).ok_or((
+                        INVALID_PARAMS,
+                        format!(
+                            "unknown style \"{s}\": use underline-squiggle, background or gutter-icon"
+                        ),
+                    ))?,
+                };
+                let color = match str_param(params, "color") {
+                    None => MarkColor::Error,
+                    Some(c) => MarkColor::from_name(c).ok_or((
+                        INVALID_PARAMS,
+                        format!("unknown color \"{c}\": use error, warning, info or accent"),
+                    ))?,
+                };
+                let message = str_param(params, "message")
+                    .filter(|m| !m.is_empty())
+                    .map(std::sync::Arc::<str>::from);
+                let editor = &mut self.docs[i].editor;
+                let len = editor.buffer.len_chars();
+                let ranges = params.get("ranges").and_then(Value::as_array).ok_or((
+                    INVALID_PARAMS,
+                    "\"ranges\" must be a list of [start, end] pairs".to_owned(),
+                ))?;
+                let mut marks = Vec::new();
+                for r in ranges {
+                    let pair = r.as_array().and_then(|p| {
+                        let a = p.first()?.as_u64()? as usize;
+                        let b = p.get(1).and_then(Value::as_u64).map_or(a, |b| b as usize);
+                        Some((a.min(b), a.max(b)))
+                    });
+                    let Some((start, end)) = pair else {
+                        return Err((
+                            INVALID_PARAMS,
+                            "\"ranges\" must be a list of [start, end] pairs".to_owned(),
+                        ));
+                    };
+                    if end > len {
+                        return Err((
+                            INVALID_PARAMS,
+                            format!("{start}..{end} isn't inside the text (0..{len})"),
+                        ));
+                    }
+                    marks.push(Decoration {
+                        owner: owner.clone(),
+                        range: start..end,
+                        style,
+                        color,
+                        message: message.clone(),
+                    });
+                }
+                if marks.len() > MAX_MARKS {
+                    marks.truncate(MAX_MARKS);
+                }
+                editor.decorations.retain(|d| d.owner != owner);
+                editor.decorations.extend(marks);
+                editor
+                    .decorations
+                    .sort_by_key(|d| (d.range.start, d.range.end));
+                Ok(Value::Null)
+            }
+            "marks.clear" => {
+                let i = self.plugin_doc(params)?;
+                let owner = format!("{plugin}/{}", param_str(params, "id")?);
+                self.docs[i].editor.decorations.retain(|d| d.owner != owner);
+                Ok(Value::Null)
+            }
             _ => Err((
                 METHOD_NOT_FOUND,
                 format!("Ettin Edit has no method \"{method}\""),
@@ -585,7 +720,11 @@ impl EttinApp {
         }
         // Closing removes a panel, so go from the last.
         for (i, e) in events.into_iter().rev() {
-            self.plugins.panel_event(i, e);
+            if self.plugins.panels[i].plugin == super::markdown_preview::OWNER {
+                self.markdown_preview_event(e);
+            } else {
+                self.plugins.panel_event(i, e);
+            }
         }
     }
 
@@ -633,6 +772,7 @@ impl EttinApp {
             }
         }
 
+        self.plugin_choose_ui(ctx);
         if self.plugin_ui.manager_open {
             let python = self
                 .plugin_ui
@@ -673,6 +813,11 @@ impl EttinApp {
             self.plugin_ui.python = None;
             self.plugin_ui.node = None;
         }
+        self.plugin_options_ui(ctx);
+        let root = self.plugins.dir.clone();
+        if self.plugin_ui.new_plugin.ui(ctx, root.as_deref(), &palette) {
+            self.create_plugin();
+        }
         if self.plugin_ui.log_open {
             plugin_ui::log_window(
                 ctx,
@@ -683,9 +828,156 @@ impl EttinApp {
         }
     }
 
+    /// A plugin's Options window, from Manage Plugins.
+    fn plugin_options_ui(&mut self, ctx: &egui::Context) {
+        let palette = self.palette();
+        let Some((id, values)) = &mut self.plugin_ui.options_open else {
+            return;
+        };
+        let Some(i) = self.plugins.index_of(id) else {
+            self.plugin_ui.options_open = None;
+            return;
+        };
+        let p = &self.plugins.plugins[i];
+        let name = p.name().to_owned();
+        let options = p.options().to_vec();
+        match plugin_ui::options_window(ctx, &name, &options, values, &palette) {
+            Some(plugin_ui::OptionsAction::Changed) => {
+                let (id, values) = (id.clone(), values.clone());
+                if let Err(e) = self.plugins.set_settings(&id, values) {
+                    self.errors.push(e);
+                }
+            }
+            Some(plugin_ui::OptionsAction::Close) => self.plugin_ui.options_open = None,
+            None => {}
+        }
+    }
+
+    /// Plugins > New Plugin…: writes the plugin, starts it and opens its
+    /// main file.
+    fn create_plugin(&mut self) {
+        use crate::plugins::new_plugin;
+        let Some(root) = self.plugins_root() else {
+            return;
+        };
+        let d = &self.plugin_ui.new_plugin;
+        let (id, main) = match new_plugin::create(&root, &d.name, d.lang, d.start) {
+            Ok(made) => made,
+            Err(e) => {
+                self.plugin_ui.new_plugin.error = Some(e);
+                return;
+            }
+        };
+        let reload = d.reload;
+        self.plugin_ui.new_plugin = Default::default();
+        // The user wrote this one: no need to ask, now or when it changes.
+        let pref = self.settings.plugins.entry(id.clone()).or_default();
+        pref.approved = Some(crate::plugins::manifest::fingerprint(&root.join(&id)));
+        pref.trust_changes = true;
+        pref.disabled = false;
+        pref.reload_on_change = reload;
+        self.settings.save();
+        if let Some(i) = self.plugins.add_new(&id) {
+            self.start_plugin(i);
+        }
+        self.plugin_ui.manager_open = false;
+        self.open_at_line(&main, 1);
+    }
+
+    /// Restarts plugins with "Reload when its files change" on whose files
+    /// changed. Called each frame.
+    fn reload_changed_plugins(&mut self, ctx: &egui::Context) {
+        let watched: Vec<String> = self
+            .settings
+            .plugins
+            .iter()
+            .filter(|(_, p)| p.reload_on_change && !p.disabled)
+            .map(|(id, _)| id.clone())
+            .collect();
+        if watched.is_empty() {
+            return;
+        }
+        let now = ctx.input(|i| i.time);
+        for id in self.plugins.changed_plugins(&watched, now) {
+            let Some(i) = self.plugins.index_of(&id) else {
+                continue;
+            };
+            let pref = self.settings.plugins.entry(id.clone()).or_default();
+            // Changes the user makes to their own plugin need no new permission.
+            if pref.trust_changes {
+                pref.approved = Some(crate::plugins::manifest::fingerprint(
+                    &self.plugins.plugins[i].dir,
+                ));
+            }
+            self.plugins.refresh(i, now);
+            self.start_plugin(i);
+            self.plugins.log(&id, t!("plugin-reloaded"), false);
+        }
+        let wait = if self.plugins.reload_waiting() {
+            0.1
+        } else {
+            0.25
+        };
+        ctx.request_repaint_after(Duration::from_secs_f64(wait));
+    }
+
     /// True while a plugin dialog that blocks the editor is open.
     pub(super) fn plugin_modal_open(&self) -> bool {
-        !self.plugins.prompts.is_empty() || !self.plugin_ui.prompts.is_empty()
+        !self.plugins.prompts.is_empty()
+            || !self.plugin_ui.prompts.is_empty()
+            || !self.plugin_ui.chooses.is_empty()
+    }
+
+    /// Removes the marks of plugins that stopped.
+    fn drop_stopped_plugin_marks(&mut self) {
+        for doc in &mut self.docs {
+            if doc.editor.decorations.is_empty() {
+                continue;
+            }
+            let plugins = &self.plugins;
+            doc.editor.decorations.retain(|d| {
+                d.owner
+                    .split_once('/')
+                    .is_some_and(|(p, _)| plugins.is_running_plugin(p))
+            });
+        }
+    }
+
+    /// The list a plugin asked the user to pick from (`ettin.choose`).
+    fn plugin_choose_ui(&mut self, ctx: &egui::Context) {
+        let Some(c) = self.plugin_ui.chooses.front() else {
+            return;
+        };
+        if !self.plugins.is_current(&c.plugin, c.run) {
+            self.plugin_ui.chooses.pop_front();
+            return;
+        }
+        if !self.plugin_ui.choose_picker.open {
+            let hint = if c.placeholder.is_empty() {
+                t!("choose-hint")
+            } else {
+                c.placeholder.clone()
+            };
+            let title = c.title.clone();
+            self.plugin_ui.choose_picker.show(&title, &hint);
+        }
+        let items: Vec<crate::palette_ui::Item<usize>> = c
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, (label, detail))| {
+                crate::palette_ui::Item::new(label.clone(), detail.clone(), i)
+            })
+            .collect();
+        let palette = self.palette();
+        let picked = self.plugin_ui.choose_picker.ui(ctx, &items, &palette);
+        if picked.is_some() || !self.plugin_ui.choose_picker.open {
+            let c = self.plugin_ui.chooses.pop_front().expect("showing");
+            self.plugin_ui.choose_picker.open = false;
+            self.plugins
+                .respond(&c.plugin, c.run, c.id, Ok(json!(picked)));
+            self.focus_editor = true;
+        }
     }
 
     fn allow_plugin(&mut self, id: &str) {
@@ -812,6 +1104,19 @@ impl EttinApp {
                 }
             }
             ManagerAction::Remove(id) => self.remove_plugin(&id, now),
+            ManagerAction::Options(id) => {
+                let values = self.plugins.settings_of(&id);
+                self.plugin_ui.options_open = Some((id, values));
+            }
+            ManagerAction::SetReloadOnChange(id, on) => {
+                self.settings
+                    .plugins
+                    .entry(id)
+                    .or_default()
+                    .reload_on_change = on;
+                self.settings.save();
+            }
+            ManagerAction::NewPlugin => self.plugin_ui.new_plugin.show(),
         }
     }
 
@@ -841,6 +1146,12 @@ impl EttinApp {
             self.reload_plugins(now);
             return;
         }
+        // Its settings and files go too.
+        if let Some(data) = self.plugins.plugin_data_dir(id)
+            && data.exists()
+        {
+            let _ = crate::plugins::store::to_trash(&data);
+        }
         self.settings.plugins.remove(id);
         self.settings.save();
         self.reload_plugins(now);
@@ -849,6 +1160,7 @@ impl EttinApp {
             error: false,
             since: None,
             jump: None,
+            open: None,
         });
     }
 
@@ -911,6 +1223,7 @@ impl EttinApp {
             error,
             since: None,
             jump: None,
+            open: None,
         });
     }
 
@@ -951,9 +1264,11 @@ impl EttinApp {
                     error: false,
                     since: None,
                     jump: None,
+                    open: None,
                 });
             }
             Action::InstallSamplePlugins => self.install_samples(now),
+            Action::NewPlugin => self.plugin_ui.new_plugin.show(),
             Action::PluginGuide => {
                 self.manual.show("plugin-guide.md", None);
                 super::drop_focus(ctx);
@@ -1022,6 +1337,7 @@ impl EttinApp {
             error: false,
             since: None,
             jump: None,
+            open: None,
         });
     }
 
