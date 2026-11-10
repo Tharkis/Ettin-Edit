@@ -1,22 +1,43 @@
 # Writing Ettin Edit plugins
 
-A plugin adds commands, shortcuts and panels to Ettin Edit. You write it in
-Python or JavaScript, whichever you prefer.
+A plugin adds transforms, commands, shortcuts and panels to Ettin Edit. You
+write it in Python or JavaScript, whichever you prefer.
+
+Most plugins are best written as a **transform**: a function that takes
+text and returns new text. Ettin Edit does the rest. It runs the function on
+each selection (or the whole tab) as one undo step, shows a preview, asks
+for the options, lets the user send the result to a new tab or the
+clipboard, and lets them use it as a [recipe](recipes.md) step, even from
+the command line.
 
 ## Quick start
 
-1. Choose **Plugins > Install Sample Plugins**. Ettin Edit copies four working
-   plugins into your plugins folder and starts them:
-   - **Text Statistics** (Python)
-   - **Markdown Outline** (JavaScript)
-   - **Markdown Preview** (Python): a small example of a `markdown` panel
-     that updates as you type
-   - **HL7 Viewer** (Python): a bigger example, with a tree panel, an
-     inspector panel and its own unit tests
-2. Try them from the **Plugins** menu.
-3. Choose **Plugins > Open Plugins Folder**, copy one of the sample folders,
-   rename it and edit it.
-4. Choose **Plugins > Reload Plugins** to run your changes.
+1. Choose **Plugins > New Plugin…**. Give it a name, pick Python or
+   JavaScript and what it starts with (a transform, a command or a panel),
+   and click **Create and Open**. Ettin Edit writes a working plugin to your
+   plugins folder, starts it and opens its main file.
+2. Try it: a transform is in **Transform > Plugin Transforms**, a command in
+   the **Plugins** menu.
+3. Edit the main file and save. With **Reload when its files change** ticked
+   (it is, for a new plugin), Ettin Edit restarts the plugin within a second,
+   so your change is ready to try.
+
+To learn from bigger examples, choose **Plugins > Install Sample Plugins**.
+Ettin Edit copies four working plugins into your plugins folder and starts
+them:
+
+- **Text Statistics** (Python)
+- **Markdown Outline** (JavaScript)
+- **Markdown Preview (plugin example)** (Python): how the built-in
+  [Markdown Preview](view.md#markdown-preview) could be written as a plugin,
+  with a `markdown` panel that updates as you type
+- **HL7 Viewer** (Python): a bigger example, with a tree panel, an
+  inspector panel, a transform (**Explode HL7 Segments**) and its own unit
+  tests
+
+You can also copy one of the sample folders (**Plugins > Open Plugins
+Folder**), rename it and edit it; **Plugins > Reload Plugins** runs your
+changes.
 
 The plugins folder is `~/.config/EttinEdit/plugins` on Linux and
 `%APPDATA%\EttinEdit\plugins` on Windows.
@@ -65,6 +86,12 @@ plugins/
 | `main` | The script to run, inside the folder. Defaults to `main.py` or `main.js`. |
 | `runtime` | `"python"` or `"node"`. Only needed when `main` doesn't end in `.py` or `.js`. |
 | `version`, `description`, `author` | Shown in Manage Plugins. |
+| `options` | Settings the user can change in Manage Plugins (see [Settings and options](#settings-and-options)). |
+
+A new plugin from **Plugins > New Plugin…** also gets `ettin.pyi` (Python)
+or `ettin.d.ts` (JavaScript) next to its main file: type hints for the whole
+API, so editors such as VS Code or PyCharm can complete names and check
+calls. The same files are in the `.sdk` folder inside the plugins folder.
 
 Folders whose names start with `.` or `_` are skipped. Rename a folder to
 `_shout` to hide a plugin without deleting it.
@@ -81,8 +108,21 @@ again whenever any file in the plugin's folder changes. If you choose
 **Plugins > Manage Plugins**.
 
 Ettin Edit doesn't ask about the sample plugins you install from the Plugins
-menu. While you write a plugin of your own, tick **Don't ask when it
-changes** for it in Manage Plugins, so reloading it doesn't ask each time.
+menu, or about a plugin you make with **New Plugin…**. While you write a
+plugin of your own, tick **Don't ask when it changes** for it in Manage
+Plugins, so reloading it doesn't ask each time.
+
+## Reloading as you write
+
+Tick **Reload when its files change** on a plugin's card in **Plugins >
+Manage Plugins** (a plugin made with **New Plugin…** has it ticked). Ettin
+Edit then watches the plugin's folder and restarts the plugin half a second
+after you stop saving files there, so a change is running within a second.
+The plugin log says when it reloaded.
+
+If the plugin fails to start, or an error stops it, Ettin Edit shows the
+error with the file and line it happened on, and an **Open** button that
+opens that file at that line. The full traceback is in the plugin log.
 
 ## Sharing plugins
 
@@ -186,6 +226,165 @@ Every call returns a Promise, so use `await`. Use `require`, not `import`:
 Ettin Edit makes the `ettin` module available through `NODE_PATH`, and ES
 modules don't read that.
 
+## Transforms
+
+A transform is a function that takes the text and its options and returns
+the new text. Five lines are enough:
+
+```python
+import ettin
+
+@ettin.transform("Reverse Lines", options={"skip_blank": False})
+def reverse(text, options):
+    lines = text.split("\n")
+    return "\n".join(reversed(lines))
+
+ettin.run()
+```
+
+```js
+const ettin = require('ettin');
+ettin.transform('Reverse Lines', { skipBlank: false },
+  (text, options) => text.split('\n').reverse().join('\n'));
+```
+
+A transform appears:
+
+- in **Transform > Plugin Transforms**, under the plugin's name;
+- in the [command palette](view.md#command-palette) and the Shortcut
+  Mapper, so it can have a shortcut;
+- in the recipe window's **Add Step** list, so it can be a recipe step;
+- on the right-click menu of tabs in the languages you list
+  (`languages=["JSON"]` / `{ languages: ['JSON'] }`).
+
+When the user runs it, Ettin Edit sends the text of each selection (or the
+whole tab when nothing is selected) to the function, one call per
+selection, and puts the results back as **one undo step**. A transform with
+options opens a dialog first: a form for the options, a live preview of what
+the transform makes of the first lines, and **Result goes to** (this tab, a
+new tab or the clipboard). A transform without options runs straight away.
+Recording a recipe records the transform with the options used.
+
+`options` is a dict (an object in JavaScript) of option names and their
+defaults. A true/false default gets a check box, a number a number box and
+text a text box (where `\n` stands for a line break). Your function always
+gets every option: the user's values, or the defaults for any they didn't
+set.
+
+When the text can't be transformed, raise `ettin.TransformError` (throw
+`new ettin.TransformError(message, { line, column })` in JavaScript). Ettin
+Edit shows the message and, when you give a `line` (and `column`), from 1,
+counted in the text you were given, moves the caret there. Any other error
+shows its message; the traceback goes to the plugin log. A
+`json.JSONDecodeError` from Python's `json` module is reported with its line
+and column automatically.
+
+A transform has 10 seconds. After half a second Ettin Edit shows that it's
+running, with a **Stop** button; after 10 seconds it gives up and leaves
+the text as it was.
+
+The optional `id` (the title by default) names the transform in recipes,
+so keep it the same when you rename the title. A recipe that uses a
+plugin's transform runs it from the command line too (`ettin-edit --recipe
+NAME file`); Ettin Edit starts the plugin for it, if it is allowed to run.
+If the plugin isn't installed or allowed, the recipe stops with an error
+that says which plugin it needs.
+
+## Settings and options
+
+Each plugin has a settings store, kept in `plugin-data/<id>/settings.json`
+in Ettin Edit's config folder, next to the plugins folder.
+`ettin.settings` reads like a dict (a plain object in JavaScript) and is
+filled in before any command, event or transform runs. In Python,
+assigning saves straight away (`ettin.settings["width"] = 80`); in
+JavaScript call `await ettin.setSettings({ width: 80 })`.
+
+`ettin.data_dir()` / `ettin.dataDir()` is a folder for the plugin's own
+files (caches, downloaded data). It is created when first asked for and
+kept when the plugin is updated, but removed with it.
+
+To let users change settings without editing code, list them in
+`plugin.json`:
+
+```json
+{
+  "name": "Wrap",
+  "options": [
+    { "key": "width", "title": "Wrap at column", "type": "number", "default": 80 },
+    { "key": "style", "title": "Style", "type": "choice",
+      "choices": ["hard", "soft"], "default": "hard" },
+    { "key": "keep_indent", "title": "Keep indentation", "type": "bool", "default": true,
+      "description": "Wrapped lines start at the same column." }
+  ]
+}
+```
+
+`type` is `string`, `bool`, `number` or `choice`. The plugin's card in
+**Manage Plugins** then has an **Options…** button that opens a form for
+them. Changes are saved straight away and the plugin gets a
+`settings.changed` event with the new settings:
+
+```python
+@ettin.on("settings.changed")
+def changed(settings):
+    ettin.log("Width is now", settings["width"])
+```
+
+## Marks
+
+A plugin can mark ranges of a document, for example to show where a
+linter found problems:
+
+```python
+doc = ettin.active()
+doc.mark("lint", [(10, 14), (52, 60)], style="underline-squiggle",
+         color="warning", message="Unknown field")
+doc.clear_marks("lint")
+```
+
+```js
+await doc.mark('lint', [[10, 14], [52, 60]], { style: 'underline-squiggle', color: 'warning', message: 'Unknown field' });
+await doc.clearMarks('lint');
+```
+
+`style` is `underline-squiggle` (the default), `background` or
+`gutter-icon` (a small diamond beside the line). `color` is `error` (the
+default), `warning`, `info` or `accent`, in the theme's colours. Hovering
+over a mark shows its `message`. Marks move with the text as it is edited,
+and calling `mark` again with the same id replaces that set. A plugin's
+marks go away when it stops.
+
+## Status bar items
+
+```python
+ettin.status("words", "1,204 words", tooltip="Words in this tab", command="count")
+ettin.status("words", "")   # removes it
+```
+
+```js
+await ettin.status('words', '1,204 words', { tooltip: 'Words in this tab', command: 'count' });
+```
+
+Shows short text on the right of the status bar. Clicking it runs the
+plugin's command with that id: the `id` given to `command`, or else the
+function's name in Python (`count` above) and the title in JavaScript.
+A plugin can show up to four items.
+
+## Picking from a list
+
+```python
+pick = ettin.choose(["UTF-8", "Latin-1", {"label": "UTF-16", "detail": "two bytes"}],
+                    title="Encoding", placeholder="Type to filter")
+```
+
+```js
+const pick = await ettin.choose(['UTF-8', 'Latin-1'], { title: 'Encoding' });
+```
+
+Shows a list the user filters by typing, like the command palette. Returns
+the item picked (the string, or the dict/object) or `None`/`null` when the
+user closes it.
+
 ## Printing and errors
 
 Ettin Edit and the plugin talk over the plugin's standard input and output.
@@ -196,8 +395,10 @@ debugging.
 If a command or event handler throws an error, Ettin Edit shows a short message
 and writes the full traceback to the log. The plugin keeps running.
 
-If the plugin itself stops, **Manage Plugins** shows why. Fix it, then
-click **Start** or choose **Reload Plugins**.
+If the plugin itself stops, Ettin Edit shows the error with the file and
+line it happened on, and an **Open** button that opens the file there.
+**Manage Plugins** also shows why. Fix it, then click **Start** or choose
+**Reload Plugins** (or let **Reload when its files change** do it).
 
 ## Text positions
 
@@ -218,6 +419,7 @@ Python names are shown first, JavaScript names second.
 
 | Python | JavaScript | What it does |
 |--------|------------|--------------|
+| `@transform(title, options=None, id=None, languages=None)` | `transform(title, options, fn, {id, languages})` | Adds a transform (see [Transforms](#transforms)). |
 | `@command(title, shortcut=None, id=None, icon=None)` | `command(title, fn, {shortcut, id, icon})` | Adds a command to the Plugins menu, with an optional shortcut and toolbar icon. |
 | `@on(event)` | `on(event, fn)` | Calls the handler with a `Document` when the event happens. |
 | `run()` | (not needed) | Handles commands and events until Ettin Edit stops the plugin. |
@@ -259,6 +461,7 @@ Events:
 | `changed` | The text was edited. Sent after a short pause in typing. |
 | `caret` | The caret or selection moved in the active tab. Sent after a short pause. |
 | `shutdown` | Ettin Edit is closing or stopping the plugin. No argument. |
+| `settings.changed` | The user changed the plugin's options. Called with the new settings. |
 
 ### Documents
 
@@ -291,6 +494,8 @@ updates them): `id`, `title`, `path` (`None`/`null` for a new tab),
 | `save()` | `save()` | Saves. Asks for a name if the tab has none. Returns whether it saved. |
 | `activate()` | `activate()` | Shows the tab. |
 | `close()` | `close()` | Closes the tab. Asks first if there are unsaved changes. |
+| `mark(id, ranges, style, color, message)` | `mark(id, ranges, {style, color, message})` | Marks ranges (see [Marks](#marks)). |
+| `clear_marks(id)` | `clearMarks(id)` | Removes the marks made with that id. |
 
 Each edit is one undo step, so **Undo** reverses it. Editing a read-only
 document raises an error.
@@ -301,6 +506,10 @@ document raises an error.
 |--------|------------|--------------|
 | `message(text, kind="info")` | `message(text, kind)` | Shows a short message. `kind` is `info`, `warning` or `error`. |
 | `prompt(text, value="", title=None)` | `prompt(text, {value, title})` | Asks for a line of text. Returns `None`/`null` if cancelled. |
+| `choose(items, title=None, placeholder=None)` | `choose(items, {title, placeholder})` | Asks the user to pick from a list (see [Picking from a list](#picking-from-a-list)). |
+| `status(id, text, tooltip=None, command=None)` | `status(id, text, {tooltip, command})` | Shows text in the status bar (see [Status bar items](#status-bar-items)). |
+| `settings` | `settings`, `setSettings(values)` | The plugin's settings (see [Settings and options](#settings-and-options)). |
+| `data_dir()` | `dataDir()` | A folder for the plugin's own files. |
 | `set_clipboard(text)` | `setClipboard(text)` | Copies text. |
 | `run_action(action)` | `runAction(action)` | Runs one of Ettin Edit's own commands (see below). |
 | `ui_language()` | `uiLanguage()` | The language Ettin Edit's menus are in, like `"en"` or `"de"` (see below). |
@@ -318,8 +527,10 @@ settings the same way, such as
 [Recipes](recipes.md) run by name: `{"RunRecipe": "Tidy Whitespace"}` works on
 the selections or the whole document, and `{"RunRecipeOnAllTabs": "Tidy Whitespace"}`
 on every open tab. A recipe with shell commands still asks the user first.
-The names are the ones in Ettin Edit's `src/actions.rs` and
-`src/tools/transform.rs`.
+
+To find a command's id, right-click it in the command palette (F1) or in
+**Settings > Shortcut Mapper** and choose **Copy Command ID**. The ids of
+the built-in commands are also [listed below](#command-ids).
 
 ### Translating your plugin
 
@@ -410,8 +621,8 @@ The handler gets: `item` (the item's id), `event` (`click`, `change`,
 `submit`, `select`, `link` or `close`), `value`, and `values` (every input,
 checkbox and select, by id). `close` means the user closed the panel.
 
-A Markdown panel that follows the text, as the **Markdown Preview** sample
-does it, needs only a few lines:
+A Markdown panel that follows the text, as the **Markdown Preview (plugin
+example)** sample does it, needs only a few lines:
 
 ```python
 @ettin.on("changed")
@@ -440,10 +651,12 @@ plugins with `node main.js`, in the plugin's folder.
 
 Ettin Edit sends these notifications:
 
-- `initialize` `{plugin, ettin, api, language}`. Always first. `api` is 1.
-  `language` is the interface language, like `en` or `de`.
+- `initialize` `{plugin, ettin, api, language, settings, dataDir}`. Always
+  first. `api` is 2 since Ettin Edit 2.3 (1 before). `language` is the
+  interface language, like `en` or `de`; `settings` the plugin's settings and
+  `dataDir` its folder.
 - `command` `{id}`.
-- `event` `{event, doc}`.
+- `event` `{event, doc}`. For `settings.changed`, `{event, settings}`.
 - `panel` `{panel, item, event, value, values}`.
 - `shutdown` `{}`. Finish within a second, or the plugin is stopped.
 
@@ -453,6 +666,13 @@ the active tab.
 | Method | Params | Result |
 |--------|--------|--------|
 | `commands.register` | `id, title, shortcut?, icon?` | `{shortcut, warning}` |
+| `transforms.register` | `id, title, options?, languages?` | |
+| `settings.get` | | the settings object |
+| `settings.set` | `values` | the settings saved |
+| `marks.set` | `doc?, id, ranges: [[start, end]], style?, color?, message?` | |
+| `marks.clear` | `doc?, id` | |
+| `status.set` | `id, text, tooltip?, command?` | |
+| `ui.choose` | `items: [{label, detail?}], title?, placeholder?` | the index picked, or `null` |
 | `events.subscribe` | `events: [names]` | |
 | `documents.list` / `documents.active` / `documents.info` | `doc?` | document info |
 | `documents.open` | `path` | document info |
@@ -475,5 +695,228 @@ the active tab.
 | `panel.show` | `id, title?, items, position?` | |
 | `panel.close` | `id` | |
 
-Notifications the plugin can send: `log` `{text, level?}` and
-`error` `{message}`, which also shows a short message to the user.
+Notifications the plugin can send: `log` `{text, level?}`, `error`
+`{message}`, which also shows a short message to the user, and `ready`
+`{}`, which says the plugin has registered its commands and transforms (a
+recipe run from the command line waits for it, up to 10 seconds).
+
+Ettin Edit sends requests (with an `id`) for transforms, and the plugin
+answers each with a result or an error:
+
+- `transform.run` `{id, text, options}`: answer `{"text": "..."}`, or an
+  error whose `data` may hold `line` and `column` (from 1) in the text.
+
+A plugin should answer any other request it doesn't know with error
+`-32601`.
+
+## Command ids
+
+The built-in commands and the ids `run_action` / `runAction` takes. Plugin
+commands are `{"PluginCommand": {"plugin": "<plugin id>", "command": "<command
+id>"}}` and plugin transforms `{"PluginTransform": {"plugin": "<plugin id>",
+"transform": "<transform id>"}}`. Ettin Edit checks this list against its
+commands when it is built.
+
+<!-- command-ids:start -->
+| Command | ID |
+|---------|----|
+| File › New | `NewTab` |
+| File › Open… | `Open` |
+| File › Save | `Save` |
+| File › Save As… | `SaveAs` |
+| File › Save All | `SaveAll` |
+| File › Reload from Disk | `ReloadFromDisk` |
+| File › Rename… | `RenameFile` |
+| File › Move to Trash… | `MoveToTrash` |
+| File › Open Containing Folder | `OpenContainingFolder` |
+| File › Open Terminal Here | `OpenTerminalHere` |
+| File › Print… | `Print` |
+| File › Export as HTML… | `ExportHtml` |
+| File › Open Folder as Workspace… | `OpenFolderAsWorkspace` |
+| File › Close Workspace | `CloseWorkspace` |
+| File › Close | `CloseTab` |
+| File › Close All | `CloseAll` |
+| File › Close Others | `CloseOthers` |
+| File › Clear Recent Files | `ClearRecent` |
+| File › Exit | `Quit` |
+| Search › Find… | `Find` |
+| Search › Replace… | `Replace` |
+| Search › Find Next | `FindNext` |
+| Search › Find Previous | `FindPrev` |
+| Search › Find Selected Next | `FindSelectedNext` |
+| Search › Find Selected Previous | `FindSelectedPrev` |
+| Search › Find in Files… | `FindInFiles` |
+| Search › Find All in Current Document | `FindAllInDoc` |
+| Search › Find All in Open Tabs | `FindAllInTabs` |
+| Search › Select All Matches | `SelectAllMatches` |
+| Search › Mark All | `{"MarkAll":{"bookmark":false}}` |
+| Search › Clear All Marks | `ClearMarks` |
+| Search › Go to Line… | `GoToLine` |
+| Search › Bookmark › Toggle Bookmark | `ToggleBookmark` |
+| Search › Bookmark › Next Bookmark | `NextBookmark` |
+| Search › Bookmark › Previous Bookmark | `PrevBookmark` |
+| Search › Bookmark › Clear All Bookmarks | `ClearBookmarks` |
+| Search › Bookmark › Cut Bookmarked Lines | `CutBookmarkedLines` |
+| Search › Bookmark › Copy Bookmarked Lines | `CopyBookmarkedLines` |
+| Search › Bookmark › Remove Bookmarked Lines | `RemoveBookmarkedLines` |
+| Search › Bookmark › Remove Unbookmarked Lines | `RemoveUnbookmarkedLines` |
+| Search › Bookmark › Inverse Bookmarks | `InverseBookmarks` |
+| View › Word Wrap | `ToggleWordWrap` |
+| View › Line Numbers | `ToggleLineNumbers` |
+| View › Highlight Current Line | `ToggleCurrentLine` |
+| View › Show Symbol › Show Whitespace | `ToggleWhitespace` |
+| View › Show Symbol › Show End of Line | `ToggleEol` |
+| View › Show Symbol › Show Invisible Characters | `ToggleInvisible` |
+| View › Show Symbol › Show All Characters | `ToggleAllChars` |
+| View › Show Symbol › Indent Guides | `ToggleIndentGuides` |
+| View › Long-Line Marker | `ToggleEdge` |
+| View › Function List | `ToggleFunctionList` |
+| View › Document Map | `ToggleDocMap` |
+| View › Character Panel | `ToggleCharPanel` |
+| View › Hex View | `ToggleHexView` |
+| View › Markdown Preview | `ToggleMarkdownPreview` |
+| View › Folder as Workspace | `ToggleFolderPanel` |
+| View › Distraction-Free Mode | `ToggleDistractionFree` |
+| View › Tab List… | `TabList` |
+| View › Move to Other View | `MoveActiveToOtherView` |
+| View › Clone to Other View | `CloneActiveToOtherView` |
+| View › Focus Other View | `FocusOtherView` |
+| View › Next Tab | `NextTab` |
+| View › Previous Tab | `PrevTab` |
+| View › Folding › Fold All | `FoldAll` |
+| View › Folding › Unfold All | `UnfoldAll` |
+| View › Folding › Fold Current Level | `FoldCurrent` |
+| View › Folding › Unfold Current Level | `UnfoldCurrent` |
+| View › Zoom In | `ZoomIn` |
+| View › Zoom Out | `ZoomOut` |
+| View › Reset Zoom | `ZoomReset` |
+| View › Summary… | `Summary` |
+| View › Command Palette… | `CommandPalette` |
+| View › Toolbar › Toolbar | `ToggleToolbar` |
+| View › Toolbar › Simplified Toolbar | `ToggleSimplifiedToolbar` |
+| View › Toolbar › Collapse Toolbar | `CollapseToolbar` |
+| View › Menu Bar | `ToggleMenuBar` |
+| View › Toolbar › Customise Toolbar… | `CustomiseToolbar` |
+| View › Theme › Edit Theme Colours… | `StyleConfigurator` |
+| View › Theme › Open Themes Folder | `OpenThemesFolder` |
+| View › Theme › Reload Themes | `ReloadThemes` |
+| View › Theme › Restore Built-in Themes | `RestoreThemes` |
+| Language › New Language… | `NewLanguage` |
+| Language › Open Languages Folder | `OpenLanguagesFolder` |
+| Language › Open Completion Lists Folder | `OpenApiFolder` |
+| Language › Reload Languages | `ReloadLanguages` |
+| Language › Language Guide | `LanguageGuide` |
+| Settings › Preferences… | `Preferences` |
+| Settings › Shortcut Mapper… | `ShortcutMapper` |
+| Settings › Auto-Close Brackets and Quotes | `ToggleAutoClose` |
+| Settings › Smart Indentation | `ToggleSmartIndent` |
+| Settings › Indent With Spaces | `ToggleUseSpaces` |
+| Settings › Word Completion | `ToggleCompletion` |
+| Settings › Keyword and Function Completion | `ToggleLanguageCompletion` |
+| Settings › Parameter Hints | `ToggleParameterHints` |
+| Settings › Single Window | `ToggleSingleInstance` |
+| Settings › Remember Unsaved Changes on Exit | `ToggleRememberUnsaved` |
+| Settings › Reload Files Changed on Disk Automatically | `ToggleAutoReload` |
+| Transform › Macros › Start or Stop Recording | `ToggleMacroRecording` |
+| Plugins › Manage Plugins… | `ManagePlugins` |
+| Plugins › New Plugin… | `NewPlugin` |
+| Plugins › Plugin Log | `ShowPluginLog` |
+| Plugins › Open Plugins Folder | `OpenPluginsFolder` |
+| Plugins › Reload Plugins | `ReloadPlugins` |
+| Plugins › Install Sample Plugins | `InstallSamplePlugins` |
+| Plugins › Plugin Guide | `PluginGuide` |
+| Help › Welcome | `Welcome` |
+| Help › User Manual | `UserManual` |
+| Help › User Manual on the Web | `WebManual` |
+| Help › Check for Updates… | `CheckForUpdates` |
+| Help › Check for Updates Automatically | `ToggleUpdateCheck` |
+| Help › About Ettin Edit | `About` |
+| Transform › Filter Through Command… | `{"TransformDialog":"Pipe"}` |
+| Transform › Lines › Keep Matching Lines… | `{"TransformDialog":{"FilterLines":{"keep":true}}}` |
+| Transform › Lines › Remove Matching Lines… | `{"TransformDialog":{"FilterLines":{"keep":false}}}` |
+| Transform › Lines › Count Distinct Lines | `{"Transform":"CountLines"}` |
+| Transform › Lines › Sort Lines › Sort Lexicographically Ascending | `{"SortLines":{"kind":"Lexical","desc":false}}` |
+| Transform › Lines › Sort Lines › Sort Lexicographically Descending | `{"SortLines":{"kind":"Lexical","desc":true}}` |
+| Transform › Lines › Sort Lines › Sort Ignoring Case Ascending | `{"SortLines":{"kind":"IgnoreCase","desc":false}}` |
+| Transform › Lines › Sort Lines › Sort Ignoring Case Descending | `{"SortLines":{"kind":"IgnoreCase","desc":true}}` |
+| Transform › Lines › Sort Lines › Sort As Integers Ascending | `{"SortLines":{"kind":"Integer","desc":false}}` |
+| Transform › Lines › Sort Lines › Sort As Integers Descending | `{"SortLines":{"kind":"Integer","desc":true}}` |
+| Transform › Lines › Sort Lines › Sort As Decimals Ascending | `{"SortLines":{"kind":"Decimal","desc":false}}` |
+| Transform › Lines › Sort Lines › Sort As Decimals Descending | `{"SortLines":{"kind":"Decimal","desc":true}}` |
+| Transform › Lines › Sort Lines › Sort By Length Ascending | `{"SortLines":{"kind":"Length","desc":false}}` |
+| Transform › Lines › Sort Lines › Sort By Length Descending | `{"SortLines":{"kind":"Length","desc":true}}` |
+| Transform › Lines › Reverse Line Order | `ReverseLines` |
+| Transform › Lines › Remove Duplicate Lines | `RemoveDuplicateLines` |
+| Transform › Lines › Remove Consecutive Duplicate Lines | `RemoveConsecutiveDuplicates` |
+| Transform › Lines › Remove Empty Lines | `{"RemoveEmptyLines":{"blank":false}}` |
+| Transform › Lines › Remove Empty Lines (Including Blank Ones) | `{"RemoveEmptyLines":{"blank":true}}` |
+| Transform › Lines › Trim › Trim Leading and Trailing Space | `{"Trim":"Both"}` |
+| Transform › Lines › Trim › Trim Trailing Space | `{"Trim":"Trailing"}` |
+| Transform › Lines › Trim › Trim Leading Space | `{"Trim":"Leading"}` |
+| Transform › Lines › EOL to Space | `EolToSpace` |
+| Transform › Lines › Add Prefix and Suffix… | `{"TransformDialog":"AffixLines"}` |
+| Transform › Lines › Number Lines… | `{"TransformDialog":"NumberLines"}` |
+| Transform › Lines › Reflow Paragraphs… | `{"TransformDialog":"Reflow"}` |
+| Transform › Lines › Tabs to Spaces | `TabsToSpaces` |
+| Transform › Lines › Leading Spaces to Tabs | `{"SpacesToTabs":{"all":false}}` |
+| Transform › Lines › All Spaces to Tabs | `{"SpacesToTabs":{"all":true}}` |
+| Transform › Convert Case To › UPPERCASE | `{"ConvertCase":"Upper"}` |
+| Transform › Convert Case To › lowercase | `{"ConvertCase":"Lower"}` |
+| Transform › Convert Case To › Title Case | `{"ConvertCase":"Title"}` |
+| Transform › Convert Case To › Sentence case | `{"ConvertCase":"Sentence"}` |
+| Transform › Convert Case To › iNVERT cASE | `{"ConvertCase":"Invert"}` |
+| Transform › Convert Case To › camelCase | `{"ConvertCase":"Camel"}` |
+| Transform › Convert Case To › PascalCase | `{"ConvertCase":"Pascal"}` |
+| Transform › Convert Case To › snake_case | `{"ConvertCase":"Snake"}` |
+| Transform › Convert Case To › kebab-case | `{"ConvertCase":"Kebab"}` |
+| Transform › Convert Case To › CONSTANT_CASE | `{"ConvertCase":"Constant"}` |
+| Transform › Convert to › JSON | `{"Transform":{"ConvertTo":{"to":"Json","from":null}}}` |
+| Transform › Convert to › YAML | `{"Transform":{"ConvertTo":{"to":"Yaml","from":null}}}` |
+| Transform › Convert to › TOML | `{"Transform":{"ConvertTo":{"to":"Toml","from":null}}}` |
+| Transform › Convert to › XML | `{"Transform":{"ConvertTo":{"to":"Xml","from":null}}}` |
+| Transform › Convert to › CSV | `{"Transform":{"ConvertTo":{"to":"Csv","from":null}}}` |
+| Transform › Convert to › Markdown table | `{"Transform":{"ConvertTo":{"to":"Markdown","from":null}}}` |
+| Transform › Encode and Hash › Base64 Encode | `{"Mime":"Base64Encode"}` |
+| Transform › Encode and Hash › Base64 Encode with Line Breaks | `{"Mime":"Base64EncodeWrapped"}` |
+| Transform › Encode and Hash › Base64 Encode, URL-Safe | `{"Mime":"Base64UrlEncode"}` |
+| Transform › Encode and Hash › Base64 Decode | `{"Mime":"Base64Decode"}` |
+| Transform › Encode and Hash › URL Encode (Part of a URL) | `{"Mime":"UrlEncodeComponent"}` |
+| Transform › Encode and Hash › URL Encode (Whole URL) | `{"Mime":"UrlEncode"}` |
+| Transform › Encode and Hash › URL Decode | `{"Mime":"UrlDecode"}` |
+| Transform › Encode and Hash › Quoted-Printable Encode | `{"Mime":"QpEncode"}` |
+| Transform › Encode and Hash › Quoted-Printable Decode | `{"Mime":"QpDecode"}` |
+| Transform › Encode and Hash › HTML Encode | `{"Mime":"HtmlEncode"}` |
+| Transform › Encode and Hash › HTML Encode, Including Accents and Symbols | `{"Mime":"HtmlEncodeAll"}` |
+| Transform › Encode and Hash › HTML Decode | `{"Mime":"HtmlDecode"}` |
+| Transform › Encode and Hash › SAML Decode | `{"Mime":"SamlDecode"}` |
+| Transform › Encode and Hash › Text to Hex | `{"Transform":"HexEncode"}` |
+| Transform › Encode and Hash › Hex to Text | `{"Transform":"HexDecode"}` |
+| Transform › Encode and Hash › Decode JWT | `{"Transform":"JwtDecode"}` |
+| Transform › Encode and Hash › Hash › MD5 | `{"Transform":{"Hash":"Md5"}}` |
+| Transform › Encode and Hash › Hash › SHA-1 | `{"Transform":{"Hash":"Sha1"}}` |
+| Transform › Encode and Hash › Hash › SHA-256 | `{"Transform":{"Hash":"Sha256"}}` |
+| Transform › Encode and Hash › Hash › SHA-512 | `{"Transform":{"Hash":"Sha512"}}` |
+| Transform › Encode and Hash › Hash › CRC32 | `{"Transform":{"Hash":"Crc32"}}` |
+| Transform › JSON and XML › Format JSON | `{"Json":"Format"}` |
+| Transform › JSON and XML › Minify JSON | `{"Json":"Minify"}` |
+| Transform › JSON and XML › Sort JSON Keys | `{"Json":"SortKeys"}` |
+| Transform › JSON and XML › Format XML | `{"Xml":"PrettyPrint"}` |
+| Transform › JSON and XML › Format XML, Attributes on New Lines | `{"Xml":"PrettyPrintAttributes"}` |
+| Transform › JSON and XML › Linearize | `{"Xml":"Linearize"}` |
+| Transform › JSON and XML › Escape Special Characters | `{"Xml":"Escape"}` |
+| Transform › JSON and XML › Unescape Special Characters | `{"Xml":"Unescape"}` |
+| Tools › CsvQuery › CsvQuery Panel | `ToggleCsvQuery` |
+| Tools › CsvQuery › Run Query | `RunCsvQuery` |
+| Tools › CsvQuery › Copy Results | `CopyCsvResults` |
+| Tools › CsvQuery › Results to New Tab | `CsvResultsToNewTab` |
+| Tools › JSON Tree | `ToggleJsonTree` |
+| Tools › Validate JSON | `{"Json":"Validate"}` |
+| Tools › XPath Panel | `ToggleXPathPanel` |
+| Tools › Copy Current XPath | `CopyXPath` |
+| Tools › Check XML Syntax | `{"Xml":"CheckSyntax"}` |
+| Tools › Validate XML | `{"Xml":"ValidateSchema"}` |
+| Tools › Validate XML Against… | `{"Xml":"ChooseSchema"}` |
+| Tools › XSL Transform… | `{"Xml":"XslTransform"}` |
+| Tools › Check Syntax When Saving | `ToggleXmlCheckOnSave` |
+| Tools › Close Tags Automatically | `ToggleCloseTags` |
+<!-- command-ids:end -->

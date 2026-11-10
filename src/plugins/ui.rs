@@ -18,6 +18,10 @@ pub enum ManagerAction {
     Stop(String),
     Allow(String),
     OpenFolder(String),
+    /// Show the plugin's Options window.
+    Options(String),
+    SetReloadOnChange(String, bool),
+    NewPlugin,
     Reload,
     OpenPluginsFolder,
     InstallSamples,
@@ -253,6 +257,9 @@ fn installed_tab(
         });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
+        if ui.button(t!("new-plugin-dots")).clicked() {
+            actions.push(ManagerAction::NewPlugin);
+        }
         if ui.button(t!("open-plugins-folder")).clicked() {
             actions.push(ManagerAction::OpenPluginsFolder);
         }
@@ -568,6 +575,18 @@ fn plugin_card(
             if !p.commands.is_empty() {
                 commands_line(ui, p, palette);
             }
+            if !p.transforms.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.label(
+                        RichText::new(t!("plugin-adds-transforms"))
+                            .small()
+                            .color(palette.text_dim),
+                    );
+                    let names: Vec<&str> = p.transforms.iter().map(|t| t.title.as_str()).collect();
+                    ui.label(RichText::new(names.join(" · ")).small());
+                });
+            }
             if let Status::Failed(why) = &p.status {
                 ui.label(RichText::new(why).color(palette.modified));
             }
@@ -610,6 +629,14 @@ fn plugin_card(
                         }
                     }
                 }
+                if !p.options().is_empty()
+                    && ui
+                        .button(t!("plugin-options-dots"))
+                        .on_hover_text(t!("plugin-options-hover"))
+                        .clicked()
+                {
+                    actions.push(ManagerAction::Options(p.id.clone()));
+                }
                 if ui.button(t!("open-folder")).clicked() {
                     actions.push(ManagerAction::OpenFolder(p.id.clone()));
                 }
@@ -627,6 +654,14 @@ fn plugin_card(
                     .changed()
                 {
                     actions.push(ManagerAction::SetTrust(p.id.clone(), trust));
+                }
+                let mut watch = pref.reload_on_change;
+                if ui
+                    .checkbox(&mut watch, t!("reload-on-change"))
+                    .on_hover_text(t!("reload-on-change-hover"))
+                    .changed()
+                {
+                    actions.push(ManagerAction::SetReloadOnChange(p.id.clone(), watch));
                 }
             });
         });
@@ -861,4 +896,129 @@ pub fn text_prompt(ctx: &egui::Context, prompt: &mut TextPrompt) -> Option<Optio
         result = Some(None);
     }
     result
+}
+
+/// What the plugin Options window asks for.
+pub enum OptionsAction {
+    /// The values changed: save them and tell the plugin.
+    Changed,
+    Close,
+}
+
+/// A plugin's Options window: a field for each entry of the `options`
+/// list in its `plugin.json`. Changes count straight away.
+pub fn options_window(
+    ctx: &egui::Context,
+    name: &str,
+    options: &[super::manifest::PluginOption],
+    values: &mut serde_json::Map<String, serde_json::Value>,
+    palette: &Palette,
+) -> Option<OptionsAction> {
+    use super::manifest::OptionKind;
+    use serde_json::Value;
+    let mut action = None;
+    let mut open = true;
+    egui::Window::new(t!("plugin-options-title", name = name.to_owned()))
+        .id(egui::Id::new("plugin-options"))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .default_width(460.0)
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new(t!("plugin-options-intro"))
+                    .size(12.0)
+                    .color(palette.text_dim),
+            );
+            ui.add_space(6.0);
+            egui::Grid::new("plugin-options-grid")
+                .num_columns(2)
+                .spacing([16.0, 6.0])
+                .show(ui, |ui| {
+                    for o in options {
+                        let mut label = ui.label(&o.title);
+                        if !o.description.is_empty() {
+                            label = label.on_hover_text(&o.description);
+                        }
+                        let _ = label;
+                        let value = values.entry(o.key.clone()).or_insert(o.default.clone());
+                        let changed = match o.kind {
+                            OptionKind::Bool => {
+                                let mut b = value.as_bool().unwrap_or(false);
+                                let r = ui.checkbox(&mut b, "");
+                                *value = Value::Bool(b);
+                                r.changed()
+                            }
+                            OptionKind::Choice => {
+                                let mut current = value.as_str().unwrap_or_default().to_owned();
+                                let mut changed = false;
+                                egui::ComboBox::from_id_salt(("plugin-option", &o.key))
+                                    .selected_text(current.clone())
+                                    .show_ui(ui, |ui| {
+                                        for c in &o.choices {
+                                            changed |= ui
+                                                .selectable_value(&mut current, c.clone(), c)
+                                                .changed();
+                                        }
+                                    });
+                                *value = Value::String(current);
+                                changed
+                            }
+                            OptionKind::Number => {
+                                let mut text = value.to_string();
+                                let r = ui
+                                    .add(egui::TextEdit::singleline(&mut text).desired_width(90.0));
+                                match text.trim().parse::<f64>() {
+                                    Ok(v) if r.changed() => {
+                                        *value = if v.fract() == 0.0 && v.abs() < 9e15 {
+                                            Value::from(v as i64)
+                                        } else {
+                                            serde_json::Number::from_f64(v)
+                                                .map_or(o.default.clone(), Value::Number)
+                                        };
+                                        true
+                                    }
+                                    _ => false,
+                                }
+                            }
+                            OptionKind::String => {
+                                let mut text = value.as_str().unwrap_or_default().to_owned();
+                                let r = ui.add(
+                                    egui::TextEdit::singleline(&mut text).desired_width(200.0),
+                                );
+                                *value = Value::String(text);
+                                r.changed()
+                            }
+                        };
+                        if changed {
+                            action = Some(OptionsAction::Changed);
+                        }
+                        ui.end_row();
+                    }
+                });
+            ui.add_space(8.0);
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .add(
+                            egui::Button::new(t!("done")).fill(palette.accent.gamma_multiply(0.55)),
+                        )
+                        .clicked()
+                    {
+                        action = Some(OptionsAction::Close);
+                    }
+                    if ui.button(t!("plugin-options-reset")).clicked() {
+                        for o in options {
+                            values.insert(o.key.clone(), o.default.clone());
+                        }
+                        action = Some(OptionsAction::Changed);
+                    }
+                });
+            });
+        });
+    if !open {
+        action = Some(OptionsAction::Close);
+    }
+    action
 }

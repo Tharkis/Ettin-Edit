@@ -19,6 +19,24 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.3: Plugins as transforms
+
+Requested on 2026-11-10: the fifth release of the UX plan (review items R5, R6, R19 and R20). A plugin's job is usually text in, text out, so plugins can now add transforms that behave exactly like the built-in ones, and writing a plugin is quicker.
+
+- [x] **Built-in Markdown Preview**: View > Markdown Preview (Ctrl+Shift+M, and a button in the View tab's Panels group) shows the active Markdown tab rendered with the user manual's renderer, with images, link following, front matter left out and scrolling along with the text (`src/app/markdown_preview.rs`). The sample plugin is now **Markdown Preview (plugin example)** and has no shortcut ([Markdown Preview](docs/manual/src/view.md#markdown-preview))
+- [x] **Plugin transforms**: `@ettin.transform(title, options, id, languages)` in Python, `ettin.transform(title, options, fn, {id, languages})` in JavaScript; Ettin Edit sends `transform.run {id, text, options}` and the plugin answers `{text}` or an error with an optional line and column, which moves the caret there. One call per selection, all of them one undo step; 10-second limit with a Stop button after half a second. They appear in Transform > Plugin Transforms (under each plugin's name), the command palette, the Shortcut Mapper, the recipe window's Add Step list, and the right-click menu of the languages they name ([Plugin transforms](docs/manual/src/transform.md#plugin-transforms))
+- [x] **Transform dialog for plugin transforms**: a form for the options, a live preview of the first lines run by the plugin, Reset to Defaults and Result goes to (`src/plugin_transform_ui.rs`). Transforms without options run straight away
+- [x] **Plugin transforms in recipes**: recorded with their options as `{"op": "plugin", "plugin", "transform", "options"}`, run in the recipe window and from the command line (`--recipe`), which starts the plugin for the run (`src/plugins/headless.rs`). A missing, turned-off or not-allowed plugin stops the recipe with a message naming it ([Recipes](docs/manual/src/recipes.md#the-steps))
+- [x] **Settings for plugins**: `ettin.settings` (saved in `plugin-data/<id>/settings.json`), `ettin.data_dir()`, an `options` list in `plugin.json` that gives the plugin an **Options…** form in Manage Plugins, and a `settings.changed` event ([Settings and options](docs/manual/src/plugin-guide.md#settings-and-options))
+- [x] **Marks**: `doc.mark(id, ranges, style, color, message)` and `doc.clear_marks(id)`; squiggly underline, background or gutter diamond, in the theme's error, warning, info or accent colour, with the message on hover. Marks move with edits and go when the plugin stops ([Marks](docs/manual/src/plugin-guide.md#marks))
+- [x] **Status bar items** (`ettin.status(id, text, tooltip, command)`, up to four per plugin; clicking runs the command) and **`ettin.choose(items, title, placeholder)`**, a filterable list like the command palette
+- [x] **Plugins > New Plugin…**: name, Python or JavaScript, starts with a transform, a command or a panel, and *Reload when its files change*. Writes a working plugin with `plugin.json` and type hints (`ettin.pyi` / `ettin.d.ts`), allows it, starts it and opens its main file (`src/plugins/new_plugin.rs`)
+- [x] **Reload when its files change** (per plugin, in Manage Plugins): the plugin restarts half a second after its files stop changing. A plugin that fails to start or stops with an error shows the file and line with an **Open** button
+- [x] **SDK type hints** shipped in `plugins/sdk/ettin.pyi` and `plugins/sdk/ettin.d.ts`, and installed with the SDK
+- [x] **Copy Command ID** on the right-click menu of the command palette and the Shortcut Mapper; the plugin guide lists every built-in command's id, checked against the code by a test ([Command ids](docs/manual/src/plugin-guide.md#command-ids))
+- [x] **HL7 Viewer sample**: the **Explode HL7 Segments** transform puts each field on its own line with its designation and name (options: names, empty fields); version 1.1.0, needs Ettin Edit 2.3
+- [x] Plugin API version 2. New text in all four interface languages
+
 ### 2.2: Try before you apply
 
 Requested on 2026-11-10: the fourth release of the UX plan (review items R4, R10, R16 second half and R22). See what a transform will do before it does it, send the result somewhere safe, and get suggestions for the file you just opened.
@@ -532,11 +550,14 @@ full API.
 
 - [x] Runtime model: out-of-process plugins over JSON-RPC (one JSON message per line on standard input and output), so a crashing plugin can't take the editor down and any installed Python 3 or Node.js works
 - [x] Plugin API: read/replace text and selection, open/save documents, show messages, add menu items and shortcuts, register commands, read the interface language
+- [x] Plugin transforms that work like the built-in ones: menus, preview, options, one undo step, recipes and the command line (2.3)
+- [x] Plugin settings with an Options form, marks, status bar items, pick-from-a-list (2.3)
+- [x] New Plugin… and reload when a plugin's files change (2.3)
 - [x] Plugin events: document opened/saved/closed, text changed, tab switched
 - [x] Plugin panels (dock a custom view, e.g. a tree or a grid)
 - [x] Plugin folder in the config directory, enable/disable per plugin
 - [x] Plugin manager: browse, install, update, remove (Plugins > Manage Plugins: Installed and Available tabs from a plugin index, Install from File or Folder, updates when the index has a newer version, Remove to the trash; new and updated plugins ask for permission)
-- [x] Sample plugins in both Python and JavaScript (Text Statistics, Markdown Outline, Markdown Preview, HL7 Viewer)
+- [x] Sample plugins in both Python and JavaScript (Text Statistics, Markdown Outline, Markdown Preview (plugin example), HL7 Viewer)
 - [x] Permission prompt the first time a plugin runs and again when its files change (plugins are not sandboxed)
 
 ## Notepad++ plugin equivalents
@@ -617,7 +638,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-The UX plan from the 2.0.0 review continues: 2.2 Try before you apply (previews, suggestion bar, welcome tab), 2.3 Plugins as transforms, 2.4 Settings in one place, 2.5 Themes and languages.
+The UX plan from the 2.0.0 review continues: 2.4 Settings in one place, 2.5 Themes and languages.
 
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 

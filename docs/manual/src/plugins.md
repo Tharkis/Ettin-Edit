@@ -1,8 +1,17 @@
 # Using plugins
 
-Plugins add commands, shortcuts and panels to Ettin Edit. They're written in
-Python or JavaScript, so anyone who knows either can make one; see
+Plugins add transforms, commands, shortcuts and panels to Ettin Edit.
+They're written in Python or JavaScript, so anyone who knows either can make
+one: **Plugins > New Plugin…** writes a working one to start from. See
 [Writing plugins](plugin-guide.md).
+
+A plugin's **transforms** work like the built-in ones: they're in
+**Transform > Plugin Transforms** (under the plugin's name), the command
+palette, the recipe window's **Add Step** list, and the right-click menu of
+the languages they're for. They run on each selection or the whole tab as
+one undo step, show a preview and their options before they run, and can
+send the result to a new tab or the clipboard. See
+[Transforming text](transform.md#plugin-transforms).
 
 Many things that need a plugin in other editors are built into Ettin Edit
 already: the [JSON](json.md), [XML](xml.md) and [MIME](mime.md) tools,
@@ -27,35 +36,21 @@ one, set the program in **Plugins > Manage Plugins** or
 | --- | --- | --- |
 | **Text Statistics** | Python | Live counts for the current tab in a side panel (<kbd>Ctrl+Alt+T</kbd>), word frequencies as CSV in a new tab, and a word count of the selection |
 | **Markdown Outline** | JavaScript | A clickable outline of a Markdown file's headings, **Insert UUID**, and **Wrap Lines…** to a width you choose |
-| **Markdown Preview** | Python | A live preview of the Markdown tab you're editing (see below) |
-| **HL7 Viewer** | Python | Browse and edit HL7 v2 messages (see below) |
+| **Markdown Preview (plugin example)** | Python | How the built-in [Markdown Preview](view.md#markdown-preview) could be written as a plugin (see below) |
+| **HL7 Viewer** | Python | Browse and edit HL7 v2 messages, and the **Explode HL7 Segments** transform (see below) |
 
 A notice says how many were installed. Their commands appear in the
 **Plugins** menu, under each plugin's name, and in the editor's right-click
 menu.
 
-### Markdown Preview
+### Markdown Preview (plugin example)
 
-Open a Markdown file and choose **Plugins > Markdown Preview > Show or Hide
-Markdown Preview** (<kbd>Ctrl+Shift+M</kbd>). A panel on the right shows the
-file rendered: headings, lists, tables, quotes, code blocks, links,
-**bold**, *italic* and ~~strikethrough~~. It updates a moment after you stop
-typing, keeps its place as you edit, and follows you when you switch tabs.
-
-- Click a web link to open it in your browser, a link to a heading
-  (`#install`) to scroll there, or a link to another file (`notes.md`) to
-  open it in a tab.
-- Images show: PNG, JPEG, GIF, BMP, WebP and SVG, from files next to the
-  Markdown file (`![Logo](img/logo.png)`) or from the web. An image that
-  can't be found or read shows its description instead. Images in an
-  unsaved tab only load from the web, as there's no folder to look in yet.
-- The preview scrolls along with the text: scroll the editor and the preview
-  shows the same place. Untick **Scroll with the text** at the top of the
-  preview to scroll it on its own.
-- YAML front matter (the `---` block some sites put at the top) isn't shown.
-- Raw HTML is left out.
-- Tabs that aren't Markdown (by language, or a `.md` / `.markdown` name) show
-  a note instead.
+Since Ettin Edit 2.3 the Markdown preview is built in: **View > Markdown
+Preview** (<kbd>Ctrl+Shift+M</kbd>, see [Views](view.md#markdown-preview)).
+This sample does the same thing as a plugin, so you can read how a
+`markdown` panel that follows the text is written. Run it from **Plugins >
+Markdown Preview (plugin example) > Show or Hide Markdown Preview (plugin
+example)**; it has no shortcut.
 
 ### HL7 Viewer
 
@@ -73,6 +68,11 @@ Sample HL7 Message**), then **Show or Hide HL7 Viewer**
   the message.
 - **Copy HL7 Field Designation** copies the designation of the piece at the
   caret.
+- **Explode HL7 Segments** (Transform > Plugin Transforms, or right-click in
+  an HL7 tab) puts each field on its own line with its designation and name,
+  such as `PID-5 Patient Name: Quillfeather^Maribel^June`, which is easier to
+  read and to [compare](compare.md). Its options leave out the names or show
+  empty fields too.
 
 The separators are read from each `MSH` segment, so messages with unusual
 delimiters work too. HL7 files are coloured by the built-in HL7 language.
@@ -103,7 +103,8 @@ files change, it asks whether to let it run. Choose **Allow** only for
 plugins you trust. **Don't Allow** turns the plugin off; you can turn it on
 later in Manage Plugins.
 
-The samples you install from the Plugins menu don't ask.
+The samples you install from the Plugins menu, and plugins you make with
+**New Plugin…**, don't ask.
 
 ## Managing plugins
 
@@ -117,8 +118,16 @@ one of its commands. Each plugin has:
 - an **Enabled** tick box to turn it on or off,
 - **Start**, **Stop** and **Restart**,
 - **Open Folder**, to see or edit its files,
-- **Remove…**, which moves its folder to the trash (so you can get it back),
-- **Don't ask when it changes**, for a plugin you're writing yourself.
+- **Options…**, when the plugin has settings you can change: a form with a
+  field for each, saved as you change them,
+- **Remove…**, which moves its folder (and its saved settings) to the trash,
+  so you can get it back,
+- **Don't ask when it changes** and **Reload when its files change**, for a
+  plugin you're writing yourself.
+
+Under the commands, **Transforms:** lists the transforms it adds. The
+**New Plugin…** button at the bottom does the same as **Plugins > New
+Plugin…**.
 
 If a plugin fails to start, the reason is shown under its name.
 **Plugins > Reload Plugins** stops every plugin, looks for plugins again, and
@@ -132,7 +141,8 @@ taken. Look here first when a plugin doesn't behave. **Copy All** copies the
 log, for a bug report.
 
 A plugin that crashes shows a notice and stops; it can't take Ettin Edit or
-your documents down with it. Edits a plugin makes are undone in one step,
+your documents down with it. When the error happened in one of the plugin's
+own files, the notice says which file and line, and **Open** opens it there. Edits a plugin makes are undone in one step,
 like any other edit.
 
 ## Plugin shortcuts

@@ -24,6 +24,9 @@ A command can have more than one shortcut: **Add Another…** adds one,
 command's original shortcut back. **Reset All Shortcuts** resets every
 command.
 
+Right-click a command and choose **Copy Command ID** to copy the id a
+[plugin](plugin-guide.md#command-ids) uses to run it.
+
 Rules for shortcuts:
 
 - They need <kbd>Ctrl</kbd> or <kbd>Alt</kbd>, unless they use a function key
@@ -112,6 +115,7 @@ runs on Linux and Windows only.
 | Previous Tab | <kbd>Ctrl+Shift+Tab</kbd> or <kbd>Ctrl+PageUp</kbd> |
 | Focus Other View | <kbd>F8</kbd> |
 | Hex View | <kbd>Ctrl+Alt+Shift+H</kbd> |
+| Markdown Preview | <kbd>Ctrl+Shift+M</kbd> |
 | Folding > Fold All | <kbd>Alt+0</kbd> |
 | Folding > Unfold All | <kbd>Alt+Shift+0</kbd> |
 | Folding > Fold Current Level | <kbd>Ctrl+Alt+F</kbd> |

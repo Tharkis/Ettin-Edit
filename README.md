@@ -60,7 +60,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
 | 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
 | 🌍 **Text in any shape** | About 80 languages, plus your own with a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
-| 🧩 **Plugins in Python or JavaScript** | Your choice. Add commands, shortcuts, toolbar buttons and panels (even live Markdown with images, as the Markdown Preview sample does), and install them from Plugins > Manage Plugins. |
+| 🧩 **Plugins in Python or JavaScript** | Your choice. Add transforms that work like the built-in ones (preview, options, one undo step, recipe steps), commands, shortcuts, toolbar buttons and panels, and install them from Plugins > Manage Plugins. Plugins > New Plugin… writes one to start from and reloads it as you save. |
 | 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits any byte and opens binary files of any size, and a command palette on F1 that puts your recent commands, recipes and plugin commands first. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
 | 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, switch to a one-row simplified toolbar, or collapse it out of the way. Hide the toolbar, the menu bar or both for a cleaner window (tap Alt to reach the menus). |
@@ -108,24 +108,26 @@ makepkg -si
 
 ## Plugins
 
-Write a plugin in whichever language you already know. This one adds a command that
-shouts the selection back at you:
+Write a plugin in whichever language you already know. This one adds a transform that
+shouts the text back at you:
 
 ```python
 import ettin
 
-@ettin.command("Shout", shortcut="Ctrl+Alt+H", icon="megaphone")
-def shout():
-    doc = ettin.active()
-    doc.replace_selections(doc.selected_text().upper())
+@ettin.transform("Shout", options={"marks": "!"})
+def shout(text, options):
+    return text.upper() + options["marks"]
 
 ettin.run()
 ```
 
-Plugins can read and change text, open and save files, react to events and show
-panels with trees, tables and forms. Their commands can go on the toolbar, with the
-icon you give them. Plugins > Install Sample Plugins gives you
-three to poke at, including the HL7 Viewer, and the
+It appears in Transform > Plugin Transforms and the command palette, runs on every
+selection as one undo step, previews its result, asks for its options, and can be a
+recipe step, even from the command line. Plugins can also read and change text, open
+and save files, react to events, mark text, show panels with trees, tables and forms,
+and add commands that can go on the toolbar. Plugins > New Plugin… writes one to start
+from; Plugins > Install Sample Plugins gives you four to poke at, including the HL7
+Viewer, and the
 [plugin guide](https://tharkis.github.io/Ettin-Edit/plugin-guide.html) covers the rest.
 
 ## Themes
@@ -209,10 +211,12 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/app/views.rs` | Split view: which tabs are in which view, moving and cloning tabs, the divider |
 | `src/compare.rs` | The compare engine: line alignment, options, moved lines, word changes, unified patches |
 | `src/compare_ui.rs`, `src/app/compare.rs` | The Compare tab, and starting and refreshing comparisons |
-| `src/plugins/` | The plugin host: `mod.rs` (starting plugins, messages, commands, events), `manifest.rs` (`plugin.json`, finding plugins, the permission fingerprint), `process.rs` (plugin processes), `shortcut.rs` (shortcut text), `panel.rs` (JSON panels), `ui.rs` (Manage Plugins, the log and the permission prompt) |
-| `src/app/plugins.rs` | Answers plugin calls on the open documents, sends events, draws plugin panels |
-| `plugins/sdk/` | The Python and JavaScript SDKs that plugins import |
-| `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript), Markdown Preview (Python) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
+| `src/plugins/` | The plugin host: `mod.rs` (starting plugins, messages, commands, transforms, events), `manifest.rs` (`plugin.json`, its options, finding plugins, the permission fingerprint), `process.rs` (plugin processes), `shortcut.rs` (shortcut text), `panel.rs` (JSON panels), `ui.rs` (Manage Plugins, Options, the log and the permission prompt), `data.rs` (plugin settings), `headless.rs` (running plugin transforms for recipes and the command line), `new_plugin.rs` (New Plugin…) |
+| `src/app/plugins.rs` | Answers plugin calls on the open documents, sends events, draws plugin panels, marks and status items, reloads changed plugins |
+| `src/app/plugin_transforms.rs`, `src/plugin_transform_ui.rs` | Running plugin transforms on the selections, and their dialog |
+| `src/app/markdown_preview.rs` | View > Markdown Preview |
+| `plugins/sdk/` | The Python and JavaScript SDKs that plugins import, and their type hints (`ettin.pyi`, `ettin.d.ts`) |
+| `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript), Markdown Preview (plugin example, Python) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/prefs_ui.rs`, `src/shortcut_ui.rs`, `src/style_ui.rs` | Preferences, the Shortcut Mapper and the theme colour editor |
 | `src/palette_ui.rs`, `src/app/commands.rs` | The command palette and tab list, and the list of every command |

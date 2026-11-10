@@ -50,6 +50,7 @@ impl EttinApp {
             error: false,
             since: Some(ctx.input(|i| i.time)),
             jump,
+            open: None,
         });
     }
 
@@ -87,6 +88,7 @@ impl EttinApp {
             error: true,
             since: Some(ctx.input(|i| i.time)),
             jump,
+            open: None,
         });
     }
 
@@ -315,6 +317,7 @@ impl EttinApp {
                 error: true,
                 since: None,
                 jump,
+                open: None,
             });
         }
     }
@@ -516,7 +519,32 @@ impl EttinApp {
                 }
                 self.notice = None;
             }
+            Some(NoticeResponse::Open(path, line)) => {
+                self.notice = None;
+                self.open_at_line(&path, line);
+            }
             None => {}
+        }
+    }
+
+    /// Opens a file (or shows it if it's open) and puts the caret at the
+    /// start of `line` (from 1).
+    pub(super) fn open_at_line(&mut self, path: &std::path::Path, line: usize) {
+        self.open_path(path, true);
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        if let Some(i) = self
+            .docs
+            .iter()
+            .position(|d| d.path.as_deref() == Some(path.as_path()))
+        {
+            self.select(i);
+            let editor = &mut self.docs[i].editor;
+            let line = line
+                .saturating_sub(1)
+                .min(editor.buffer.len_lines().saturating_sub(1));
+            let pos = editor.buffer.line_start(line);
+            editor.select_range(pos..pos);
+            self.focus_editor = true;
         }
     }
 }

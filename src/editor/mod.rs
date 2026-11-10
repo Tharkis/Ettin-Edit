@@ -50,6 +50,62 @@ impl LinePreview {
     }
 }
 
+/// How a plugin's mark looks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarkStyle {
+    /// A wavy line under the text.
+    Squiggle,
+    /// A tinted background.
+    Background,
+    /// A dot in the gutter on the mark's first line.
+    Gutter,
+}
+
+/// The theme colour a plugin's mark is drawn in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarkColor {
+    Error,
+    Warning,
+    Info,
+    Accent,
+}
+
+impl MarkStyle {
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "underline-squiggle" | "squiggle" | "underline" => MarkStyle::Squiggle,
+            "background" => MarkStyle::Background,
+            "gutter-icon" | "gutter" => MarkStyle::Gutter,
+            _ => return None,
+        })
+    }
+}
+
+impl MarkColor {
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "error" => MarkColor::Error,
+            "warning" => MarkColor::Warning,
+            "info" => MarkColor::Info,
+            "accent" => MarkColor::Accent,
+            _ => return None,
+        })
+    }
+}
+
+/// Text a plugin marked (`doc.mark`). Marks move with edits; one that an
+/// edit runs through is removed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Decoration {
+    /// The plugin and the id it marked with, as "plugin/id".
+    pub owner: String,
+    pub range: Range<usize>,
+    pub style: MarkStyle,
+    pub color: MarkColor,
+    /// Shown when the mouse is over the mark.
+    pub message: Option<Arc<str>>,
+}
+
 pub struct Editor {
     pub buffer: Buffer,
     pub selections: Selections,
@@ -76,6 +132,8 @@ pub struct Editor {
     pub marks: Vec<Range<usize>>,
     /// Bookmarked lines (0-based). Bookmarks move with edits.
     pub bookmarks: BTreeSet<usize>,
+    /// Plugins' marks, sorted by start.
+    pub decorations: Vec<Decoration>,
     /// Lines that Keep or Remove Matching Lines would keep (green) and
     /// remove (red), shown while its dialog is open.
     pub line_preview: Option<LinePreview>,
@@ -191,6 +249,7 @@ impl Editor {
             pasted: 0,
             marks: Vec::new(),
             bookmarks: BTreeSet::new(),
+            decorations: Vec::new(),
             opts: EditOptions::default(),
             completion: None,
             hint: None,
@@ -899,6 +958,7 @@ impl Editor {
         self.selections = Selections::caret(0);
         self.marks.clear();
         self.bookmarks.clear();
+        self.decorations.clear();
         self.folds.clear();
         self.fold_scan.reset();
     }
@@ -923,6 +983,33 @@ fn map_through(pos: usize, edits: &[(Range<usize>, usize)]) -> usize {
 
 #[cfg(test)]
 mod tests {
+
+    use super::{Decoration, MarkColor, MarkStyle};
+
+    #[test]
+    fn plugin_marks_move_with_edits() {
+        let ctx = egui::Context::default();
+        let mut e = Editor::new("one two three");
+        let mark = |r: std::ops::Range<usize>| Decoration {
+            owner: "p/lint".into(),
+            range: r,
+            style: MarkStyle::from_name("underline-squiggle").unwrap(),
+            color: MarkColor::from_name("warning").unwrap(),
+            message: None,
+        };
+        e.decorations = vec![mark(4..7), mark(8..13)];
+        // Typing before both moves them; an edit inside "two" removes it.
+        e.edit_ranges(&ctx, vec![(0..0, ">> ".into())]);
+        e.sync_caches();
+        let ranges: Vec<_> = e.decorations.iter().map(|d| d.range.clone()).collect();
+        assert_eq!(ranges, vec![7..10, 11..16]);
+        e.edit_ranges(&ctx, vec![(8..9, "W".into())]);
+        e.sync_caches();
+        let ranges: Vec<_> = e.decorations.iter().map(|d| d.range.clone()).collect();
+        assert_eq!(ranges, vec![11..16]);
+        assert!(MarkStyle::from_name("sparkles").is_none());
+        assert!(MarkColor::from_name("pink").is_none());
+    }
     use super::*;
 
     fn ed(text: &str, caret: usize) -> Editor {

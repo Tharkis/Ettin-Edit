@@ -68,6 +68,21 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.3.0" date="2026-11-10">
+      <description>
+        <p>Plugins as transforms: plugins can add transforms that work just
+        like the built-in ones, and Markdown Preview is built in.</p>
+        <ul>
+          <li>View &gt; Markdown Preview (Ctrl+Shift+M) works without any plugin or Python</li>
+          <li>Plugin transforms appear in Transform &gt; Plugin Transforms, the command palette and recipes, with options, a preview and one undo step</li>
+          <li>Recipes with plugin transforms run from the command line too</li>
+          <li>Plugins get settings with an Options form, text marks, status bar items and pick-from-a-list</li>
+          <li>Plugins &gt; New Plugin writes a working plugin and reloads it as you save</li>
+          <li>Copy Command ID in the command palette and Shortcut Mapper</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.3.0</url>
+    </release>
     <release version="2.2.0" date="2026-11-10">
       <description>
         <p>Try before you apply: see what a transform will do before it

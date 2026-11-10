@@ -90,6 +90,7 @@ impl EttinApp {
             error: false,
             since: None,
             jump: None,
+            open: None,
         });
     }
 
@@ -99,6 +100,7 @@ impl EttinApp {
             error: true,
             since: None,
             jump: None,
+            open: None,
         });
     }
 

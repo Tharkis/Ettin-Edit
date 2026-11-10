@@ -5,8 +5,10 @@ mod compare;
 mod convert;
 mod csv_query;
 mod languages;
+mod markdown_preview;
 mod menus;
 mod panels;
+mod plugin_transforms;
 mod plugins;
 mod printing;
 mod recipes;
@@ -101,6 +103,10 @@ pub struct EttinApp {
     transform_dialog: crate::transform_ui::TransformDialog,
     /// The command Filter Through Command is waiting for.
     pipe: Option<transform::PipeJob>,
+    /// A plugin's transform, while it runs, and its dialog.
+    plugin_job: Option<plugin_transforms::PluginJob>,
+    plugin_dialog: crate::plugin_transform_ui::PluginTransformDialog,
+    markdown_preview: markdown_preview::MarkdownPreview,
     /// Where the transform about to run sends its result (set by the
     /// Transform dialogs; anything else replaces the text).
     transform_dest: crate::transform_ui::Dest,
@@ -317,6 +323,9 @@ impl EttinApp {
             column: ColumnDialog::default(),
             transform_dialog: Default::default(),
             pipe: None,
+            plugin_job: None,
+            plugin_dialog: Default::default(),
+            markdown_preview: Default::default(),
             transform_dest: Default::default(),
             suggestions: HashMap::new(),
             tour: None,
@@ -1484,7 +1493,11 @@ impl EttinApp {
             | Action::RunCsvQuery
             | Action::CopyCsvResults
             | Action::CsvResultsToNewTab => self.run_csv_action(ctx, action),
+            Action::PluginTransform { plugin, transform } => {
+                self.plugin_transform_action(ctx, &plugin, &transform)
+            }
             Action::PluginCommand { .. }
+            | Action::NewPlugin
             | Action::ManagePlugins
             | Action::ShowPluginLog
             | Action::OpenPluginsFolder
@@ -1577,6 +1590,7 @@ impl EttinApp {
             }
             Action::ToggleColumnMode => self.column_mode = !self.column_mode,
             Action::ToggleCharPanel => self.settings.char_panel = !self.settings.char_panel,
+            Action::ToggleMarkdownPreview => self.toggle_markdown_preview(),
             Action::ToggleHexView => {
                 let doc = &mut self.docs[self.active];
                 if doc.binary.is_some() {
@@ -1637,6 +1651,7 @@ impl EttinApp {
                         error: false,
                         since: None,
                         jump: None,
+                        open: None,
                     });
                 }
             }
@@ -1652,6 +1667,7 @@ impl EttinApp {
                         error: false,
                         since: None,
                         jump: None,
+                        open: None,
                     });
                 }
             }
@@ -2417,6 +2433,12 @@ impl EttinApp {
                 self.toggle_item(ui, &t!("hex-view"), self.hex_shown(), Action::ToggleHexView);
                 self.toggle_item(
                     ui,
+                    &t!("markdown-preview"),
+                    self.markdown_preview.shown,
+                    Action::ToggleMarkdownPreview,
+                );
+                self.toggle_item(
+                    ui,
                     &t!("folder-as-workspace"),
                     s.folder_panel,
                     Action::ToggleFolderPanel,
@@ -3180,6 +3202,7 @@ impl EttinApp {
             (self.settings.font_size / self.settings.default_font_size.max(1.0) * 100.0).round();
         let read_only = doc.editor.buffer.read_only;
         let recording = self.recorder.is_recording();
+        let plugin_items = self.plugins.status.clone();
         let dim = |s: String| RichText::new(s).size(12.0).color(palette.text_dim);
 
         ui.horizontal_centered(|ui| {
@@ -3244,6 +3267,28 @@ impl EttinApp {
                     .clicked()
             {
                 self.pending.push(Action::ToggleRecipeRecording);
+            }
+            // Plugins' status items; clicking one runs its command.
+            for item in &plugin_items {
+                let label = RichText::new(&item.text)
+                    .size(12.0)
+                    .color(if item.command.is_some() {
+                        palette.accent
+                    } else {
+                        palette.text_dim
+                    });
+                let mut r = ui.add(egui::Label::new(label).sense(Sense::click()));
+                if let Some(tip) = &item.tooltip {
+                    r = r.on_hover_text(tip);
+                }
+                if let Some(command) = &item.command
+                    && r.clicked()
+                {
+                    self.pending.push(Action::PluginCommand {
+                        plugin: item.plugin.clone(),
+                        command: command.clone(),
+                    });
+                }
             }
             if read_only
                 && ui
@@ -3473,6 +3518,9 @@ impl EttinApp {
         }
         self.poll_pipe(ctx);
         self.transform_dialog_ui(ctx);
+        self.poll_plugin_job(ctx);
+        self.plugin_transform_dialog_ui(ctx);
+        self.plugin_job_ui(ctx);
         self.recipes_ui(ctx);
         if let Some(what) = self.column.ui(ctx, &palette) {
             self.column_insert(ctx, what);
@@ -3645,6 +3693,7 @@ impl eframe::App for EttinApp {
         self.take_clipboard(&ctx);
         self.start_plugins(&ctx);
         self.plugins_frame(&ctx);
+        self.markdown_preview_frame(&ctx);
         let palette = self.palette();
 
         if !self.distraction_free {

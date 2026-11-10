@@ -175,7 +175,7 @@ fn catalogue_entries(m: &mut MenuModel, entries: &[Entry]) -> Vec<MenuEntry> {
 }
 
 /// A catalogue group's entries.
-fn group_entries(m: &mut MenuModel, id: GroupId) -> Vec<MenuEntry> {
+pub(super) fn group_entries(m: &mut MenuModel, id: GroupId) -> Vec<MenuEntry> {
     catalogue_entries(m, &transforms::group(id).entries)
 }
 
@@ -288,6 +288,30 @@ impl EttinApp {
         if !section.is_empty() {
             entries.push(MenuEntry::Separator);
             entries.extend(section);
+        }
+        // Plugin transforms made for this tab's language.
+        let language = doc.map(|d| d.syntax.as_str()).unwrap_or_default();
+        let suited: Vec<MenuEntry> = self
+            .plugins
+            .plugins
+            .iter()
+            .filter(|p| p.is_running())
+            .flat_map(|p| {
+                p.transforms
+                    .iter()
+                    .filter(|t| t.suits(language))
+                    .map(|t| (p.id.clone(), t.id.clone(), t.title.clone()))
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|(plugin, transform, title)| {
+                m.item(&title, Action::PluginTransform { plugin, transform })
+            })
+            .collect();
+        if !suited.is_empty() {
+            entries.push(MenuEntry::Separator);
+            entries.push(MenuEntry::Heading(t!("menu-plugin-transforms")));
+            entries.extend(suited);
         }
         entries.push(MenuEntry::Separator);
         entries.push(submenu(&t!("menu-transform"), self.transform_menu(m)));

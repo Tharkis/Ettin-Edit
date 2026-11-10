@@ -187,6 +187,13 @@ pub enum Step {
     Command {
         command: String,
     },
+    /// A transform a plugin adds, with its options.
+    Plugin {
+        plugin: String,
+        transform: String,
+        #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+        options: serde_json::Map<String, serde_json::Value>,
+    },
 }
 
 fn one() -> i64 {
@@ -213,6 +220,8 @@ pub struct Env<'a> {
     pub file: Option<&'a Path>,
     /// Set to stop a running command.
     pub cancel: Option<&'a AtomicBool>,
+    /// Runs plugin steps; without it they fail.
+    pub plugins: Option<&'a dyn crate::plugins::headless::PluginTransforms>,
 }
 
 /// A step that failed: its index and why.
@@ -267,6 +276,11 @@ impl Step {
         matches!(self, Step::Command { .. })
     }
 
+    /// True for the steps a plugin does.
+    pub fn is_plugin(&self) -> bool {
+        matches!(self, Step::Plugin { .. })
+    }
+
     /// Checks the settings without running anything: the patterns compile
     /// and the command is one a recipe can hold.
     pub fn check(&self) -> Result<(), String> {
@@ -305,6 +319,11 @@ impl Step {
                     .map_err(|e| e.message)
             }
             Step::Command { command } if command.trim().is_empty() => Err(t!("pipe-no-command")),
+            Step::Plugin {
+                plugin, transform, ..
+            } if plugin.trim().is_empty() || transform.trim().is_empty() => {
+                Err(t!("recipe-plugin-step-empty"))
+            }
             Step::Convert { to, from } if !DataFormat::SOURCES.contains(from) || from == to => {
                 Err(t!("recipe-step-not-allowed"))
             }
@@ -454,6 +473,18 @@ impl Step {
                     Err(RunError::Stopped) => return Err(ToolError::new(t!("recipe-stopped"))),
                 }
             }
+            Step::Plugin {
+                plugin,
+                transform,
+                options,
+            } => {
+                let runner = env
+                    .plugins
+                    .ok_or_else(|| ToolError::new(t!("recipe-plugin-needs-plugins")))?;
+                runner
+                    .run_transform(plugin, transform, text, options, env.cancel)
+                    .map_err(ToolError::new)?
+            }
         })
     }
 }
@@ -461,7 +492,7 @@ impl Step {
 /// What [`Recipe::preview`] got to.
 pub struct Preview {
     pub text: Result<String, Failure>,
-    /// The command step the preview stopped before, if it met one.
+    /// The command or plugin step the preview stopped before, if it met one.
     pub stopped_at: Option<usize>,
 }
 
@@ -520,8 +551,8 @@ impl Recipe {
         Ok(text)
     }
 
-    /// Like [`Self::run`], but stops before the first command step instead
-    /// of running it. The preview of the steps up to and including step `last` (all
+    /// Like [`Self::run`], but stops before the first command or plugin
+    /// step instead of running it. The preview of the steps up to and including step `last` (all
     /// of them when `None`): the text as it is after that step.
     pub fn preview_until(&self, text: &str, env: &Env, last: Option<usize>) -> Preview {
         let mut text = text.to_owned();
@@ -529,7 +560,7 @@ impl Recipe {
             if last.is_some_and(|last| i > last) {
                 break;
             }
-            if step.is_command() {
+            if step.is_command() || step.is_plugin() {
                 return Preview {
                     text: Ok(text),
                     stopped_at: Some(i),
@@ -1027,6 +1058,56 @@ mod tests {
     }
 
     #[cfg(unix)]
+    struct Upper;
+
+    impl crate::plugins::headless::PluginTransforms for Upper {
+        fn run_transform(
+            &self,
+            plugin: &str,
+            transform: &str,
+            text: &str,
+            options: &serde_json::Map<String, serde_json::Value>,
+            _: Option<&AtomicBool>,
+        ) -> Result<String, String> {
+            match (plugin, transform) {
+                ("caps", "upper") => Ok(text.to_uppercase()
+                    + options.get("mark").and_then(|m| m.as_str()).unwrap_or("")),
+                _ => Err(format!("no {plugin}/{transform}")),
+            }
+        }
+    }
+
+    #[test]
+    fn plugin_steps_run_through_the_runner() {
+        let mut options = serde_json::Map::new();
+        options.insert("mark".into(), "!".into());
+        let step = Step::Plugin {
+            plugin: "caps".into(),
+            transform: "upper".into(),
+            options,
+        };
+        let json = serde_json::to_string(&step).unwrap();
+        assert_eq!(
+            json,
+            r#"{"op":"plugin","plugin":"caps","transform":"upper","options":{"mark":"!"}}"#
+        );
+        let mut r = Recipe::new("Caps");
+        r.steps = vec![step.into(), Step::ReverseLines.into()];
+        // Without plugins, the step fails and says why.
+        assert!(r.run("a\nb", &Env::default()).is_err());
+        let env = Env {
+            plugins: Some(&Upper),
+            ..Default::default()
+        };
+        assert_eq!(r.run("a\nb", &env).unwrap(), "B!\nA");
+        // The preview stops before it.
+        let p = r.preview_until("a\nb", &env, None);
+        assert_eq!(p.stopped_at, Some(0));
+        let empty: Step =
+            serde_json::from_str(r#"{"op":"plugin","plugin":"","transform":"x"}"#).unwrap();
+        assert!(empty.check().is_err());
+    }
+
     #[test]
     fn command_steps_run() {
         let r = Recipe {

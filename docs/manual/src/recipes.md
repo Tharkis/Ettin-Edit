@@ -107,6 +107,13 @@ keystrokes and edits. The top of each submenu in **Transform** says so.
 | Encode and Hash | Every [MIME Tools](mime.md) encoding and decoding, MD5, SHA-1, SHA-256, SHA-512, CRC32, Text to Hex, Hex to Text, Decode JWT |
 | JSON and XML | JSON Format, Minify and Sort Keys; Format XML (with or without attributes on their own lines), Linearize, Escape and Unescape |
 | Command | Filter Through Command: any shell command, as in [Transform](transform.md#filter-through-a-command) |
+| Plugin Transforms | The transforms of the plugins that are running, under each plugin's name, with their options |
+
+A plugin transform step needs its plugin: if the plugin isn't installed,
+is turned off or isn't allowed to run, the recipe stops at that step and
+says which plugin it needs. The recipe window's preview stops before a
+plugin step, as it does before a Command step, and shows the text up to
+there.
 
 A few steps behave a little differently inside a recipe, because a recipe
 always turns text into text:
@@ -168,7 +175,8 @@ holds the recipe window's sample text. A file without an `id`
 gets one when Ettin Edit reads it (and it is written back), and so does a
 copied file whose id another recipe already has. A Convert to step looks like
 `{ "op": "convert_to", "to": "Yaml" }`, with `"from": "Json"` when it reads
-the text as a set format. The easiest way to learn
+the text as a set format. A plugin transform step looks like
+`{ "op": "plugin", "plugin": "hl7-viewer", "transform": "Explode HL7 Segments", "options": { "names": true } }`. The easiest way to learn
 the names is to build a recipe in the window and open its file. To share one,
 use **Export Recipe…**, or send the file; the other person uses **Import
 Recipes…** or drops it into their recipes folder.
@@ -192,6 +200,9 @@ ettin-edit --list-recipes
   recipe doesn't change are left untouched).
 - A recipe with Command steps only runs with `--allow-commands`; without it,
   Ettin Edit lists the commands and stops.
+- Plugin transform steps start their plugin for the run, using the Python and
+  Node.js set in Ettin Edit. The plugin must be one you allowed to run in the
+  app.
 - Files must be UTF-8; a byte-order mark and Windows line endings are kept.
 - If a step fails, the message goes to standard error and the exit code is 1
   (2 for a mistake in the options).

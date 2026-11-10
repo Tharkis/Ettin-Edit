@@ -180,6 +180,8 @@ pub fn run(args: &[OsString]) -> Option<i32> {
         "\t".to_owned()
     };
     let cwd = std::env::current_dir().ok();
+    // Plugin steps start the plugins they use, once, as Ettin Edit would.
+    let plugins = crate::plugins::headless::Headless::from_settings(&settings);
     let apply = |text: &str, file: Option<&Path>| -> Result<String, String> {
         let dir = file
             .and_then(|f| f.parent())
@@ -191,6 +193,7 @@ pub fn run(args: &[OsString]) -> Option<i32> {
             dir: dir.as_deref(),
             file,
             cancel: None,
+            plugins: Some(&plugins),
         };
         recipe.run(text, &env).map_err(|f| {
             t!(

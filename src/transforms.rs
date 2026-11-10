@@ -491,8 +491,33 @@ pub fn catalogue() -> Vec<Group> {
                 }),
             )],
         ),
-        group(GroupId::Plugins, Vec::new()),
+        group(GroupId::Plugins, plugin_entries()),
     ]
+}
+
+/// The running plugins' transforms, under a heading for each plugin.
+fn plugin_entries() -> Vec<Entry> {
+    let mut out = Vec::new();
+    let mut last = None;
+    for t in crate::plugins::known_transforms() {
+        if last.as_ref() != Some(&t.plugin) {
+            out.push(Entry::Heading(t.plugin_name.clone()));
+            last = Some(t.plugin.clone());
+        }
+        out.push(named(
+            t.title.clone(),
+            Action::PluginTransform {
+                plugin: t.plugin.clone(),
+                transform: t.id.clone(),
+            },
+            Some(Step::Plugin {
+                plugin: t.plugin,
+                transform: t.id,
+                options: t.options,
+            }),
+        ));
+    }
+    out
 }
 
 /// The group `id` of the catalogue.

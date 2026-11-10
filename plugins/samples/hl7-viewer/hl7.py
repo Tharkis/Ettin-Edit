@@ -461,6 +461,29 @@ def designation(doc, path, style="."):
     return text
 
 
+def explode(text, show_empty=False, name_of=None):
+    """Each field of each segment on its own line, for reading or comparing
+    messages: "PID-5 Patient Name: Quillfeather^Maribel". name_of(segment,
+    number) gives a field's name ("" when it has none). Empty fields are
+    left out unless show_empty. A blank line goes between messages."""
+    doc = parse(text)
+    out = []
+    for seg in doc.segments:
+        if out and seg.name == "MSH":
+            out.append("")
+        out.append(seg.name)
+        for f in seg.children:
+            if not f.raw and not show_empty:
+                continue
+            n = f.path[1]
+            label = "%s-%d" % (seg.name, n)
+            name = name_of(seg.name, n) if name_of else ""
+            if name:
+                label += " " + name
+            out.append("  %s: %s" % (label, f.raw))
+    return "\n".join(out) + ("\n" if out and text.endswith(("\n", "\r")) else "")
+
+
 def shorten(text, limit=120):
     """One line of at most `limit` characters, ending in … when cut."""
     text = text.replace("\r", " ").replace("\n", " ")

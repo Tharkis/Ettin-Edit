@@ -18,6 +18,8 @@ pub struct Item<T> {
     pub enabled: bool,
     /// Its place among the commands used recently (0 is the latest).
     pub recent: Option<usize>,
+    /// The command id its right-click menu copies (Copy Command ID).
+    pub command_id: Option<String>,
     pub value: T,
 }
 
@@ -30,6 +32,7 @@ impl<T> Item<T> {
             tag: String::new(),
             enabled: true,
             recent: None,
+            command_id: None,
             value,
         }
     }
@@ -271,6 +274,18 @@ impl Picker {
                                 if r.clicked() && item.enabled {
                                     picked = Some(item.value.clone());
                                 }
+                                if let Some(id) = &item.command_id {
+                                    r.context_menu(|ui| {
+                                        if ui
+                                            .button(t!("copy-command-id"))
+                                            .on_hover_text(t!("copy-command-id-hover"))
+                                            .clicked()
+                                        {
+                                            ui.ctx().copy_text(id.clone());
+                                            ui.close();
+                                        }
+                                    });
+                                }
                             }
                         });
                 });
@@ -278,6 +293,7 @@ impl Picker {
         // A click outside closes it.
         if ctx.input(|i| i.pointer.any_pressed())
             && !response.response.contains_pointer()
+            && !egui::Popup::is_any_open(ctx)
             && picked.is_none()
         {
             self.open = false;

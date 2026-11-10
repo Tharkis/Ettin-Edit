@@ -15,6 +15,7 @@ use egui::{
 use syntect::highlighting::Theme;
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
+use super::MarkStyle;
 use super::buffer::{CharEdit, LineEdit};
 use super::fold::FoldMark;
 use super::highlight::LineSpans;
@@ -157,6 +158,24 @@ fn map_pos(mut pos: usize, edits: &[CharEdit]) -> usize {
     pos
 }
 
+/// Moves plugins' marks through edits; a mark an edit runs through goes.
+fn map_decorations(marks: &mut Vec<super::Decoration>, edits: &[CharEdit]) {
+    for e in edits {
+        let end = e.start + e.removed;
+        marks.retain(|m| {
+            let r = &m.range;
+            r.end <= e.start || r.start >= end || (r.is_empty() && r.start == e.start)
+        });
+        for m in marks.iter_mut() {
+            if m.range.start >= end && !(m.range.is_empty() && m.range.start == e.start) {
+                m.range.start = m.range.start + e.inserted - e.removed;
+                m.range.end = m.range.end + e.inserted - e.removed;
+            }
+        }
+    }
+    marks.sort_by_key(|m| (m.range.start, m.range.end));
+}
+
 fn map_marks(marks: &[Range<usize>], edits: &[CharEdit]) -> Vec<Range<usize>> {
     let mut out = marks.to_vec();
     for e in edits {
@@ -293,6 +312,13 @@ impl Editor {
             other.column = None;
             other.completion = None;
             other.hint = None;
+        }
+        if !char_edits.is_empty() && !self.decorations.is_empty() {
+            if char_edits.len().saturating_mul(self.decorations.len()) > 5_000_000 {
+                self.decorations.clear();
+            } else {
+                map_decorations(&mut self.decorations, &char_edits);
+            }
         }
         if !char_edits.is_empty() && !self.marks.is_empty() {
             if char_edits.len().saturating_mul(self.marks.len()) > 5_000_000 {
@@ -969,6 +995,64 @@ impl Editor {
                 metrics.row_h,
                 metrics.char_w * 0.6,
             );
+            // Plugins' marks: tinted backgrounds now, wavy lines over the text.
+            let mut hover_message = None;
+            if !self.decorations.is_empty() {
+                let hover = response.hover_pos();
+                for d in &self.decorations {
+                    let color = palette.severity(d.color);
+                    for (row_idx, row) in &rows {
+                        let row_start = row.line_start + row.start;
+                        let row_end = row.line_start + row.end;
+                        if d.range.end <= row_start
+                            && !(d.range.is_empty() && d.range.start == row_start)
+                            || d.range.start > row_end
+                        {
+                            continue;
+                        }
+                        let y = origin.y + *row_idx as f32 * metrics.row_h;
+                        if d.style == MarkStyle::Gutter {
+                            // Drawn with the gutter, below.
+                            continue;
+                        }
+                        let x0 = text_x + row.x_of(d.range.start.max(row_start) - row.line_start);
+                        let mut x1 = text_x + row.x_of(d.range.end.min(row_end) - row.line_start);
+                        if x1 <= x0 {
+                            // An empty mark still shows, one character wide.
+                            x1 = x0 + metrics.char_w;
+                        }
+                        let rect =
+                            Rect::from_min_max(Pos2::new(x0, y), Pos2::new(x1, y + metrics.row_h));
+                        match d.style {
+                            MarkStyle::Background => {
+                                painter.rect_filled(rect, 2.0, color.gamma_multiply(0.28));
+                            }
+                            _ => {
+                                let base = y + metrics.row_h - 2.0;
+                                let step = 2.5_f32;
+                                let mut pts = Vec::new();
+                                let mut x = x0;
+                                let mut up = false;
+                                while x < x1 {
+                                    pts.push(Pos2::new(x, if up { base - 2.0 } else { base }));
+                                    x += step;
+                                    up = !up;
+                                }
+                                pts.push(Pos2::new(x1, if up { base - 2.0 } else { base }));
+                                painter.add(egui::Shape::line(pts, Stroke::new(1.0, color)));
+                            }
+                        }
+                        if let (Some(p), Some(m)) = (hover, &d.message)
+                            && rect.contains(p)
+                        {
+                            hover_message = Some(m.clone());
+                        }
+                    }
+                }
+            }
+            if let Some(m) = hover_message {
+                response.clone().on_hover_text_at_pointer(m.to_string());
+            }
             paint_ranges(
                 painter,
                 &rows,
@@ -1344,6 +1428,51 @@ impl Editor {
                             radius,
                             palette.accent,
                         );
+                    }
+                }
+            }
+
+            // Plugins' gutter marks, on the first line of each mark.
+            if self
+                .decorations
+                .iter()
+                .any(|d| d.style == MarkStyle::Gutter)
+            {
+                let hover = response.hover_pos();
+                let r = (metrics.row_h * 0.22).clamp(2.5, 5.0);
+                for (row_idx, row) in &rows {
+                    if !row.first_in_line {
+                        continue;
+                    }
+                    let line_end = row.line_start + self.buffer.line_len(row.line);
+                    let Some(d) = self
+                        .decorations
+                        .iter()
+                        .filter(|d| d.style == MarkStyle::Gutter)
+                        .filter(|d| d.range.start >= row.line_start && d.range.start <= line_end)
+                        .min_by_key(|d| d.color as u8)
+                    else {
+                        continue;
+                    };
+                    let c = Pos2::new(
+                        gutter.left() + BOOKMARK_MARGIN / 2.0 + 1.0,
+                        row_y(*row_idx) + metrics.row_h / 2.0,
+                    );
+                    painter.add(egui::Shape::convex_polygon(
+                        vec![
+                            c + Vec2::new(0.0, -r),
+                            c + Vec2::new(r, 0.0),
+                            c + Vec2::new(0.0, r),
+                            c + Vec2::new(-r, 0.0),
+                        ],
+                        palette.severity(d.color),
+                        Stroke::NONE,
+                    ));
+                    if let (Some(p), Some(m)) = (hover, &d.message)
+                        && (p.y - c.y).abs() <= metrics.row_h / 2.0
+                        && p.x < gutter.right()
+                    {
+                        response.clone().on_hover_text_at_pointer(m.to_string());
                     }
                 }
             }
