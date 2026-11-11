@@ -17,6 +17,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::raise::{self, Activation};
+
 const TIMEOUT: Duration = Duration::from_millis(800);
 /// Longest message accepted from another instance.
 const MAX_MESSAGE: u64 = 1 << 20;
@@ -32,6 +34,9 @@ struct InstanceFile {
 struct Message {
     token: String,
     files: Vec<PathBuf>,
+    /// Missing in messages from Ettin Edit 2.4.0 and older.
+    #[serde(default)]
+    activation: Activation,
 }
 
 /// The running instance's side: files sent by later instances arrive here.
@@ -78,8 +83,12 @@ pub fn send_to_running(config_dir: &Path, files: &[PathBuf]) -> bool {
     };
     let _ = stream.set_read_timeout(Some(TIMEOUT));
     let _ = stream.set_write_timeout(Some(TIMEOUT));
+    // Windows only lets the process the user just started take the
+    // foreground; pass that right on to the window that will show the files.
+    raise::allow_foreground(info.pid);
     let message = Message {
         token: info.token,
+        activation: Activation::from_env(),
         files: files
             .iter()
             .map(|p| std::path::absolute(p).unwrap_or_else(|_| p.clone()))
@@ -96,8 +105,9 @@ pub fn send_to_running(config_dir: &Path, files: &[PathBuf]) -> bool {
     BufReader::new(stream).read_line(&mut reply).is_ok() && reply.trim() == "ok"
 }
 
-/// Starts listening for later instances. `wake` is called after files arrive.
-pub fn listen(config_dir: &Path, wake: impl Fn() + Send + 'static) -> Option<Listener> {
+/// Starts listening for later instances. `wake` is called on the listener
+/// thread after files arrive, with what the sender needs to raise the window.
+pub fn listen(config_dir: &Path, wake: impl Fn(&Activation) + Send + 'static) -> Option<Listener> {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).ok()?;
     let port = listener.local_addr().ok()?.port();
     let token = random_token();
@@ -115,34 +125,30 @@ pub fn listen(config_dir: &Path, wake: impl Fn() + Send + 'static) -> Option<Lis
         .name("ettin-edit-instance".into())
         .spawn(move || {
             for stream in listener.incoming().flatten() {
-                handle(stream, &token, &tx);
-                wake();
+                if let Some(activation) = handle(stream, &token, &tx) {
+                    wake(&activation);
+                }
             }
         })
         .ok()?;
     Some(Listener { files: rx, file })
 }
 
-fn handle(stream: TcpStream, token: &str, tx: &Sender<Vec<PathBuf>>) {
+/// Reads one hand-over. Returns its activation details if it was valid.
+fn handle(stream: TcpStream, token: &str, tx: &Sender<Vec<PathBuf>>) -> Option<Activation> {
     let _ = stream.set_read_timeout(Some(TIMEOUT));
-    let Ok(mut writer) = stream.try_clone() else {
-        return;
-    };
+    let mut writer = stream.try_clone().ok()?;
     let mut line = String::new();
-    if BufReader::new(stream.take(MAX_MESSAGE))
+    BufReader::new(stream.take(MAX_MESSAGE))
         .read_line(&mut line)
-        .is_err()
-    {
-        return;
-    }
-    let Ok(message) = serde_json::from_str::<Message>(&line) else {
-        return;
-    };
+        .ok()?;
+    let message = serde_json::from_str::<Message>(&line).ok()?;
     if message.token != token {
-        return;
+        return None;
     }
     let _ = tx.send(message.files);
     let _ = writer.write_all(b"ok\n");
+    Some(message.activation)
 }
 
 /// Readable by the current user only, where the platform supports it.
@@ -180,11 +186,17 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         assert!(!send_to_running(&dir, &[]));
 
-        let listener = listen(&dir, || {}).unwrap();
+        let (woke_tx, woke) = channel();
+        let listener = listen(&dir, move |a: &Activation| {
+            let _ = woke_tx.send(a.clone());
+        })
+        .unwrap();
         // An absolute path on every platform, so it arrives unchanged.
         let file = dir.join("a.txt");
         assert!(send_to_running(&dir, std::slice::from_ref(&file)));
         assert_eq!(listener.files.recv_timeout(TIMEOUT).unwrap(), vec![file]);
+        // The listener is told, so it can raise the window.
+        assert!(woke.recv_timeout(TIMEOUT).is_ok());
 
         // A wrong token is ignored.
         let text = fs::read_to_string(instance_path(&dir)).unwrap();
@@ -193,6 +205,7 @@ mod tests {
         fs::write(instance_path(&dir), serde_json::to_string(&info).unwrap()).unwrap();
         assert!(!send_to_running(&dir, &[]));
         assert!(listener.files.try_recv().is_err());
+        assert!(woke.try_recv().is_err());
 
         drop(listener);
         fs::remove_dir_all(&dir).ok();

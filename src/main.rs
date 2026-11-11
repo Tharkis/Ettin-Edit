@@ -35,6 +35,7 @@ mod plugin_transform_ui;
 mod plugins;
 mod prefs_ui;
 mod print;
+mod raise;
 mod recipe_ui;
 mod recipes;
 mod ribbon;

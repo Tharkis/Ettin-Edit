@@ -193,6 +193,7 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/encoding.rs` | Encoding detection, decoding and encoding (UTF-8, UTF-16, legacy code pages) |
 | `src/session.rs` | The session and backups of unsaved changes |
 | `src/instance.rs` | Single-window mode: hands files to the Ettin Edit already running |
+| `src/raise.rs` | Brings that window to the front (Windows foreground rights, X11 `_NET_ACTIVE_WINDOW`, Wayland activation tokens) |
 | `src/system.rs` | Opening the file manager and a terminal, and reading the last Git commit |
 | `src/file_ui.rs` | Rename, move to trash and summary dialogs, the changed-on-disk bar, the Encoding menu |
 | `src/editor/` | The editor engine: `buffer.rs` (rope text and undo), `invisible.rs` (labels for invisible characters), `selection.rs` (carets), `layout.rs` (columns, word wrap, row index), `highlight.rs` (incremental highlighting), `find.rs` (find, replace, marks, bookmarks), `lines.rs` (line operations, case, comments), `smart.rs` (auto-close, smart indent, completion, brace matching, column editing), `fold.rs` (code folding), `fold_scan.rs` (grammar-aware fold regions, scanned in the background), `hints.rs` (parameter hints), `view.rs` (drawing, keyboard and mouse) |

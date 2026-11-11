@@ -19,6 +19,16 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.4.1: Opening a file brings the window forward
+
+Requested on 2026-11-11 from [issue #36](https://github.com/Tharkis/Ettin-Edit/issues/36): on Windows 11, double-clicking a file while Ettin Edit was minimized left the window in the taskbar; the file only showed once the window was restored by hand.
+
+- [x] The window is raised by the instance listener thread as soon as another Ettin Edit hands files over (`src/raise.rs`), because a minimized window runs no frames and so could not raise itself
+- [x] Windows: the starting copy calls `AllowSetForegroundWindow` for the running one, which then restores the window if it is minimized and calls `SetForegroundWindow`
+- [x] Linux X11: an EWMH `_NET_ACTIVE_WINDOW` request (also un-minimizes), with the launch time from `DESKTOP_STARTUP_ID` when there is one so focus-stealing prevention lets it through. Tested on Xvfb with a stand-in window manager
+- [x] Linux Wayland: the `XDG_ACTIVATION_TOKEN` the launcher gives the starting copy is passed on and used with `xdg_activation_v1` on the running window. Not yet tested on a real compositor
+- [x] Starting Ettin Edit again with no files also brings the window forward ([One window or several](docs/manual/src/files.md#one-window-or-several))
+
 ### 2.4: Settings in one place
 
 Requested on 2026-11-10: the sixth release of the UX plan (review items R11, R12, R17 and R25). One way of saving in every settings window, a Preferences window you can search, settings files that reload themselves, and an easy move to another computer.
@@ -638,6 +648,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| Opening a file while Ettin Edit was minimized added the tab but left the window minimized ([#36](https://github.com/Tharkis/Ettin-Edit/issues/36)) | 2.4.1 |
 | On Windows, starting with the window maximized made it flicker: it showed, vanished and came back maximized ([#30](https://github.com/Tharkis/Ettin-Edit/issues/30)) | 2.1.1 |
 | Macros recorded commands but not typing: text typed while recording was left out | 2.1 |
 | At the default window size the toolbar's Transform, View and Tools tabs ran off the right edge and had to be scrolled sideways | 2.0.1 |
