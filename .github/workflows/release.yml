@@ -103,8 +103,12 @@ jobs:
           tar czf "$dir.tar.gz" "$dir"
       - name: Install the packaging tools
         run: |
+          # GitHub's own Ubuntu mirror sometimes times out on every file
+          # (2026-11-11: 20 s per package). Use the main archive and give up fast.
+          sudo sh -c 'echo http://archive.ubuntu.com/ubuntu/ > /etc/apt/apt-mirrors.txt'
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "15";\n' | sudo tee /etc/apt/apt.conf.d/99timeouts >/dev/null
           sudo apt-get update -q
-          sudo apt-get install -y -q appstream appstream-compose librsvg2-common \
+          sudo apt-get install -y -q --no-install-recommends appstream appstream-compose librsvg2-common \
             desktop-file-utils rpm flatpak ostree zsync
           curl -fsSLo "$RUNNER_TEMP/appimagetool" \
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
@@ -255,6 +259,10 @@ jobs:
           merge-multiple: true
       - name: Install the tools
         run: |
+          # GitHub's own Ubuntu mirror sometimes times out on every file
+          # (2026-11-11: 20 s per package). Use the main archive and give up fast.
+          sudo sh -c 'echo http://archive.ubuntu.com/ubuntu/ > /etc/apt/apt-mirrors.txt'
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "15";\n' | sudo tee /etc/apt/apt.conf.d/99timeouts >/dev/null
           sudo apt-get update -q
           sudo apt-get install -y -q appstream appstream-compose librsvg2-common desktop-file-utils \
             rpm rpm2cpio cpio zstd unzip createrepo-c apt-utils flatpak ostree \

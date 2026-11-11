@@ -72,6 +72,10 @@ jobs:
             APT_SIGNING_KEY=$(gpg --armor --export-secret-keys)
             export APT_SIGNING_KEY
           fi
+          # GitHub's own Ubuntu mirror sometimes times out on every file
+          # (2026-11-11: 20 s per package). Use the main archive and give up fast.
+          sudo sh -c 'echo http://archive.ubuntu.com/ubuntu/ > /etc/apt/apt-mirrors.txt'
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "15";\n' | sudo tee /etc/apt/apt.conf.d/99timeouts >/dev/null
           sudo apt-get update -q
           sudo apt-get install -y -q apt-utils appstream appstream-compose librsvg2-common \
             createrepo-c rpm rpm2cpio cpio flatpak ostree
