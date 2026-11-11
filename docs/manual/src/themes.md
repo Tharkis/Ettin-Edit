@@ -14,6 +14,10 @@ the status bar. Ettin Edit comes with nine:
 Pick one from **View > Theme**, where they're listed under **Dark** and
 **Light**. The change is immediate and remembered.
 
+To have Ettin Edit switch between a light and a dark theme with your desktop,
+turn on **Follow the system's light/dark setting** in
+[Preferences > Appearance](preferences.md#appearance) and pick the pair.
+
 ## Themes are files
 
 Every theme, built-in ones included, is a TextMate `.tmTheme` file in the
@@ -24,10 +28,12 @@ themes folder:
 
 **View > Theme > Open Themes Folder** opens it. This means you can:
 
-- **Change a built-in theme** by editing its file, then choosing **View > Theme >
-  Reload Themes**.
-- **Add a theme** by dropping any `.tmTheme` file into the folder and
-  reloading. Themes you add appear under **Custom** in **View > Theme**.
+- **Change a built-in theme** by editing its file. When you save it, Ettin
+  Edit reloads it within a second. If the file has a mistake, the editor keeps
+  the last version that worked and a message names the file and line, with an
+  **Open** button. (**View > Theme > Reload Themes** reloads them all.)
+- **Add a theme** by dropping any `.tmTheme` file into the folder. Themes you
+  add appear under **Custom** in **View > Theme**.
   Thousands of `.tmTheme` files exist for TextMate, Sublime Text and other
   editors.
 - **Share a theme** by sending someone the file.
@@ -40,8 +46,9 @@ as `<name>.tmTheme.bak`, so nothing is lost.
 ## Edit Theme Colours
 
 **View > Theme > Edit Theme Colours…** changes a theme without touching its file by
-hand. Every change shows in the editor at once, so you can see what you're
-doing.
+hand. Every change shows in the editor at once and is saved to the theme's
+file half a second after you stop, so you can see what you're doing and
+there's nothing to remember to save.
 
 - **Theme** at the top picks the theme to edit (and switches to it).
 - **Editor** colours: the **Background**, **Text**, **Caret**, **Selection**,
@@ -54,13 +61,14 @@ doing.
   bold, italic and underline. Type in **Find** to look for a rule, such as
   `string` or `comment`. **Add Rule** adds one, and the button at the end of
   a rule deletes it.
-- **Save** writes the changes to the theme's file. **Save As New Theme…**
-  saves them as a new theme with a name you choose, leaving the original
-  alone. **Discard Changes** goes back to the theme as it was saved.
-- Closing the window with unsaved changes asks first: **Save** keeps them,
-  **Discard** puts the theme back as it was saved, and **Cancel** leaves the
-  window open. It says how many settings you changed. With no changes it
-  just closes.
+- **Undo Changes** puts the theme back exactly as it was when you opened the
+  window. The window says how many settings you've changed since then.
+- **Reset** puts a built-in theme back as Ettin Edit ships it. (Themes you
+  added have no original to go back to, so only Undo Changes works for them.)
+- **Save As New Theme…** saves your changes as a new theme with a name you
+  choose and puts the original back as it was, so you can experiment on a
+  built-in theme and keep the result separately.
+- **Close** keeps the changes.
 
 ### Scopes
 

@@ -24,6 +24,7 @@ mod function_list_ui;
 mod hex;
 mod hex_ui;
 mod highlight;
+mod indent;
 mod instance;
 mod lang_api;
 mod macros;
@@ -44,6 +45,7 @@ mod search_ui;
 mod self_update;
 mod session;
 mod settings;
+mod settings_sync;
 mod shortcut_ui;
 mod startup_window;
 mod style_ui;
@@ -57,6 +59,7 @@ mod transform_ui;
 mod transforms;
 mod update;
 mod user_lang;
+mod watch;
 
 use std::path::PathBuf;
 

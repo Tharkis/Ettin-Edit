@@ -24,6 +24,9 @@ A command can have more than one shortcut: **Add Another…** adds one,
 command's original shortcut back. **Reset All Shortcuts** resets every
 command.
 
+Every change is saved as you make it. **Undo Changes** at the bottom puts
+the keymap and every shortcut back as they were when you opened the window.
+
 Right-click a command and choose **Copy Command ID** to copy the id a
 [plugin](plugin-guide.md#command-ids) uses to run it.
 
@@ -38,6 +41,43 @@ Rules for shortcuts:
 
 Your shortcuts are saved in `settings.json` in the
 [settings folder](folders.md), so they move with your settings.
+
+## Keymaps
+
+**Keymap** at the top of the Shortcut Mapper (also in Preferences) picks the
+set of shortcuts you start from:
+
+- **Ettin (Notepad++ style)**: the default, listed under
+  [Default shortcuts](#default-shortcuts) below. If you know Notepad++, these
+  are the keys you expect.
+- **VS Code style**: the keys below change to the ones VS Code uses; every
+  other command keeps its Ettin key.
+
+Shortcuts you set yourself stay on top of whichever keymap you pick, so
+switching doesn't lose them.
+
+| Command | Ettin | VS Code style |
+| --- | --- | --- |
+| Save As… | <kbd>Ctrl+Alt+S</kbd> | <kbd>Ctrl+Shift+S</kbd> |
+| Save All | <kbd>Ctrl+Shift+S</kbd> | <kbd>Ctrl+Alt+S</kbd> |
+| Command Palette… | <kbd>F1</kbd> | <kbd>Ctrl+Shift+P</kbd>, <kbd>F1</kbd> |
+| Play Macro | <kbd>Ctrl+Shift+P</kbd> | none |
+| Tab List… | none | <kbd>Ctrl+P</kbd> |
+| Print… | <kbd>Ctrl+P</kbd> | none |
+| Delete Line | <kbd>Ctrl+Shift+L</kbd> | <kbd>Ctrl+Shift+K</kbd> |
+| Select All Occurrences | <kbd>Alt+F3</kbd> | <kbd>Ctrl+Shift+L</kbd> |
+| Select Next Occurrence | <kbd>Ctrl+Shift+D</kbd> | <kbd>Ctrl+D</kbd> |
+| Duplicate | <kbd>Ctrl+D</kbd> | <kbd>Alt+Shift+Down</kbd> |
+| Move Lines Up / Down | <kbd>Ctrl+Shift+Up</kbd> / <kbd>Ctrl+Shift+Down</kbd> | <kbd>Alt+Up</kbd> / <kbd>Alt+Down</kbd> |
+| Toggle Line Comment | <kbd>Ctrl+Q</kbd> | <kbd>Ctrl+/</kbd> |
+| Toggle Block Comment | <kbd>Ctrl+Shift+Q</kbd> | <kbd>Alt+Shift+A</kbd> |
+| Insert Blank Line Below / Above | <kbd>Ctrl+Alt+Shift+Enter</kbd> / <kbd>Ctrl+Alt+Enter</kbd> | <kbd>Ctrl+Enter</kbd> / <kbd>Ctrl+Shift+Enter</kbd> |
+| Fold / Unfold Current Level | <kbd>Ctrl+Alt+F</kbd> / <kbd>Ctrl+Alt+Shift+F</kbd> | <kbd>Ctrl+Shift+[</kbd> / <kbd>Ctrl+Shift+]</kbd> |
+| Markdown Preview | <kbd>Ctrl+Shift+M</kbd> | <kbd>Ctrl+Shift+V</kbd> |
+| Folder Panel | none | <kbd>Ctrl+B</kbd> |
+
+VS Code saves all files with the two-key chord <kbd>Ctrl+K</kbd> <kbd>S</kbd>;
+Ettin Edit has no chords, so VS Code style uses <kbd>Ctrl+Alt+S</kbd>.
 
 ## Default shortcuts
 

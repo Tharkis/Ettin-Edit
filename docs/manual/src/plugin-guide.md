@@ -808,6 +808,9 @@ commands when it is built.
 | Language › Language Guide | `LanguageGuide` |
 | Settings › Preferences… | `Preferences` |
 | Settings › Shortcut Mapper… | `ShortcutMapper` |
+| Settings › Export Settings… | `ExportSettings` |
+| Settings › Import Settings… | `ImportSettings` |
+| Settings › Open Settings Folder | `OpenSettingsFolder` |
 | Settings › Auto-Close Brackets and Quotes | `ToggleAutoClose` |
 | Settings › Smart Indentation | `ToggleSmartIndent` |
 | Settings › Indent With Spaces | `ToggleUseSpaces` |

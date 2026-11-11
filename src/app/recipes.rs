@@ -302,6 +302,7 @@ impl EttinApp {
         }
         let commands = recipe.commands();
         if !commands.is_empty()
+            && self.settings.recipe_commands_ask
             && !self
                 .settings
                 .allowed_recipes
@@ -380,7 +381,7 @@ impl EttinApp {
                 .and_then(|p| p.parent())
                 .map(|p| p.to_owned())
                 .or_else(dirs::home_dir);
-            inputs.push((texts, doc.editor.indent_unit(), dir, doc.path.clone()));
+            inputs.push((texts, self.format_unit(i), dir, doc.path.clone()));
             docs.push(JobDoc {
                 id: doc.id,
                 version: doc.editor.buffer.version(),
@@ -537,6 +538,7 @@ impl EttinApp {
             }
         }
         if !self.recipe_window.open {
+            self.recipes_opened = None;
             return;
         }
         let (key, selection, indent) = match self.docs.get(self.active) {
@@ -550,7 +552,7 @@ impl EttinApp {
                 (
                     h.finish(),
                     doc.editor.selections.has_selection(),
-                    doc.editor.indent_unit(),
+                    self.format_unit(self.active),
                 )
             }
             None => (0, false, String::new()),
@@ -592,6 +594,11 @@ impl EttinApp {
                     .find(|(_, a)| *a == Action::RunRecipe(r.id.clone()))
             })
             .map(|(s, _)| ctx.format_shortcut(&s));
+        // The recipes as they were when the window opened, for Undo Changes.
+        let opened = self
+            .recipes_opened
+            .get_or_insert_with(|| self.recipes.clone());
+        self.recipe_window.can_undo = *opened != self.recipes;
         let events = self.recipe_window.ui(
             ctx,
             &palette,
@@ -622,6 +629,14 @@ impl EttinApp {
                 RecipeEvent::Export(i) => self.export_recipe(i),
                 RecipeEvent::OpenFolder => self.run(ctx, Action::OpenRecipesFolder),
                 RecipeEvent::Reload => self.reload_recipes(),
+                RecipeEvent::UndoChanges => {
+                    if let Some(then) = self.recipes_opened.clone() {
+                        if let Err(e) = recipes::restore(&then, &self.recipes) {
+                            self.errors.push(e);
+                        }
+                        self.reload_recipes();
+                    }
+                }
                 RecipeEvent::SetShortcut {
                     index,
                     shortcut,

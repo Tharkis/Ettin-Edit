@@ -102,7 +102,7 @@ impl EttinApp {
         if self.docs.is_empty() {
             return;
         }
-        let unit = self.docs[self.active].editor.indent_unit();
+        let unit = self.format_unit(self.active);
         match op {
             TransformOp::FilterLines {
                 pattern,
@@ -200,12 +200,20 @@ impl EttinApp {
                         .text_snapshot()
                         .replace('\n', doc.line_ending.as_str());
                     let hash = transform::hash(kind, text.as_bytes());
-                    ctx.copy_text(hash.clone());
-                    self.notify(
-                        ctx,
-                        t!("hash-copied", kind = kind.name(), hash = hash),
-                        None,
-                    );
+                    if self.settings.hash_whole_document == crate::settings::HashResult::NewTab {
+                        self.new_tab();
+                        let doc = &mut self.docs[self.active];
+                        doc.editor = crate::editor::Editor::new(&hash);
+                        doc.editor.buffer.mark_modified();
+                        self.focus_editor = true;
+                    } else {
+                        ctx.copy_text(hash.clone());
+                        self.notify(
+                            ctx,
+                            t!("hash-copied", kind = kind.name(), hash = hash),
+                            None,
+                        );
+                    }
                 }
             }
             TransformOp::HexEncode => {

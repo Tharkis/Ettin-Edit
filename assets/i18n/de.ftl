@@ -404,7 +404,6 @@ filter-xsl = XSL-Stylesheet
 
 ## Preferences (src/prefs_ui.rs)
 prefs-editing = Bearbeiten
-prefs-display = Anzeige
 prefs-new-documents = Neue Dokumente
 prefs-general = Dateien und Start
 preferences = Optionen
@@ -627,18 +626,15 @@ choose-colour = Farbe wählen
 theme-read-failed = Die Design-Datei konnte nicht gelesen werden: { $error }
 theme-colours = Designfarben
 theme-label = Design:
-discard-changes = Änderungen verwerfen
-discard = Verwerfen
 save-as-new-theme = Als neues Design speichern…
 new-theme-name = Name des neuen Designs:
 new-theme-name-hint = Name für das neue Design
 theme-name-taken = Ein Design mit diesem Namen gibt es schon
-theme-colours-hint = Änderungen wirken sofort. Speichern behält sie; beim Schließen fragt das Fenster, ob sie gespeichert werden sollen.
-theme-save-before-closing = Änderungen an „{ $name }“ vor dem Schließen speichern?
+theme-colours-hint = Änderungen wirken sofort und werden gleich gespeichert. „Änderungen rückgängig“ stellt das Design so wieder her, wie es beim Öffnen des Fensters war.
 theme-changes-count = { $count ->
-    [one] 1 Einstellung geändert.
-   *[other] { $count } Einstellungen geändert.
-} Verwerfen stellt sie wieder her.
+    [one] 1 Einstellung seit dem Öffnen geändert.
+   *[other] { $count } Einstellungen seit dem Öffnen geändert.
+}
 style-editor = Editor
 style-syntax = Syntax
 rule-filter-hint = Regelname oder Scope, etwa string oder keyword
@@ -1030,7 +1026,6 @@ close-panel = Bereich schließen
 shortcut-settings-error = Einstellungen der Tastenkombinationen: { $error }
 
 ## Toolbar (src/ribbon*.rs, src/app/ribbon.rs)
-apply = Übernehmen
 customise-toolbar = Symbolleiste anpassen
 customise-toolbar-dots = Symbolleiste anpassen…
 toolbar-show = Symbolleiste
@@ -1469,3 +1464,80 @@ recipe-step-plugin = { $title } ({ $plugin })
 recipe-preview-stopped-plugin = Die Vorschau endet vor Schritt { $step }, der eine Plugin-Transformation ausführt.
 reload-on-change = Bei Dateiänderungen neu laden
 reload-on-change-hover = Für Plugins, die Sie selbst schreiben: startet es innerhalb einer Sekunde nach dem Speichern einer seiner Dateien neu.
+
+## 2.4 Einstellungen an einem Ort
+changes-apply-live = Änderungen wirken sofort.
+undo-changes = Änderungen rückgängig
+undo-changes-tip = Alles so wiederherstellen, wie es beim Öffnen dieses Fensters war
+reset-section = Bereich zurücksetzen
+reset-section-tip = Die Einstellungen unter { $section } auf die Standardwerte zurücksetzen
+theme-reset-tip = „{ $name }“ so wiederherstellen, wie Ettin Edit es mitbringt
+theme-reset-custom-tip = Nur mitgelieferte Designs lassen sich zurücksetzen. „Änderungen rückgängig“ stellt dieses Design so wieder her, wie es beim Öffnen des Fensters war.
+recipes-undo-tip = Die Rezepte so wiederherstellen, wie sie beim Öffnen dieses Fensters waren (seitdem hinzugefügte werden entfernt)
+prefs-search-hint = Einstellungen suchen
+prefs-also = AUSSERDEM
+prefs-other-windows = Andere Fenster
+prefs-no-match = Keine Einstellung passt zu „{ $search }“.
+prefs-appearance = Darstellung
+prefs-languages = Sprachen
+prefs-theme = Design
+prefs-follow-system = Der Hell/Dunkel-Einstellung des Systems folgen
+prefs-light-dark-pair = Helles / dunkles Design
+prefs-interface = Oberfläche
+prefs-interface-size = Größe der Oberfläche
+prefs-toolbar = Symbolleiste
+prefs-toolbar-full = Volles Menüband
+prefs-toolbar-hidden = Ausgeblendet
+prefs-menu-bar = Menüleiste
+prefs-tab-key = Tab-Taste fügt ein
+prefs-detect-indent = Einrückung beim Öffnen einer Datei erkennen (prüft die ersten 1000 eingerückten Zeilen)
+prefs-per-language = Einstellungen je Sprache
+prefs-per-language-hint = Diese haben Vorrang vor den Einstellungen oben. Ist die Erkennung an, hat die Einrückung der Datei selbst Vorrang vor beiden.
+prefs-default = Standard
+prefs-tabs = Tabulatoren
+prefs-spaces = Leerzeichen
+prefs-remove-language = Die Einstellungen dieser Sprache entfernen
+prefs-pick-language = Sprache wählen…
+prefs-add = Hinzufügen
+prefs-hash-no-selection = Hash ohne Auswahl
+prefs-hash-clipboard = Hash in die Zwischenablage kopieren
+prefs-hash-new-tab = Hash in einem neuen Tab öffnen
+prefs-recipe-commands = Befehlsschritte in Rezepten
+prefs-ask-first = Vor dem Ausführen fragen
+prefs-run-without-asking = Ohne Nachfrage ausführen
+prefs-shell = Shell für Befehle
+prefs-shell-tip = Das Programm samt Optionen, das „Durch Befehl filtern“ und Befehlsschritte in Rezepten ausführt, etwa bash -c oder pwsh -Command. Leer nimmt die Shell des Systems.
+prefs-format-indent = Einrückung für JSON / XML
+prefs-indent-document = Wie im Dokument
+prefs-indent-n-spaces = { $count } Leerzeichen
+prefs-settings-files = Einstellungsdateien
+prefs-settings-files-hint = Exportieren legt Einstellungen, Tastenkombinationen, Symbolleiste, Designs, Rezepte und Sprachen in eine Datei, die sich auf einen anderen Computer mitnehmen lässt.
+keymap-label = Tastenbelegung
+keymap-ettin = Ettin (wie Notepad++)
+keymap-vs-code = Wie VS Code
+keymap-hint = Ihre eigenen Änderungen gelten zusätzlich zur Tastenbelegung.
+export-settings = Einstellungen exportieren
+export-settings-dots = Einstellungen exportieren…
+import-settings = Einstellungen importieren
+import-settings-dots = Einstellungen importieren…
+open-settings-folder = Einstellungsordner öffnen
+settings-file-type = Ettin-Edit-Einstellungen
+settings-exported = { $count } Dateien nach { $file } exportiert
+settings-export-failed = Die Einstellungen konnten nicht nach { $file } exportiert werden: { $error }
+settings-import-failed = { $file } konnte nicht importiert werden: { $error }
+settings-imported = Einstellungen importiert.
+settings-imported-backup = Einstellungen importiert. Ihre alten Dateien liegen in { $folder }
+import = Importieren
+import-from = { $file } (aus Ettin Edit { $version })
+import-not-settings = diese Datei stammt nicht aus „Einstellungen exportieren“
+import-contents = Einstellungsdateien: { $settings } · Designs: { $themes } · Rezepte: { $recipes } · Sprachen: { $languages }
+import-replaces-nothing = Nichts von Ihren jetzigen Dateien wird ersetzt.
+import-replaces = { $count ->
+    [one] Sie ersetzt 1 Ihrer jetzigen Dateien:
+   *[other] Sie ersetzt { $count } Ihrer jetzigen Dateien:
+}
+import-backup-note = Von jeder ersetzten Datei kommt vorher eine Kopie in den Ordner „backups“ im Einstellungsordner.
+import-plugins-missing = Plugins, mit denen sie benutzt wurde und die hier fehlen: { $plugins }. Installieren Sie sie über Plugins > Plugins verwalten.
+live-reloaded = { $file } neu geladen
+live-reload-failed = { $file } wurde geändert, ist aber nicht lesbar: { $error }. Die letzte funktionierende Fassung bleibt aktiv.
+live-reload-place = Zeile { $line }, Spalte { $column }

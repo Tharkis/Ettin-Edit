@@ -201,6 +201,22 @@ fn new_bundle(code: &str) -> FluentBundle<FluentResource> {
 
 /// Parses `text` into a bundle for `code`; messages with mistakes are left
 /// out and described in `errors`.
+/// Checks that a translation file parses; the error has its line and column.
+pub fn check_ftl(text: &str) -> Result<(), String> {
+    match FluentResource::try_new(text.to_owned()) {
+        Ok(_) => Ok(()),
+        Err((_, list)) => {
+            let Some(e) = list.first() else {
+                return Ok(());
+            };
+            let before = &text[..e.pos.start.min(text.len())];
+            let line = before.matches('\n').count() + 1;
+            let column = before.len() - before.rfind('\n').map_or(0, |i| i + 1) + 1;
+            Err(format!("line {line} column {column}: {}", e.kind))
+        }
+    }
+}
+
 fn bundle_for(
     code: &str,
     text: &str,

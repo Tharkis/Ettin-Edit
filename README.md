@@ -64,7 +64,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits any byte and opens binary files of any size, and a command palette on F1 that puts your recent commands, recipes and plugin commands first. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
 | 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, switch to a one-row simplified toolbar, or collapse it out of the way. Hide the toolbar, the menu bar or both for a cleaner window (tap Alt to reach the menus). |
-| ⌨️ **Yours to bend** | Preferences, fonts, and a Shortcut Mapper that rebinds any command. |
+| ⌨️ **Yours to bend** | A searchable Preferences window where changes apply at once (with Undo Changes), light/dark themes that follow your desktop, per-language indentation, Notepad++ or VS Code keys, settings files that reload as you save them, and Export/Import Settings to take it all to another computer. |
 | 🗣️ **Speaks your language** | English, plus Deutsch, Français and Español (machine-translated for now, corrections welcome), following your system's language. Add your own with one text file. |
 
 Everything that works today, and the few things that don't yet, is ticked off in
@@ -236,6 +236,9 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/fonts.rs` | The editor font, installed fonts, and fallback fonts for Chinese, Japanese and Korean text |
 | `src/theme.rs` | Built-in and custom themes: copying the built-ins to the themes folder, loading them, and the window colours derived from them |
 | `src/settings.rs` | Settings, recent files and session, saved as JSON |
+| `src/watch.rs`, `src/app/settings_live.rs` | Live reload of settings files (settings, themes, languages, translations, recipes), applying changed settings, follow-system theme, and Export/Import Settings |
+| `src/settings_sync.rs` | The `.ettin-settings.zip` export and import, with backups |
+| `src/indent.rs` | Indentation detection and the per-language indentation settings |
 | `assets/themes/` | The nine built-in themes as `.tmTheme` files |
 | `assets/icons/` | The app icon (SVG, PNG, ICO) |
 | `packaging/` | Linux `.desktop` file and AppStream metadata, the Arch `PKGBUILD`, the scripts for the `.deb`, `.rpm`, Flatpak and AppImage and their package repositories, the check that every package carries its metadata (`check-packages.sh`), and the Windows installer script (Inno Setup) |

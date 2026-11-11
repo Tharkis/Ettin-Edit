@@ -94,6 +94,26 @@ In a file with hundreds of thousands of long lines that takes a second or
 two, and until it finishes the scroll bar's size and the document map can
 shift a little. The text at the top of the view stays where it is.
 
+## I edited settings.json by hand
+
+You can do that while Ettin Edit runs: when you save the file, Ettin Edit
+reads it again within a second and uses the new settings. If the file has a
+mistake (a missing comma, say), the settings you had stay in use and a message
+names the line and column, with an **Open** button that takes you there. Fix
+it and save again. The same goes for themes, languages, translations and
+recipes.
+
+Ettin Edit doesn't write its own copy over a `settings.json` you've just
+changed: it reads your version first.
+
+## I imported settings and want my old ones back
+
+**Import Settings…** copies each file it replaces to a folder named after the
+date and time under `backups` in the
+[settings folder](folders.md#the-settings-folder) (**Settings > Open Settings
+Folder**). Close Ettin Edit, copy the files from there back to the settings
+folder, and start it again.
+
 ## I closed a file without saving
 
 If **Remember Unsaved Changes on Exit** is on (the default), quitting never

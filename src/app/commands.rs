@@ -342,6 +342,12 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
         (&["menu-language", "language-guide"], LanguageGuide),
         (&["menu-settings", "preferences-dots"], Preferences),
         (&["menu-settings", "shortcut-mapper-dots"], ShortcutMapper),
+        (&["menu-settings", "export-settings-dots"], ExportSettings),
+        (&["menu-settings", "import-settings-dots"], ImportSettings),
+        (
+            &["menu-settings", "open-settings-folder"],
+            OpenSettingsFolder,
+        ),
         (&["menu-settings", "auto-close-brackets"], ToggleAutoClose),
         (&["menu-settings", "smart-indentation"], ToggleSmartIndent),
         (&["menu-settings", "indent-with-spaces"], ToggleUseSpaces),

@@ -147,6 +147,41 @@ fn layer(base: &mut Vec<SyntaxDefinition>, top: Vec<SyntaxDefinition>) {
 }
 
 /// Reads the user's grammars. Problems are reported per file and never stop the others.
+/// Reads one file of the languages folder; `None` for files that aren't grammars.
+fn load_user_file(path: &Path, file: &str) -> Option<Result<SyntaxDefinition, String>> {
+    let lower = file.to_lowercase();
+    let result = if lower.ends_with(".sublime-syntax") {
+        let stem = file[..file.len() - ".sublime-syntax".len()].to_owned();
+        std::fs::read_to_string(path)
+            .map_err(|e| e.to_string())
+            .and_then(|src| {
+                SyntaxDefinition::load_from_str(&src, true, Some(&stem)).map_err(|e| e.to_string())
+            })
+    } else if lower.ends_with(".lang.json") {
+        std::fs::read_to_string(path)
+            .map_err(|e| e.to_string())
+            .and_then(|src| user_lang::to_sublime_syntax(&src))
+            .and_then(|yaml| {
+                SyntaxDefinition::load_from_str(&yaml, true, None).map_err(|e| e.to_string())
+            })
+    } else {
+        return None;
+    };
+    Some(result)
+}
+
+/// Checks a file of the languages folder the way loading it would.
+pub fn check_user_file(path: &Path) -> Result<(), String> {
+    let file = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    match load_user_file(path, file) {
+        Some(result) => result.and_then(|def| check_definition(&def)),
+        None => Ok(()),
+    }
+}
+
 pub fn load_user_definitions(dir: &Path) -> (Vec<SyntaxDefinition>, Vec<String>) {
     let mut defs: Vec<SyntaxDefinition> = Vec::new();
     let mut errors = Vec::new();
@@ -159,23 +194,7 @@ pub fn load_user_definitions(dir: &Path) -> (Vec<SyntaxDefinition>, Vec<String>)
         let Some(file) = path.file_name().and_then(|n| n.to_str()).map(str::to_owned) else {
             continue;
         };
-        let lower = file.to_lowercase();
-        let result = if lower.ends_with(".sublime-syntax") {
-            let stem = file[..file.len() - ".sublime-syntax".len()].to_owned();
-            std::fs::read_to_string(&path)
-                .map_err(|e| e.to_string())
-                .and_then(|src| {
-                    SyntaxDefinition::load_from_str(&src, true, Some(&stem))
-                        .map_err(|e| e.to_string())
-                })
-        } else if lower.ends_with(".lang.json") {
-            std::fs::read_to_string(&path)
-                .map_err(|e| e.to_string())
-                .and_then(|src| user_lang::to_sublime_syntax(&src))
-                .and_then(|yaml| {
-                    SyntaxDefinition::load_from_str(&yaml, true, None).map_err(|e| e.to_string())
-                })
-        } else {
+        let Some(result) = load_user_file(&path, &file) else {
             continue;
         };
         match result.and_then(|def| check_definition(&def).map(|()| def)) {

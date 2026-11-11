@@ -26,13 +26,16 @@ const GLOBALS: &[(&str, &str)] = &[
 pub enum StyleEvent {
     /// Show the edited theme now (its `.tmTheme` text).
     Preview { name: String, source: String },
-    /// Write the theme to `<name>.tmTheme` and use it.
-    Save { name: String, source: String },
-    /// Go back to the theme as saved.
-    Discard,
+    /// Write the theme to `<name>.tmTheme` (it is already shown).
+    Write { name: String, source: String },
+    /// Write a new theme and switch to it.
+    SaveAsNew { name: String, source: String },
     /// Edit another theme (and switch to it).
     Switch(String),
 }
+
+/// Seconds without changes before an edit is written to the theme file.
+const WRITE_AFTER: f64 = 0.5;
 
 #[derive(Default)]
 pub struct StyleEditor {
@@ -40,16 +43,15 @@ pub struct StyleEditor {
     /// The theme being edited.
     name: String,
     doc: Option<Value>,
-    dirty: bool,
     error: Option<String>,
     /// The name typed for Save As New Theme.
     new_name: Option<String>,
     filter: String,
-    /// The theme as last saved, for Discard Changes.
-    saved: String,
+    /// The theme as it was when the window opened it, for Undo Changes.
+    original: String,
+    /// When the last change not yet written to the file was made.
+    unwritten: Option<f64>,
     focus_name: bool,
-    /// The window was closed with unsaved changes: ask Save / Discard / Cancel.
-    confirm_close: bool,
     /// Frames left to keep the window on top after it opens (it can open
     /// from Preferences, which would otherwise stay in front).
     raise: u8,
@@ -104,6 +106,14 @@ fn optional_color(ui: &mut Ui, color: &mut Option<Color32>, fallback: Color32) -
     changed
 }
 
+/// The built-in copy of a theme, for Reset.
+fn builtin_source(name: &str) -> Option<&'static str> {
+    crate::theme::BUILTIN
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, s)| *s)
+}
+
 impl StyleEditor {
     /// Opens the editor on `name`, reading its `.tmTheme` text.
     pub fn show(&mut self, name: &str, source: &str) {
@@ -112,11 +122,16 @@ impl StyleEditor {
         self.load(name, source);
     }
 
+    /// Edits `name`; Undo Changes goes back to `source`.
     pub fn load(&mut self, name: &str, source: &str) {
-        self.name = name.to_owned();
-        self.saved = source.to_owned();
-        self.dirty = false;
+        self.original = source.to_owned();
+        self.unwritten = None;
         self.new_name = None;
+        self.set_doc(name, source);
+    }
+
+    fn set_doc(&mut self, name: &str, source: &str) {
+        self.name = name.to_owned();
         match Value::from_reader_xml(Cursor::new(source.as_bytes())) {
             Ok(doc) => {
                 self.doc = Some(doc);
@@ -135,6 +150,42 @@ impl StyleEditor {
         String::from_utf8(out).ok()
     }
 
+    /// How many colours and styles differ from when the window opened.
+    fn changes(&self) -> usize {
+        match (self.doc.as_ref(), saved_doc(&self.original)) {
+            (Some(now), Some(then)) => count_changes(&then, now),
+            _ => 0,
+        }
+    }
+
+    /// Writes a change that hasn't been written yet.
+    fn flush(&mut self, events: &mut Vec<StyleEvent>) {
+        if self.unwritten.take().is_some()
+            && let Some(source) = self.source()
+        {
+            events.push(StyleEvent::Write {
+                name: self.name.clone(),
+                source,
+            });
+        }
+    }
+
+    /// Shows `source` and writes it at once (Undo Changes, Reset).
+    fn replace_with(&mut self, source: &str, events: &mut Vec<StyleEvent>) {
+        let name = self.name.clone();
+        self.set_doc(&name, source);
+        self.unwritten = None;
+        // The text itself, so a reset file is byte for byte the built-in one.
+        events.push(StyleEvent::Preview {
+            name: name.clone(),
+            source: source.to_owned(),
+        });
+        events.push(StyleEvent::Write {
+            name,
+            source: source.to_owned(),
+        });
+    }
+
     pub fn ui(
         &mut self,
         ctx: &egui::Context,
@@ -147,6 +198,7 @@ impl StyleEditor {
         }
         let mut open = true;
         let mut changed = false;
+        let mut close = false;
         let shown = egui::Window::new(t!("theme-colours"))
             .id(Id::new("style-editor"))
             .pivot(egui::Align2::CENTER_CENTER)
@@ -156,22 +208,24 @@ impl StyleEditor {
             .resizable(true)
             .default_size([760.0, 560.0])
             .show(ctx, |ui| {
-                self.toolbar(ui, themes, palette, &mut events);
+                self.toolbar(ui, themes, &mut events);
                 if let Some(e) = &self.error {
                     ui.label(RichText::new(e).color(palette.brace_bad.to_opaque()));
                 }
                 ui.separator();
-                let Some(doc) = self.doc.as_mut() else {
-                    return;
-                };
-                ScrollArea::vertical()
-                    .id_salt("style-scroll")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        changed |= globals(ui, doc, palette);
-                        ui.add_space(8.0);
-                        changed |= rules(ui, doc, &mut self.filter, palette);
-                    });
+                if let Some(doc) = self.doc.as_mut() {
+                    ScrollArea::vertical()
+                        .id_salt("style-scroll")
+                        .auto_shrink([false, false])
+                        .max_height(ui.available_height() - 36.0)
+                        .show(ui, |ui| {
+                            changed |= globals(ui, doc, palette);
+                            ui.add_space(8.0);
+                            changed |= rules(ui, doc, &mut self.filter, palette);
+                        });
+                }
+                ui.separator();
+                close = self.footer(ui, &mut events);
             });
         if self.raise > 0
             && let Some(shown) = shown
@@ -179,8 +233,9 @@ impl StyleEditor {
             ctx.move_to_top(shown.response.layer_id);
             self.raise -= 1;
         }
+        let now = ctx.input(|i| i.time);
         if changed {
-            self.dirty = true;
+            self.unwritten = Some(now);
             if let Some(source) = self.source() {
                 events.push(StyleEvent::Preview {
                     name: self.name.clone(),
@@ -188,92 +243,77 @@ impl StyleEditor {
                 });
             }
         }
-        if !open {
-            if self.dirty {
-                self.confirm_close = true;
+        if let Some(at) = self.unwritten {
+            let wait = WRITE_AFTER - (now - at);
+            if wait <= 0.0 {
+                self.flush(&mut events);
             } else {
-                self.open = false;
+                ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait));
             }
         }
-        if self.confirm_close {
-            self.close_prompt(ctx, palette, &mut events);
+        if !open || close {
+            // Changes are kept: write the last one now.
+            self.flush(&mut events);
+            self.open = false;
         }
         events
     }
 
-    /// Asks whether to keep the changes before the window closes.
-    fn close_prompt(
-        &mut self,
-        ctx: &egui::Context,
-        palette: &Palette,
-        events: &mut Vec<StyleEvent>,
-    ) {
-        let count = match (self.doc.as_ref(), saved_doc(&self.saved)) {
-            (Some(now), Some(saved)) => count_changes(&saved, now),
-            _ => 0,
-        };
-        let mut choice = None;
-        egui::Modal::new(Id::new("style-close")).show(ctx, |ui| {
-            ui.set_width(380.0);
-            ui.heading(t!("theme-colours"));
-            ui.add_space(6.0);
-            ui.label(t!("theme-save-before-closing", name = self.name.clone()));
-            ui.label(
-                RichText::new(t!("theme-changes-count", count = count))
-                    .small()
-                    .weak(),
-            );
-            ui.add_space(12.0);
+    /// Undo Changes, Reset and Close. True when Close was pressed.
+    fn footer(&mut self, ui: &mut Ui, events: &mut Vec<StyleEvent>) -> bool {
+        let mut close = false;
+        let changes = self.changes();
+        let builtin = builtin_source(&self.name);
+        let at_builtin = builtin.is_some_and(|b| {
+            saved_doc(b)
+                .zip(self.doc.as_ref())
+                .is_some_and(|(b, now)| count_changes(&b, now) == 0)
+        });
+        ui.horizontal(|ui| {
+            let hint = if changes == 0 {
+                t!("changes-apply-live")
+            } else {
+                t!("theme-changes-count", count = changes)
+            };
+            ui.label(RichText::new(hint).small().weak());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(t!("close")).clicked() {
+                    close = true;
+                }
+                let reset = ui
+                    .add_enabled(
+                        builtin.is_some() && !at_builtin,
+                        egui::Button::new(t!("reset")),
+                    )
+                    .on_hover_text(if builtin.is_some() {
+                        t!("theme-reset-tip", name = self.name.clone())
+                    } else {
+                        t!("theme-reset-custom-tip")
+                    })
+                    .on_disabled_hover_text(if builtin.is_some() {
+                        t!("theme-reset-tip", name = self.name.clone())
+                    } else {
+                        t!("theme-reset-custom-tip")
+                    });
+                if reset.clicked()
+                    && let Some(b) = builtin
+                {
+                    self.replace_with(b, events);
+                }
                 if ui
-                    .add(egui::Button::new(t!("save")).fill(palette.accent.gamma_multiply(0.6)))
+                    .add_enabled(changes > 0, egui::Button::new(t!("undo-changes")))
+                    .on_hover_text(t!("undo-changes-tip"))
                     .clicked()
                 {
-                    choice = Some(Close::Save);
-                }
-                if ui.button(t!("cancel")).clicked()
-                    || ui.input(|i| i.key_pressed(egui::Key::Escape))
-                {
-                    choice = Some(Close::Cancel);
-                }
-                if ui.button(t!("discard")).clicked() {
-                    choice = Some(Close::Discard);
+                    let original = self.original.clone();
+                    self.replace_with(&original, events);
                 }
             });
         });
-        match choice {
-            Some(Close::Save) => {
-                if let Some(source) = self.source() {
-                    self.saved = source.clone();
-                    events.push(StyleEvent::Save {
-                        name: self.name.clone(),
-                        source,
-                    });
-                }
-                self.close();
-            }
-            Some(Close::Discard) => {
-                events.push(StyleEvent::Discard);
-                self.close();
-            }
-            Some(Close::Cancel) => self.confirm_close = false,
-            None => {}
-        }
+        close
     }
 
-    fn close(&mut self) {
-        self.dirty = false;
-        self.confirm_close = false;
-        self.open = false;
-    }
-
-    fn toolbar(
-        &mut self,
-        ui: &mut Ui,
-        themes: &[(String, bool)],
-        palette: &Palette,
-        events: &mut Vec<StyleEvent>,
-    ) {
+    fn toolbar(&mut self, ui: &mut Ui, themes: &[(String, bool)], events: &mut Vec<StyleEvent>) {
         ui.horizontal(|ui| {
             ui.label(t!("theme-label"));
             egui::ComboBox::from_id_salt("style-theme")
@@ -284,39 +324,11 @@ impl StyleEditor {
                         if ui.selectable_label(*name == self.name, name).clicked()
                             && *name != self.name
                         {
-                            if self.dirty {
-                                events.push(StyleEvent::Discard);
-                            }
+                            self.flush(events);
                             events.push(StyleEvent::Switch(name.clone()));
                         }
                     }
                 });
-            let save = ui.add_enabled(
-                self.dirty,
-                egui::Button::new(t!("save")).fill(if self.dirty {
-                    palette.accent.gamma_multiply(0.6)
-                } else {
-                    Color32::TRANSPARENT
-                }),
-            );
-            if save.clicked()
-                && let Some(source) = self.source()
-            {
-                self.saved = source.clone();
-                events.push(StyleEvent::Save {
-                    name: self.name.clone(),
-                    source,
-                });
-                self.dirty = false;
-            }
-            if ui
-                .add_enabled(self.dirty, egui::Button::new(t!("discard-changes")))
-                .clicked()
-            {
-                events.push(StyleEvent::Discard);
-                let (name, saved) = (self.name.clone(), self.saved.clone());
-                self.load(&name, &saved);
-            }
             if ui.button(t!("save-as-new-theme")).clicked() {
                 self.new_name = Some(String::new());
                 self.focus_name = true;
@@ -352,36 +364,40 @@ impl StyleEditor {
                 }
             });
             match done {
-                Some(Some(name)) => {
-                    if let Some(dict) = self.doc.as_mut().and_then(Value::as_dictionary_mut) {
-                        dict.insert("name".to_owned(), Value::String(name.clone()));
-                    }
-                    if let Some(source) = self.source() {
-                        if self.dirty {
-                            events.push(StyleEvent::Discard);
-                        }
-                        self.saved = source.clone();
-                        events.push(StyleEvent::Save {
-                            name: name.clone(),
-                            source,
-                        });
-                        self.name = name;
-                        self.dirty = false;
-                    }
-                    self.new_name = None;
-                }
+                Some(Some(name)) => self.save_as_new(name, events),
                 Some(None) => self.new_name = None,
                 None => {}
             }
         }
         ui.label(RichText::new(t!("theme-colours-hint")).small().weak());
     }
-}
 
-enum Close {
-    Save,
-    Discard,
-    Cancel,
+    /// Saves the edited colours as a new theme and puts the theme they
+    /// were made from back as it was when the window opened.
+    fn save_as_new(&mut self, name: String, events: &mut Vec<StyleEvent>) {
+        if let Some(dict) = self.doc.as_mut().and_then(Value::as_dictionary_mut) {
+            dict.insert("name".to_owned(), Value::String(name.clone()));
+        }
+        let Some(source) = self.source() else {
+            return;
+        };
+        self.unwritten = None;
+        if self.changes() > 0 || saved_doc(&self.original).is_some() {
+            events.push(StyleEvent::Preview {
+                name: self.name.clone(),
+                source: self.original.clone(),
+            });
+            events.push(StyleEvent::Write {
+                name: self.name.clone(),
+                source: self.original.clone(),
+            });
+        }
+        events.push(StyleEvent::SaveAsNew {
+            name: name.clone(),
+            source: source.clone(),
+        });
+        self.load(&name, &source);
+    }
 }
 
 fn saved_doc(source: &str) -> Option<Value> {
@@ -682,15 +698,40 @@ mod tests {
         assert_eq!(count_changes(&saved, ed.doc.as_ref().unwrap()), 2);
     }
 
+    /// Undo Changes puts back the theme as it was when the window opened
+    /// and writes it to the file.
     #[test]
-    fn closing_with_changes_asks_first() {
+    fn undo_changes_goes_back_and_writes() {
         let mut ed = StyleEditor::default();
         ed.show("T", THEME);
-        ed.dirty = true;
-        // What the window's × does with unsaved changes.
-        ed.confirm_close = true;
-        assert!(ed.open);
-        ed.close();
-        assert!(!ed.open && !ed.dirty && !ed.confirm_close);
+        let list = entries(ed.doc.as_mut().unwrap()).unwrap();
+        let global = list[0]
+            .as_dictionary_mut()
+            .and_then(|d| d.get_mut("settings"))
+            .and_then(Value::as_dictionary_mut)
+            .unwrap();
+        set_color(global, "caret", Some(Color32::from_rgb(255, 0, 0)));
+        assert_eq!(ed.changes(), 1);
+        let mut events = Vec::new();
+        ed.unwritten = Some(0.0);
+        ed.flush(&mut events);
+        assert!(
+            matches!(&events[0], StyleEvent::Write { source, .. } if source.contains("#FF0000"))
+        );
+        events.clear();
+        let original = ed.original.clone();
+        ed.replace_with(&original, &mut events);
+        assert_eq!(ed.changes(), 0);
+        assert!(
+            matches!(&events[1], StyleEvent::Write { source, .. } if !source.contains("#FF0000"))
+        );
+        // Closing keeps the changes: nothing waits to be written.
+        assert!(ed.unwritten.is_none());
+    }
+
+    #[test]
+    fn reset_knows_the_built_in_themes() {
+        assert!(builtin_source("Ettin Dark").is_some());
+        assert!(builtin_source("Mine").is_none());
     }
 }
