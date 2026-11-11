@@ -4,106 +4,106 @@
 <key>name</key><string>Solarized Light</string>
 <key>settings</key><array>
 <dict><key>settings</key><dict><key>background</key><string>#FDF6E3</string><key>foreground</key><string>#657B83</string><key>caret</key><string>#073642</string><key>selection</key><string>#EEE8D5</string><key>lineHighlight</key><string>#3F3D3812</string><key>gutter</key><string>#EEE8D5</string><key>accent</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>comment, meta.documentation</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
-<dict><key>scope</key><string>string</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>string.regexp</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>constant.character.escape</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>constant.numeric</string><key>settings</key><dict><key>foreground</key><string>#6C71C4</string></dict></dict>
-<dict><key>scope</key><string>variable</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>variable.function</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>variable.language</string><key>settings</key><dict><key>foreground</key><string>#D33682</string></dict></dict>
-<dict><key>scope</key><string>keyword</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>meta.import keyword, keyword.control.import, keyword.control.import.from, keyword.other.import, keyword.control.at-rule.include, keyword.control.at-rule.import</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>keyword.operator.comparison, keyword.operator.assignment, keyword.operator.arithmetic</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
-<dict><key>scope</key><string>storage</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>storage.modifier</string><key>settings</key><dict><key>foreground</key><string>#586E75</string></dict></dict>
-<dict><key>scope</key><string>keyword.control.class, entity.name, entity.name.class, entity.name.type.class</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>entity.other.inherited-class</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>entity.other.attribute-name</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>support, support.type, support.class</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>entity.name.function</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>punctuation.definition.variable</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>constant, constant.language, meta.preprocessor</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>entity.name.section</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>support.function.construct, keyword.other.new</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>constant.character, constant.other</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>entity.name.tag</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>punctuation.definition.tag.html, punctuation.definition.tag.begin, punctuation.definition.tag.end</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
-<dict><key>scope</key><string>support.function</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>punctuation.separator.continuation</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>storage.type</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>support.type.exception</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>keyword.other.special-method</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>invalid</string><key>settings</key><dict><key>background</key><string>#EC9489</string></dict></dict>
-<dict><key>scope</key><string>string.quoted.double, string.quoted.single</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>punctuation.definition.string</string><key>settings</key><dict><key>foreground</key><string>#839496</string></dict></dict>
-<dict><key>scope</key><string>meta.brace.square, punctuation.section.brackets</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>meta.brace.round, meta.brace.curly, punctuation.section, punctuation.section.block, punctuation.definition.parameters, punctuation.section.group</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
-<dict><key>scope</key><string>support.constant.color, invalid.deprecated.color.w3c-non-standard-color-name.scss</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>meta.selector.css</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
-<dict><key>scope</key><string>entity.name.tag.css, entity.name.tag.scss, source.less keyword.control.html.elements, source.sass keyword.control.untitled</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>entity.other.attribute-name.class</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>entity.other.attribute-name.id</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>entity.other.attribute-name.pseudo-element, entity.other.attribute-name.tag.pseudo-element, entity.other.attribute-name.pseudo-class, entity.other.attribute-name.tag.pseudo-class</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>text.html.basic meta.tag.other.html, text.html.basic meta.tag.any.html, text.html.basic meta.tag.block.any, text.html.basic meta.tag.inline.any, text.html.basic meta.tag.structure.any.html, text.html.basic source.js.embedded.html, punctuation.separator.key-value.html</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
-<dict><key>scope</key><string>text.html.basic entity.other.attribute-name.html, meta.tag.xml entity.other.attribute-name</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>keyword.other.special-method.ruby</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>variable.other.constant.ruby</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>constant.other.symbol.ruby</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>keyword.other.special-method.ruby</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>meta.array support.function.construct.php</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>entity.name.function.preprocessor.c, meta.preprocessor.c.include, meta.preprocessor.macro.c</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>meta.preprocessor.c.include string.quoted.other.lt-gt.include.c, meta.preprocessor.c.include punctuation.definition.string.begin.c, meta.preprocessor.c.include punctuation.definition.string.end.c</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>other.package.exclude, other.remove</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>other.add</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>punctuation.section.group.tex, punctuation.definition.arguments.begin.latex, punctuation.definition.arguments.end.latex, punctuation.definition.arguments.latex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>meta.group.braces.tex</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>string.other.math.tex</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>variable.parameter.function.latex</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>punctuation.definition.constant.math.tex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>text.tex.latex constant.other.math.tex, constant.other.general.math.tex, constant.other.general.math.tex, constant.character.math.tex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>string.other.math.tex</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>punctuation.definition.string.begin.tex, punctuation.definition.string.end.tex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>keyword.control.label.latex, text.tex.latex constant.other.general.math.tex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>variable.parameter.definition.label.latex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>support.function.be.latex</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>support.function.section.latex</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>support.function.general.tex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>keyword.control.ref.latex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>storage.type.class.python, storage.type.function.python, storage.modifier.global.python</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>support.type.exception.python</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>meta.scope.for-in-loop.shell, variable.other.loop.shell</string><key>settings</key><dict><key>foreground</key><string>#586E75</string></dict></dict>
-<dict><key>scope</key><string>meta.scope.case-block.shell, meta.scope.case-body.shell</string><key>settings</key><dict><key>foreground</key><string>#586E75</string></dict></dict>
-<dict><key>scope</key><string>punctuation.definition.logical-expression.shell</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>storage.modifier.c++</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>support.function.perl</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>meta.diff, meta.diff.header</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
-<dict><key>scope</key><string>meta.diff.range</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
-<dict><key>scope</key><string>markup.deleted</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>markup.changed</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>markup.inserted</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>markup.heading, punctuation.definition.heading.markdown</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>markup.quote</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>markup.italic</string><key>settings</key><dict><key>fontStyle</key><string>italic</string></dict></dict>
-<dict><key>scope</key><string>markup.bold</string><key>settings</key><dict><key>fontStyle</key><string>bold</string></dict></dict>
-<dict><key>scope</key><string>markup.underline.link.markdown, meta.link.reference constant.other.reference.link.markdown</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>constant.other.reference.link.markdown</string><key>settings</key><dict><key>foreground</key><string>#6C71C4</string></dict></dict>
-<dict><key>scope</key><string>meta.paragraph.markdown meta.dummy.line-break</string><key>settings</key><dict><key>background</key><string>#EEE8D5</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.notes</string><key>settings</key><dict><key>foreground</key><string>#EEE8D5</string><key>background</key><string>#EEE8D5</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.outline.illegal</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string><key>background</key><string>#93A1A1</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.underline.illegal</string><key>settings</key><dict><key>background</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.outline.warning</string><key>settings</key><dict><key>foreground</key><string>#839496</string><key>background</key><string>#839496</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.underline.warning</string><key>settings</key><dict><key>background</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.outline.violation</string><key>settings</key><dict><key>foreground</key><string>#657B83</string><key>background</key><string>#657B83</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.underline.violation</string><key>settings</key><dict><key>background</key><string>#CB4B16</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.mark.warning</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.mark.error</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>sublimelinter.gutter-mark</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
-<dict><key>scope</key><string>brackethighlighter.all</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
-<dict><key>scope</key><string>entity.name.filename.find-in-files</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
-<dict><key>scope</key><string>constant.numeric.line-number.find-in-files</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
-<dict><key>scope</key><string>markup.deleted.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
-<dict><key>scope</key><string>markup.inserted.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
-<dict><key>scope</key><string>markup.changed.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
-<dict><key>scope</key><string>variable.other.readwrite.js, variable.other.object.js, variable.other.constant.js</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
+<dict><key>name</key><string>Comments</string><key>scope</key><string>comment, meta.documentation</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
+<dict><key>name</key><string>Strings</string><key>scope</key><string>string</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Regular expressions</string><key>scope</key><string>string.regexp</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Escape characters</string><key>scope</key><string>constant.character.escape</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Numbers</string><key>scope</key><string>constant.numeric</string><key>settings</key><dict><key>foreground</key><string>#6C71C4</string></dict></dict>
+<dict><key>name</key><string>Variables</string><key>scope</key><string>variable</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Function calls</string><key>scope</key><string>variable.function</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Language variables</string><key>scope</key><string>variable.language</string><key>settings</key><dict><key>foreground</key><string>#D33682</string></dict></dict>
+<dict><key>name</key><string>Keywords</string><key>scope</key><string>keyword</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Keywords</string><key>scope</key><string>meta.import keyword, keyword.control.import, keyword.control.import.from, keyword.other.import, keyword.control.at-rule.include, keyword.control.at-rule.import</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Operators</string><key>scope</key><string>keyword.operator.comparison, keyword.operator.assignment, keyword.operator.arithmetic</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
+<dict><key>name</key><string>Storage keywords</string><key>scope</key><string>storage</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Modifiers</string><key>scope</key><string>storage.modifier</string><key>settings</key><dict><key>foreground</key><string>#586E75</string></dict></dict>
+<dict><key>name</key><string>Class keywords</string><key>scope</key><string>keyword.control.class, entity.name, entity.name.class, entity.name.type.class</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Inherited classes</string><key>scope</key><string>entity.other.inherited-class</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Attributes</string><key>scope</key><string>entity.other.attribute-name</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Library names</string><key>scope</key><string>support, support.type, support.class</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Functions</string><key>scope</key><string>entity.name.function</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Variable sigils</string><key>scope</key><string>punctuation.definition.variable</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Constants</string><key>scope</key><string>constant, constant.language, meta.preprocessor</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Sections</string><key>scope</key><string>entity.name.section</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Library functions (construct)</string><key>scope</key><string>support.function.construct, keyword.other.new</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Characters</string><key>scope</key><string>constant.character, constant.other</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Tags</string><key>scope</key><string>entity.name.tag</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Punctuation definition tag html</string><key>scope</key><string>punctuation.definition.tag.html, punctuation.definition.tag.begin, punctuation.definition.tag.end</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
+<dict><key>name</key><string>Library functions</string><key>scope</key><string>support.function</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Punctuation separator continuation</string><key>scope</key><string>punctuation.separator.continuation</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Storage types</string><key>scope</key><string>storage.type</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Library names (type exception)</string><key>scope</key><string>support.type.exception</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Special methods</string><key>scope</key><string>keyword.other.special-method</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Invalid</string><key>scope</key><string>invalid</string><key>settings</key><dict><key>background</key><string>#EC9489</string></dict></dict>
+<dict><key>name</key><string>Quoted strings</string><key>scope</key><string>string.quoted.double, string.quoted.single</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>String quotes</string><key>scope</key><string>punctuation.definition.string</string><key>settings</key><dict><key>foreground</key><string>#839496</string></dict></dict>
+<dict><key>name</key><string>Square brackets</string><key>scope</key><string>meta.brace.square, punctuation.section.brackets</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Brackets</string><key>scope</key><string>meta.brace.round, meta.brace.curly, punctuation.section, punctuation.section.block, punctuation.definition.parameters, punctuation.section.group</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
+<dict><key>name</key><string>Library names (constant color)</string><key>scope</key><string>support.constant.color, invalid.deprecated.color.w3c-non-standard-color-name.scss</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Selectors (css)</string><key>scope</key><string>meta.selector.css</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
+<dict><key>name</key><string>Tags (css)</string><key>scope</key><string>entity.name.tag.css, entity.name.tag.scss, source.less keyword.control.html.elements, source.sass keyword.control.untitled</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Class attributes</string><key>scope</key><string>entity.other.attribute-name.class</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>ID attributes</string><key>scope</key><string>entity.other.attribute-name.id</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Attributes (pseudo element)</string><key>scope</key><string>entity.other.attribute-name.pseudo-element, entity.other.attribute-name.tag.pseudo-element, entity.other.attribute-name.pseudo-class, entity.other.attribute-name.tag.pseudo-class</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Meta tag other html</string><key>scope</key><string>text.html.basic meta.tag.other.html, text.html.basic meta.tag.any.html, text.html.basic meta.tag.block.any, text.html.basic meta.tag.inline.any, text.html.basic meta.tag.structure.any.html, text.html.basic source.js.embedded.html, punctuation.separator.key-value.html</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
+<dict><key>name</key><string>Attributes (html)</string><key>scope</key><string>text.html.basic entity.other.attribute-name.html, meta.tag.xml entity.other.attribute-name</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Special methods (ruby)</string><key>scope</key><string>keyword.other.special-method.ruby</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Variables (other constant) (ruby)</string><key>scope</key><string>variable.other.constant.ruby</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Symbols (Ruby)</string><key>scope</key><string>constant.other.symbol.ruby</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Special methods (ruby)</string><key>scope</key><string>keyword.other.special-method.ruby</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Library functions (construct) (php)</string><key>scope</key><string>meta.array support.function.construct.php</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Functions (preprocessor) (c)</string><key>scope</key><string>entity.name.function.preprocessor.c, meta.preprocessor.c.include, meta.preprocessor.macro.c</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Strings (quoted other lt gt include) (c)</string><key>scope</key><string>meta.preprocessor.c.include string.quoted.other.lt-gt.include.c, meta.preprocessor.c.include punctuation.definition.string.begin.c, meta.preprocessor.c.include punctuation.definition.string.end.c</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Other package exclude</string><key>scope</key><string>other.package.exclude, other.remove</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Other add</string><key>scope</key><string>other.add</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Punctuation section group tex</string><key>scope</key><string>punctuation.section.group.tex, punctuation.definition.arguments.begin.latex, punctuation.definition.arguments.end.latex, punctuation.definition.arguments.latex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Meta group braces tex</string><key>scope</key><string>meta.group.braces.tex</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Maths (TeX)</string><key>scope</key><string>string.other.math.tex</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Parameters (latex)</string><key>scope</key><string>variable.parameter.function.latex</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Punctuation definition constant math tex</string><key>scope</key><string>punctuation.definition.constant.math.tex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Constants (other math) (tex)</string><key>scope</key><string>text.tex.latex constant.other.math.tex, constant.other.general.math.tex, constant.other.general.math.tex, constant.character.math.tex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Maths (TeX)</string><key>scope</key><string>string.other.math.tex</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>String quotes (begin) (tex)</string><key>scope</key><string>punctuation.definition.string.begin.tex, punctuation.definition.string.end.tex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Keywords (control label) (latex)</string><key>scope</key><string>keyword.control.label.latex, text.tex.latex constant.other.general.math.tex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Parameters (definition label) (latex)</string><key>scope</key><string>variable.parameter.definition.label.latex</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Library functions (be) (latex)</string><key>scope</key><string>support.function.be.latex</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Library functions (section) (latex)</string><key>scope</key><string>support.function.section.latex</string><key>settings</key><dict><key>foreground</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Library functions (general) (tex)</string><key>scope</key><string>support.function.general.tex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Keywords (control ref) (latex)</string><key>scope</key><string>keyword.control.ref.latex</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Storage types (class) (python)</string><key>scope</key><string>storage.type.class.python, storage.type.function.python, storage.modifier.global.python</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Library names (type exception) (python)</string><key>scope</key><string>support.type.exception.python</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Meta scope for in loop shell</string><key>scope</key><string>meta.scope.for-in-loop.shell, variable.other.loop.shell</string><key>settings</key><dict><key>foreground</key><string>#586E75</string></dict></dict>
+<dict><key>name</key><string>Meta scope case block shell</string><key>scope</key><string>meta.scope.case-block.shell, meta.scope.case-body.shell</string><key>settings</key><dict><key>foreground</key><string>#586E75</string></dict></dict>
+<dict><key>name</key><string>Punctuation definition logical expression shell</string><key>scope</key><string>punctuation.definition.logical-expression.shell</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Modifiers (c++)</string><key>scope</key><string>storage.modifier.c++</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Library functions (perl)</string><key>scope</key><string>support.function.perl</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Diff headers</string><key>scope</key><string>meta.diff, meta.diff.header</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
+<dict><key>name</key><string>Diff ranges</string><key>scope</key><string>meta.diff.range</string><key>settings</key><dict><key>foreground</key><string>#268BD2</string></dict></dict>
+<dict><key>name</key><string>Diff: deleted</string><key>scope</key><string>markup.deleted</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Diff: changed</string><key>scope</key><string>markup.changed</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Diff: inserted</string><key>scope</key><string>markup.inserted</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Headings</string><key>scope</key><string>markup.heading, punctuation.definition.heading.markdown</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Quotes</string><key>scope</key><string>markup.quote</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Italic</string><key>scope</key><string>markup.italic</string><key>settings</key><dict><key>fontStyle</key><string>italic</string></dict></dict>
+<dict><key>name</key><string>Bold</string><key>scope</key><string>markup.bold</string><key>settings</key><dict><key>fontStyle</key><string>bold</string></dict></dict>
+<dict><key>name</key><string>Links (markdown)</string><key>scope</key><string>markup.underline.link.markdown, meta.link.reference constant.other.reference.link.markdown</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Constants (other reference link) (markdown)</string><key>scope</key><string>constant.other.reference.link.markdown</string><key>settings</key><dict><key>foreground</key><string>#6C71C4</string></dict></dict>
+<dict><key>name</key><string>Meta dummy line break</string><key>scope</key><string>meta.paragraph.markdown meta.dummy.line-break</string><key>settings</key><dict><key>background</key><string>#EEE8D5</string></dict></dict>
+<dict><key>name</key><string>Linter: notes</string><key>scope</key><string>sublimelinter.notes</string><key>settings</key><dict><key>foreground</key><string>#EEE8D5</string><key>background</key><string>#EEE8D5</string></dict></dict>
+<dict><key>name</key><string>Linter: outline illegal</string><key>scope</key><string>sublimelinter.outline.illegal</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string><key>background</key><string>#93A1A1</string></dict></dict>
+<dict><key>name</key><string>Linter: underline illegal</string><key>scope</key><string>sublimelinter.underline.illegal</string><key>settings</key><dict><key>background</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Linter: outline warning</string><key>scope</key><string>sublimelinter.outline.warning</string><key>settings</key><dict><key>foreground</key><string>#839496</string><key>background</key><string>#839496</string></dict></dict>
+<dict><key>name</key><string>Linter: underline warning</string><key>scope</key><string>sublimelinter.underline.warning</string><key>settings</key><dict><key>background</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Linter: outline violation</string><key>scope</key><string>sublimelinter.outline.violation</string><key>settings</key><dict><key>foreground</key><string>#657B83</string><key>background</key><string>#657B83</string></dict></dict>
+<dict><key>name</key><string>Linter: underline violation</string><key>scope</key><string>sublimelinter.underline.violation</string><key>settings</key><dict><key>background</key><string>#CB4B16</string></dict></dict>
+<dict><key>name</key><string>Linter: mark warning</string><key>scope</key><string>sublimelinter.mark.warning</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Linter: mark error</string><key>scope</key><string>sublimelinter.mark.error</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Linter: gutter mark</string><key>scope</key><string>sublimelinter.gutter-mark</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
+<dict><key>name</key><string>Bracket highlighter</string><key>scope</key><string>brackethighlighter.all</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
+<dict><key>name</key><string>Find in files: file names</string><key>scope</key><string>entity.name.filename.find-in-files</string><key>settings</key><dict><key>foreground</key><string>#2AA198</string></dict></dict>
+<dict><key>name</key><string>Find in files: line numbers</string><key>scope</key><string>constant.numeric.line-number.find-in-files</string><key>settings</key><dict><key>foreground</key><string>#93A1A1</string></dict></dict>
+<dict><key>name</key><string>Git gutter: deleted</string><key>scope</key><string>markup.deleted.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#DC322F</string></dict></dict>
+<dict><key>name</key><string>Git gutter: inserted</string><key>scope</key><string>markup.inserted.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#859900</string></dict></dict>
+<dict><key>name</key><string>Git gutter: changed</string><key>scope</key><string>markup.changed.git_gutter</string><key>settings</key><dict><key>foreground</key><string>#B58900</string></dict></dict>
+<dict><key>name</key><string>Variables (other readwrite) (js)</string><key>scope</key><string>variable.other.readwrite.js, variable.other.object.js, variable.other.constant.js</string><key>settings</key><dict><key>foreground</key><string>#657B83</string></dict></dict>
 </array></dict></plist>

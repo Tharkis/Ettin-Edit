@@ -59,6 +59,8 @@ pub enum Action {
     Welcome,
     WebManual,
     CheckForUpdates,
+    /// Language > Define Language…: the form for a simple language.
+    DefineLanguage,
     NewLanguage,
     OpenLanguagesFolder,
     OpenApiFolder,
@@ -361,6 +363,7 @@ impl Action {
                 | Action::OpenSettingsFolder
                 | Action::ShortcutMapper
                 | Action::StyleConfigurator
+                | Action::DefineLanguage
                 | Action::CommandPalette
                 | Action::TabList
                 | Action::UserManual

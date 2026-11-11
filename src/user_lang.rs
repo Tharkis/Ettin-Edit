@@ -69,6 +69,17 @@ fn yes() -> bool {
     true
 }
 
+/// A named list of words coloured with one of the Simple theme colours
+/// (`keywords`, `functions`, `types`, …).
+#[derive(Deserialize)]
+pub struct KeywordList {
+    #[serde(default)]
+    pub name: String,
+    pub colour: String,
+    #[serde(default)]
+    pub words: Vec<String>,
+}
+
 /// The `.lang.json` format.
 #[derive(Deserialize)]
 pub struct UserLanguage {
@@ -90,6 +101,9 @@ pub struct UserLanguage {
     pub multiline_strings: bool,
     #[serde(default)]
     pub keywords: BTreeMap<String, Vec<String>>,
+    /// Named word lists with a Simple colour (what Define Language writes).
+    #[serde(default)]
+    pub keyword_lists: Vec<KeywordList>,
     #[serde(default)]
     pub operators: Vec<String>,
     #[serde(default = "yes")]
@@ -306,8 +320,28 @@ impl UserLanguage {
             }
         }
 
+        let mut groups: Vec<(String, String, &Vec<String>)> = Vec::new();
         for (group, words) in &self.keywords {
-            let scope = group_scope(group)?;
+            groups.push((group.clone(), group_scope(group)?, words));
+        }
+        for list in &self.keyword_lists {
+            let colour = crate::theme_simple::Simple::from_id(&list.colour)
+                .filter(|c| *c != crate::theme_simple::Simple::Text)
+                .ok_or_else(|| {
+                    format!(
+                        "unknown colour `{}` in keyword list `{}`; use keywords, functions, \
+                         types, numbers, strings, comments, tags, attributes or errors",
+                        list.colour, list.name
+                    )
+                })?;
+            groups.push((
+                list.name.clone(),
+                colour.lang_scope().to_owned(),
+                &list.words,
+            ));
+        }
+        for (group, scope, words) in groups {
+            let group = &group;
             if words.is_empty() {
                 continue;
             }
@@ -430,6 +464,28 @@ mod tests {
         assert_scope(&h, l, "thing\n", "thing", "support.class");
         // A doubled quote stays inside the string.
         assert_scope(&h, l, "'it''s'\n", "''", "constant.character.escape");
+    }
+
+    #[test]
+    fn keyword_lists_use_simple_colours() {
+        let json = r#"{
+            "name": "Lists",
+            "extensions": "lst",
+            "keyword_lists": [
+                { "name": "Motion", "colour": "keywords", "words": ["G0", "G1"] },
+                { "name": "Kinds", "colour": "types", "words": ["int"] }
+            ]
+        }"#;
+        let h = highlighter_with(json);
+        assert_scope(&h, "Lists", "G0 int\n", "G0", "keyword.control.lists");
+        assert_scope(&h, "Lists", "G0 int\n", "int", "entity.name.class.lists");
+        assert!(
+            to_sublime_syntax(
+                r#"{"name": "X", "keyword_lists": [{"name": "a", "colour": "pink", "words": ["b"]}]}"#
+            )
+            .unwrap_err()
+            .contains("pink")
+        );
     }
 
     #[test]

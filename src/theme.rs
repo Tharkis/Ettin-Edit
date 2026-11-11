@@ -31,7 +31,13 @@ pub struct Palette {
     pub gutter_active_fg: Color32,
     pub line_highlight: Color32,
     pub selection: Color32,
+    /// Panels, menus and dialogs.
     pub chrome_bg: Color32,
+    /// Behind the tabs.
+    pub tab_strip_bg: Color32,
+    pub status_bg: Color32,
+    /// The ribbon toolbar and the menu bar.
+    pub ribbon_bg: Color32,
     pub tab_bg: Color32,
     pub tab_hover_bg: Color32,
     pub border: Color32,
@@ -87,7 +93,8 @@ fn luminance(c: Color32) -> f32 {
 
 impl Palette {
     /// Derives chrome colours from a syntax theme so any `.tmTheme` gives a coherent window.
-    fn derive(theme: &SyntectTheme, accent: Option<Color32>, invisibles: Option<Color32>) -> Self {
+    fn derive(theme: &SyntectTheme, accent: Option<Color32>, extra: &Extra) -> Self {
+        let invisibles = extra.invisibles;
         let s = &theme.settings;
         let editor_bg = s
             .background
@@ -135,6 +142,9 @@ impl Palette {
                 c.a() as f32 / 255.0,
             )
         };
+        let chrome_bg = extra
+            .panels
+            .unwrap_or_else(|| mix(editor_bg, toward, if dark { 0.18 } else { 0.35 }));
         Self {
             dark,
             editor_bg,
@@ -146,7 +156,10 @@ impl Palette {
             gutter_active_fg: mix(editor_bg, editor_fg, 0.8),
             line_highlight,
             selection,
-            chrome_bg: mix(editor_bg, toward, if dark { 0.18 } else { 0.35 }),
+            chrome_bg,
+            tab_strip_bg: extra.tab_strip.unwrap_or(chrome_bg),
+            status_bg: extra.status_bar.unwrap_or(chrome_bg),
+            ribbon_bg: extra.ribbon.unwrap_or(chrome_bg),
             tab_bg: mix(editor_bg, toward, if dark { 0.1 } else { 0.18 }),
             tab_hover_bg: mix(editor_bg, toward, if dark { 0.04 } else { 0.08 }),
             border: mix(editor_bg, away, if dark { 0.1 } else { 0.12 }),
@@ -363,27 +376,38 @@ pub fn install_builtins(dir: &Path, restore: bool) -> std::io::Result<()> {
     Ok(())
 }
 
-/// The `invisibles` colour (whitespace symbols), which syntect doesn't read.
-fn invisibles(source: &str, background: Option<SyntectColor>) -> Option<Color32> {
-    let value = plist::Value::from_reader_xml(Cursor::new(source.as_bytes())).ok()?;
-    let text = value
-        .as_dictionary()?
-        .get("settings")?
-        .as_array()?
-        .iter()
-        .filter_map(|v| v.as_dictionary())
-        .find(|d| !d.contains_key("scope"))?
-        .get("settings")?
-        .as_dictionary()?
-        .get("invisibles")?
-        .as_string()?;
-    let c = parse_hex(text)?;
+/// Editor colours syntect doesn't read: `invisibles` (whitespace symbols)
+/// and Ettin Edit's window colours (see [`crate::theme_simple::WINDOW`]).
+#[derive(Default)]
+struct Extra {
+    invisibles: Option<Color32>,
+    tab_strip: Option<Color32>,
+    panels: Option<Color32>,
+    status_bar: Option<Color32>,
+    ribbon: Option<Color32>,
+}
+
+fn extra_colours(source: &str, background: Option<SyntectColor>) -> Extra {
+    let Ok(value) = plist::Value::from_reader_xml(Cursor::new(source.as_bytes())) else {
+        return Extra::default();
+    };
     let bg = background.map(to_egui).unwrap_or(Color32::BLACK);
-    Some(mix(
-        bg,
-        Color32::from_rgb(c.r(), c.g(), c.b()),
-        c.a() as f32 / 255.0,
-    ))
+    // Colours with alpha are mixed over the editor background.
+    let solid = |key: &str| {
+        let c = crate::theme_simple::window_colour(&value, key)?;
+        Some(mix(
+            bg,
+            Color32::from_rgb(c.r(), c.g(), c.b()),
+            c.a() as f32 / 255.0,
+        ))
+    };
+    Extra {
+        invisibles: solid("invisibles"),
+        tab_strip: solid("ettinTabStrip"),
+        panels: solid("ettinPanels"),
+        status_bar: solid("ettinStatusBar"),
+        ribbon: solid("ettinRibbon"),
+    }
 }
 
 /// `#RGB`, `#RRGGBB` or `#RRGGBBAA`.
@@ -435,8 +459,10 @@ pub fn from_source(name: &str, source: &str, custom: bool) -> Result<ThemeDef, S
 
 fn theme_def(name: String, syntax: SyntectTheme, custom: bool, source: Option<&str>) -> ThemeDef {
     let accent = syntax.settings.accent.map(to_egui);
-    let invisibles = source.and_then(|s| invisibles(s, syntax.settings.background));
-    let palette = Palette::derive(&syntax, accent, invisibles);
+    let extra = source
+        .map(|s| extra_colours(s, syntax.settings.background))
+        .unwrap_or_default();
+    let palette = Palette::derive(&syntax, accent, &extra);
     static LOADS: AtomicU64 = AtomicU64::new(0);
     let key = format!("{name}#{}", LOADS.fetch_add(1, Ordering::Relaxed));
     ThemeDef {
@@ -573,6 +599,18 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&dark).unwrap(), BUILTIN[0].1);
         let bak = dir.join("Ettin Dark.tmTheme.bak");
         assert_eq!(std::fs::read_to_string(bak).unwrap(), edited);
+
+        // Window colours in the theme file are used; a theme without them still loads.
+        let with_window = BUILTIN[0].1.replace(
+            "<key>accent</key>",
+            "<key>ettinStatusBar</key><string>#123456</string><key>ettinPanels</key><string>#202020</string><key>accent</key>",
+        );
+        let t = from_source("W", &with_window, true).unwrap();
+        assert_eq!(t.palette.status_bg, Color32::from_rgb(0x12, 0x34, 0x56));
+        assert_eq!(t.palette.chrome_bg, Color32::from_rgb(0x20, 0x20, 0x20));
+        assert_eq!(t.palette.tab_strip_bg, t.palette.chrome_bg);
+        let plain = from_source("P", BUILTIN[0].1, true).unwrap();
+        assert_eq!(plain.palette.status_bg, plain.palette.chrome_bg);
 
         // A broken built-in file falls back to the original, with a message.
         std::fs::write(&dark, "not a theme").unwrap();

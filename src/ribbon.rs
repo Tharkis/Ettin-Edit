@@ -865,7 +865,9 @@ pub fn default_icon(action: &Action) -> &'static str {
         SetTheme(_) | OpenThemesFolder | ReloadThemes | RestoreThemes | StyleConfigurator => {
             ph::PALETTE
         }
-        SetLanguage(_) | NewLanguage | OpenLanguagesFolder | ReloadLanguages => ph::CODE,
+        SetLanguage(_) | DefineLanguage | NewLanguage | OpenLanguagesFolder | ReloadLanguages => {
+            ph::CODE
+        }
         OpenApiFolder => ph::LIST_MAGNIFYING_GLASS,
         SetLineEnding(_) => ph::KEY_RETURN,
         ClearRecent => ph::BROOM,

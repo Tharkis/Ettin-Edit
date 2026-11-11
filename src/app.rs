@@ -172,6 +172,7 @@ pub struct EttinApp {
     shortcut_mapper: crate::shortcut_ui::ShortcutMapper,
     command_palette: crate::palette_ui::Picker,
     style_editor: crate::style_ui::StyleEditor,
+    lang_dialog: crate::lang_dialog::LangDialog,
     tab_picker: crate::palette_ui::Picker,
     folders: crate::folder_ui::FolderPanel,
     updates: crate::update::UpdateCheck,
@@ -393,6 +394,7 @@ impl EttinApp {
             shortcut_mapper: crate::shortcut_ui::ShortcutMapper::default(),
             command_palette: crate::palette_ui::Picker::default(),
             style_editor: crate::style_ui::StyleEditor::default(),
+            lang_dialog: crate::lang_dialog::LangDialog::default(),
             tab_picker: crate::palette_ui::Picker::default(),
             folders: crate::folder_ui::FolderPanel::default(),
             updates: Default::default(),
@@ -1393,6 +1395,19 @@ impl EttinApp {
             Action::CheckForUpdates => self.updates.start(ctx, true),
             Action::Print => self.print(false),
             Action::NewLanguage => self.new_language(),
+            Action::DefineLanguage => {
+                let dir = crate::highlight::languages_dir();
+                // A user language in the active tab opens in the dialog.
+                let editing = self.docs.get(self.active).and_then(|d| {
+                    let dir = dir.as_deref()?;
+                    let path = d.path.as_ref()?;
+                    let name = path.file_name()?.to_str()?.to_lowercase();
+                    (path.parent() == Some(dir) && name.ends_with(".lang.json"))
+                        .then(|| path.clone())
+                });
+                self.lang_dialog.show(dir.as_deref(), editing.as_deref());
+                drop_focus(ctx);
+            }
             Action::OpenLanguagesFolder => self.open_languages_folder(),
             Action::OpenApiFolder => self.open_api_folder(),
             Action::ReloadLanguages => self.reload_languages(),
@@ -2790,6 +2805,7 @@ impl EttinApp {
             });
         }
         ui.separator();
+        self.menu_item(ui, &t!("define-language-dots"), Action::DefineLanguage);
         self.menu_item(ui, &t!("new-language"), Action::NewLanguage);
         self.menu_item(
             ui,
@@ -3170,6 +3186,21 @@ impl EttinApp {
         let clicked = doc.editor.show(ui, id, &cfg);
         if swapped {
             doc.editor.swap_view();
+        }
+        // Theme Colours' "What colours this?" picks the clicked spot.
+        if self.style_editor.picking()
+            && ui.input(|i| i.pointer.primary_clicked())
+            && ui.rect_contains_pointer(ui.min_rect())
+        {
+            let (line, col) = doc.editor.caret_line_col();
+            let stack = crate::theme_simple::stack_in_document(
+                &doc.editor.buffer,
+                line - 1,
+                col - 1,
+                syntax,
+                &self.highlighter.syntaxes,
+            );
+            self.style_editor.pick(stack, None);
         }
         if let Some(action) = clicked.and_then(|id| menu_model.action(id)) {
             // The right-click menu acts on the view it was opened in.
@@ -3566,8 +3597,25 @@ impl EttinApp {
                 .iter()
                 .map(|t| (t.name.clone(), t.custom))
                 .collect();
-            let events = self.style_editor.ui(ctx, &names, &palette);
+            let theme = self
+                .themes
+                .iter()
+                .find(|t| t.name == self.style_editor.name())
+                .map(|t| &t.syntax);
+            let events =
+                self.style_editor
+                    .ui(ctx, &names, &palette, theme, &self.highlighter.syntaxes);
             self.style_events(ctx, events);
+        }
+        if self.lang_dialog.open {
+            let active_text = self.docs.get(self.active).map(|d| d.editor.buffer.text());
+            let events = self.lang_dialog.ui(
+                ctx,
+                &palette,
+                &self.themes[self.theme_idx].syntax,
+                active_text.as_deref(),
+            );
+            self.lang_events(events);
         }
         if self.command_palette.open {
             let items = self.palette_items(ctx);
@@ -3812,7 +3860,7 @@ impl eframe::App for EttinApp {
                 let panel = egui::Panel::top("menu-bar")
                     .frame(
                         Frame::new()
-                            .fill(palette.chrome_bg)
+                            .fill(palette.ribbon_bg)
                             .inner_margin(Margin::symmetric(6, 4)),
                     )
                     .show_separator_line(false)
@@ -3821,18 +3869,22 @@ impl eframe::App for EttinApp {
             }
             self.toolbar_panel(ui);
             egui::Panel::top("tab-bar")
-                .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
-                    left: 6,
-                    right: 6,
-                    top: 2,
-                    bottom: 0,
-                }))
+                .frame(
+                    Frame::new()
+                        .fill(palette.tab_strip_bg)
+                        .inner_margin(Margin {
+                            left: 6,
+                            right: 6,
+                            top: 2,
+                            bottom: 0,
+                        }),
+                )
                 .show_separator_line(false)
                 .show(ui, |ui| self.tab_bars(ui));
             egui::Panel::bottom("status-bar")
                 .frame(
                     Frame::new()
-                        .fill(palette.chrome_bg)
+                        .fill(palette.status_bg)
                         .inner_margin(Margin::symmetric(10, 3)),
                 )
                 .show_separator_line(false)

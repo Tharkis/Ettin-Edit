@@ -71,6 +71,43 @@ impl EttinApp {
         }
     }
 
+    /// Acts on what Define Language did.
+    pub(super) fn lang_events(&mut self, events: Vec<crate::lang_dialog::LangEvent>) {
+        use crate::lang_dialog::LangEvent;
+        for event in events {
+            match event {
+                LangEvent::Saved { path, name } => {
+                    self.reload_languages();
+                    // Tabs with the language's extensions pick it up.
+                    for i in 0..self.docs.len() {
+                        let doc = &self.docs[i];
+                        if doc.syntax == crate::highlight::PLAIN_TEXT
+                            && let Some(p) = doc.path.clone()
+                        {
+                            let detected = self.highlighter.detect(Some(&p), "");
+                            if detected == name {
+                                self.docs[i].syntax = detected;
+                            }
+                        }
+                    }
+                    self.notice = Some(crate::text_tools_ui::Notice {
+                        text: t!(
+                            "language-saved",
+                            name = name,
+                            path = path.display().to_string()
+                        ),
+                        error: false,
+                        since: None,
+                        jump: None,
+                        open: None,
+                    });
+                }
+                LangEvent::OpenJson(path) => self.open_path(&path, true),
+                LangEvent::NewJson => self.new_language(),
+            }
+        }
+    }
+
     /// Starts a new language from the template, in the languages folder.
     pub(super) fn new_language(&mut self) {
         let Some(dir) = languages_dir() else {

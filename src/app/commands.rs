@@ -329,6 +329,7 @@ fn fixed_commands() -> Vec<(&'static [&'static str], Action)> {
             &["menu-view", "menu-theme", "restore-built-in-themes"],
             RestoreThemes,
         ),
+        (&["menu-language", "define-language-dots"], DefineLanguage),
         (&["menu-language", "new-language"], NewLanguage),
         (
             &["menu-language", "open-languages-folder"],

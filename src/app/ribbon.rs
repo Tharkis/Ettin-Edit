@@ -376,7 +376,7 @@ impl EttinApp {
         let mut events = Vec::new();
         self.toolbar.bar.menu_bar_shown = self.settings.show_menu_bar;
         egui::Panel::top("toolbar")
-            .frame(Frame::new().fill(palette.chrome_bg).inner_margin(Margin {
+            .frame(Frame::new().fill(palette.ribbon_bg).inner_margin(Margin {
                 left: 6,
                 right: 6,
                 top: 0,

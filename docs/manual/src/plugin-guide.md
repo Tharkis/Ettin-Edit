@@ -801,6 +801,7 @@ commands when it is built.
 | View › Theme › Open Themes Folder | `OpenThemesFolder` |
 | View › Theme › Reload Themes | `ReloadThemes` |
 | View › Theme › Restore Built-in Themes | `RestoreThemes` |
+| Language › Define Language… | `DefineLanguage` |
 | Language › New Language… | `NewLanguage` |
 | Language › Open Languages Folder | `OpenLanguagesFolder` |
 | Language › Open Completion Lists Folder | `OpenApiFolder` |
