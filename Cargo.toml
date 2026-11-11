@@ -1,6 +1,6 @@
 [package]
 name = "ettin-edit"
-version = "2.4.0"
+version = "2.4.1"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 license = "MIT"
@@ -50,6 +50,14 @@ notify = "8"
 
 [target.'cfg(windows)'.dependencies]
 raw-window-handle = "0.6"
+
+# Raising the window when a file is handed over (src/raise.rs).
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+raw-window-handle = "0.6"
+x11rb = "0.13"
+wayland-client = "0.31"
+wayland-backend = { version = "0.3", features = ["client_system"] }
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 
 [profile.release]
 opt-level = 3

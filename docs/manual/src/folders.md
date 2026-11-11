@@ -55,8 +55,8 @@ ettin-edit --list-recipes
 
 - Each file opens in a tab. A file that can't be opened, for example because
   it doesn't exist, is reported and skipped.
-- If Ettin Edit is already running, the files open in its window (unless
-  **Settings > Single Window** is off).
+- If Ettin Edit is already running, the files open in its window, which comes
+  to the front (unless **Settings > Single Window** is off).
 - `--multi-instance` (or `-multiInst`, as in Notepad++) always starts a new
   window.
 

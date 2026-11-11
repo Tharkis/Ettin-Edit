@@ -453,7 +453,13 @@ impl EttinApp {
 
         if owner && let Some(dir) = settings::config_dir() {
             let ctx = cc.egui_ctx.clone();
-            app.instance = instance::listen(&dir, move || ctx.request_repaint());
+            // Raised from the listener thread: a minimized window runs no
+            // frames, so it can't raise itself (issue #36).
+            let raiser = crate::raise::Raiser::new(cc);
+            app.instance = instance::listen(&dir, move |activation| {
+                raiser.raise(activation);
+                ctx.request_repaint();
+            });
             let store = SessionStore::new(&dir);
             let session = store.load().unwrap_or_else(|| Session {
                 // Sessions from before 0.5 were a list of files in the settings.

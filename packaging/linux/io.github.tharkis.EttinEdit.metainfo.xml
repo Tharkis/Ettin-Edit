@@ -68,6 +68,18 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.4.1" date="2026-11-11">
+      <description>
+        <p>Opening a file while Ettin Edit is running brings its window to the
+        front again, also when it was minimized.</p>
+        <ul>
+          <li>Windows: a minimized window is restored and comes to the front</li>
+          <li>Linux: the window is activated on X11, and on Wayland with the launcher's activation token</li>
+          <li>Starting Ettin Edit again with no file also brings the window forward</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.4.1</url>
+    </release>
     <release version="2.4.0" date="2026-11-10">
       <description>
         <p>Settings in one place: a Preferences window you can search, changes

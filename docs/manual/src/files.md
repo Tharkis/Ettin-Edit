@@ -25,7 +25,8 @@ keeps up when you resize the window.
 
 By default there is one Ettin Edit window. Opening a file from your file
 manager or a terminal while Ettin Edit is running sends it to the open window
-instead of starting a second copy. To get separate windows, turn off
+instead of starting a second copy, and brings that window to the front, even
+when it was minimized. To get separate windows, turn off
 **Settings > Single Window**, or start Ettin Edit with `--multi-instance`.
 
 ## New files
