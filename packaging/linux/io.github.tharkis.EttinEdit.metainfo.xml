@@ -68,6 +68,20 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.5.0" date="2026-11-11">
+      <description>
+        <p>Themes and languages: change a theme's colours by name and define a
+        simple language in a form, without TextMate scopes or JSON.</p>
+        <ul>
+          <li>Theme Colours has a Simple view: Comments, Strings, Keywords and seven more named colours that apply to every language</li>
+          <li>What colours this? shows which colour and rule colour a word, in the preview or the editor</li>
+          <li>Themes can set the tab strip, panels, status bar and ribbon colours</li>
+          <li>Every rule of the built-in themes has a name</li>
+          <li>Language &gt; Define Language: a form with a live preview that writes a .lang.json file</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.5.0</url>
+    </release>
     <release version="2.4.1" date="2026-11-11">
       <description>
         <p>Opening a file while Ettin Edit is running brings its window to the

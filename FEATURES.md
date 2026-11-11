@@ -19,6 +19,17 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.5: Themes and languages
+
+Requested on 2026-11-11: the seventh and last release of the UX plan (review items R13 and R18). Making a theme or a simple language no longer needs TextMate scopes or JSON.
+
+- [x] **Simple Theme Colours** (`src/theme_simple.rs`): Theme Colours opens on a **Simple** view of ten named colours: Default text, Comments, Strings, Numbers, Keywords, Functions, Types, Tags, Attributes and Errors, each with B/I/U and a background where the theme gives it one. Each name stands for a list of scopes; changing it updates every rule that colours only that kind of text and adds one rule for all its scopes, so it applies in every language (tested on Rust, Python, JSON and JavaScript in all nine built-in themes). Rules for special places, such as JSON keys, keep their own colours. **Advanced (scopes)** is the rule list from before ([Simple and Advanced](docs/manual/src/themes.md#simple-and-advanced))
+- [x] **What colours this?**: click a word in the window's preview (JavaScript, Python, Rust, HTML or JSON sample) or in the editor; the window selects its Simple colour, shows the scope and the full scope stack, names the rule that colours it and says whether changing the Simple colour will reach it. **Show in Advanced** jumps to that rule ([What colours this?](docs/manual/src/themes.md#what-colours-this))
+- [x] **Window colours**: tab strip, panels and dialogs, status bar, ribbon and menu bar, and selection, stored in the theme's editor colours as `ettinTabStrip`, `ettinPanels`, `ettinStatusBar` and `ettinRibbon` (other tmTheme readers ignore them). Left on Automatic they are worked out from the editor colours as before ([Window colours](docs/manual/src/themes.md#window-colours))
+- [x] **Named rules**: every rule in the nine built-in themes has a name, so Advanced no longer shows "(no name)". Unedited copies in the themes folder update themselves
+- [x] **Language > Define Language…** (`src/lang_dialog.rs`): name, file extensions, line and block comment, `"…"` and `'…'` strings with `\` escapes and multi-line strings, numbers, ignore case, operators, folding pairs and named keyword lists, each with a Simple colour. A live preview on a built-in sample, the current tab or text you type. It saves `languages/<name>.lang.json` in the same format New Language… writes (plus a new `keyword_lists` setting), reloads the languages and switches open tabs with its extensions. Existing languages open from the **Language** list when they only use what the form shows; otherwise it says what's missing and offers **Open the JSON**. **Edit JSON instead** opens the file. The mockup's Gcode example round-trips in a test ([Define Language](docs/manual/src/languages.md#define-language))
+- [x] New text in all four interface languages
+
 ### 2.4.1: Opening a file brings the window forward
 
 Requested on 2026-11-11 from [issue #36](https://github.com/Tharkis/Ettin-Edit/issues/36): on Windows 11, double-clicking a file while Ettin Edit was minimized left the window in the taskbar; the file only showed once the window was restored by hand.
@@ -663,7 +674,9 @@ Bugs reported but not yet in a release, with the release that fixes them.
 Features that are planned or only partly done.
 
 ### Planned (not yet scheduled)
-The UX plan from the 2.0.0 review continues: 2.5 Themes and languages (simple Theme Colours, Define Language dialog).
+The UX plan from the 2.0.0 review is finished with 2.5.
+
+- [ ] Define Language: numbers right after a letter (`X10` in G-code) are not coloured, because the number rule needs a non-word character before it
 
 - [ ] Live reload of plugin folders (2.4 watches settings, themes, languages, translations and recipes; plugins keep their own *Reload when its files change* switch)
 - [ ] Two-key chord shortcuts (VS Code's Ctrl+K S for Save All); VS Code style uses Ctrl+Alt+S for now

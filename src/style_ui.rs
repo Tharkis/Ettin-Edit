@@ -1,13 +1,34 @@
 //! The theme colour editor (Theme > Edit Theme Colours): change a theme's
 //! editor and syntax colours, see them at once, and save them to its file.
+//! The Simple view shows about ten named colours; Advanced shows every rule.
 
 use std::io::Cursor;
 
 use egui::color_picker::{Alpha, color_edit_button_srgba};
 use egui::{Color32, Id, RichText, ScrollArea, Ui};
 use plist::{Dictionary, Value};
+use syntect::highlighting::Theme as SyntectTheme;
+use syntect::parsing::{Scope, SyntaxSet};
 
 use crate::theme::{Palette, parse_hex, to_hex};
+use crate::theme_simple::{self as simple, Simple};
+
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum View {
+    #[default]
+    Simple,
+    Advanced,
+}
+
+/// What "What colours this?" found.
+struct Picked {
+    stack: Vec<Scope>,
+    simple: Simple,
+    /// The rule (index into the theme's settings) that colours it.
+    rule: Option<usize>,
+    /// Where it is in the preview, when picked there.
+    in_preview: Option<std::ops::Range<usize>>,
+}
 
 /// The editor colours a theme can set, with the message ids of their names.
 const GLOBALS: &[(&str, &str)] = &[
@@ -21,6 +42,10 @@ const GLOBALS: &[(&str, &str)] = &[
     ("invisibles", "style-whitespace"),
     ("findHighlight", "style-search-matches"),
     ("accent", "style-accent"),
+    ("ettinTabStrip", "style-tab-strip"),
+    ("ettinPanels", "style-panels"),
+    ("ettinStatusBar", "style-status-bar"),
+    ("ettinRibbon", "style-ribbon"),
 ];
 
 pub enum StyleEvent {
@@ -55,6 +80,16 @@ pub struct StyleEditor {
     /// Frames left to keep the window on top after it opens (it can open
     /// from Preferences, which would otherwise stay in front).
     raise: u8,
+    view: View,
+    /// "What colours this?" is waiting for a click in the preview or the editor.
+    picking: bool,
+    picked: Option<Picked>,
+    /// The Simple row to show as selected.
+    selected: Option<Simple>,
+    /// Which preview sample is shown.
+    sample: usize,
+    /// Scroll the Advanced view to the picked rule once.
+    scroll_to_rule: bool,
 }
 
 fn color_of(dict: &Dictionary, key: &str) -> Option<Color32> {
@@ -130,8 +165,39 @@ impl StyleEditor {
         self.set_doc(name, source);
     }
 
+    /// The theme being edited.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// True while "What colours this?" waits for a click; a click in the
+    /// editor then goes to [`Self::pick`].
+    pub fn picking(&self) -> bool {
+        self.open && self.picking
+    }
+
+    /// Shows what colours text with these scopes (a click in the editor or the preview).
+    pub fn pick(&mut self, stack: Vec<Scope>, in_preview: Option<std::ops::Range<usize>>) {
+        self.picking = false;
+        let which = simple::simple_for(&stack);
+        let rule = self
+            .doc
+            .as_ref()
+            .and_then(|d| simple::winning_rule(d, &stack));
+        self.selected = Some(which);
+        self.scroll_to_rule = true;
+        self.raise = 2;
+        self.picked = Some(Picked {
+            stack,
+            simple: which,
+            rule,
+            in_preview,
+        });
+    }
+
     fn set_doc(&mut self, name: &str, source: &str) {
         self.name = name.to_owned();
+        self.picked = None;
         match Value::from_reader_xml(Cursor::new(source.as_bytes())) {
             Ok(doc) => {
                 self.doc = Some(doc);
@@ -191,6 +257,8 @@ impl StyleEditor {
         ctx: &egui::Context,
         themes: &[(String, bool)],
         palette: &Palette,
+        theme: Option<&SyntectTheme>,
+        syntaxes: &SyntaxSet,
     ) -> Vec<StyleEvent> {
         let mut events = Vec::new();
         if !self.open {
@@ -206,22 +274,57 @@ impl StyleEditor {
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
-            .default_size([760.0, 560.0])
+            .default_size([980.0, 600.0])
             .show(ctx, |ui| {
                 self.toolbar(ui, themes, &mut events);
                 if let Some(e) = &self.error {
                     ui.label(RichText::new(e).color(palette.brace_bad.to_opaque()));
                 }
+                self.view_switch(ui);
                 ui.separator();
+                let body_h = (ui.available_height() - 36.0).max(120.0);
+                if self.doc.is_some() {
+                    egui::Panel::right("style-preview")
+                        .resizable(true)
+                        .default_size(330.0)
+                        .min_size(220.0)
+                        .show_separator_line(true)
+                        .show(ui, |ui| {
+                            ScrollArea::vertical()
+                                .id_salt("style-preview-scroll")
+                                .auto_shrink([false, false])
+                                .max_height(body_h)
+                                .show(ui, |ui| {
+                                    if let Some(theme) = theme {
+                                        self.preview(ui, theme, syntaxes, palette);
+                                    }
+                                });
+                        });
+                }
+                let view = self.view;
+                let selected = self.selected;
+                let highlight = self.picked.as_ref().and_then(|p| p.rule);
+                let scroll = std::mem::take(&mut self.scroll_to_rule);
                 if let Some(doc) = self.doc.as_mut() {
-                    ScrollArea::vertical()
+                    ScrollArea::both()
                         .id_salt("style-scroll")
                         .auto_shrink([false, false])
-                        .max_height(ui.available_height() - 36.0)
-                        .show(ui, |ui| {
-                            changed |= globals(ui, doc, palette);
-                            ui.add_space(8.0);
-                            changed |= rules(ui, doc, &mut self.filter, palette);
+                        .max_height(body_h)
+                        .show(ui, |ui| match view {
+                            View::Simple => {
+                                if let Some(theme) = theme {
+                                    changed |=
+                                        simple_rows(ui, doc, theme, selected, &mut self.selected);
+                                }
+                                ui.add_space(10.0);
+                                changed |= window_rows(ui, doc, palette);
+                            }
+                            View::Advanced => {
+                                changed |= globals(ui, doc, palette);
+                                ui.add_space(8.0);
+                                changed |=
+                                    rules(ui, doc, &mut self.filter, palette, highlight, scroll);
+                            }
                         });
                 }
                 ui.separator();
@@ -255,8 +358,152 @@ impl StyleEditor {
             // Changes are kept: write the last one now.
             self.flush(&mut events);
             self.open = false;
+            self.picking = false;
         }
         events
+    }
+
+    /// Simple, Advanced and "What colours this?".
+    fn view_switch(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.view, View::Simple, t!("theme-view-simple"))
+                .on_hover_text(t!("theme-view-simple-tip"));
+            ui.selectable_value(&mut self.view, View::Advanced, t!("theme-view-advanced"))
+                .on_hover_text(t!("theme-view-advanced-tip"));
+            ui.add_space(12.0);
+            let pick = ui
+                .selectable_label(self.picking, t!("what-colours-this"))
+                .on_hover_text(t!("what-colours-this-tip"));
+            if pick.clicked() {
+                self.picking = !self.picking;
+            }
+            if self.picking {
+                ui.label(
+                    RichText::new(t!("what-colours-this-waiting"))
+                        .small()
+                        .weak(),
+                );
+            }
+        });
+    }
+
+    /// The highlighted sample on the right, which "What colours this?" can be used on.
+    fn preview(
+        &mut self,
+        ui: &mut Ui,
+        theme: &SyntectTheme,
+        syntaxes: &SyntaxSet,
+        palette: &Palette,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(t!("preview")).weak());
+            egui::ComboBox::from_id_salt("style-sample")
+                .selected_text(simple::SAMPLES[self.sample.min(simple::SAMPLES.len() - 1)].0)
+                .show_ui(ui, |ui| {
+                    for (i, (lang, _)) in simple::SAMPLES.iter().enumerate() {
+                        if ui.selectable_value(&mut self.sample, i, *lang).changed() {
+                            self.picked = None;
+                        }
+                    }
+                });
+        });
+        let (lang, text) = simple::SAMPLES[self.sample.min(simple::SAMPLES.len() - 1)];
+        let syntax = syntaxes
+            .find_syntax_by_name(lang)
+            .unwrap_or_else(|| syntaxes.find_syntax_plain_text());
+        let tokens = simple::highlight(text, syntax, syntaxes, theme);
+        let marked = self.picked.as_ref().and_then(|p| p.in_preview.clone());
+        let bg = theme
+            .settings
+            .background
+            .map(|c| Color32::from_rgb(c.r, c.g, c.b))
+            .unwrap_or(palette.editor_bg);
+        let fg = theme
+            .settings
+            .foreground
+            .map(|c| Color32::from_rgb(c.r, c.g, c.b))
+            .unwrap_or(palette.editor_fg);
+        let job = simple::layout(text, &tokens, egui::FontId::monospace(13.0), fg, marked);
+        egui::Frame::new()
+            .fill(bg)
+            .corner_radius(4.0)
+            .inner_margin(8.0)
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                let galley = ui.fonts_mut(|f| f.layout_job(job));
+                let (rect, response) = ui.allocate_exact_size(galley.size(), egui::Sense::click());
+                if self.picking && response.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                }
+                if response.clicked()
+                    && let Some(pos) = response.interact_pointer_pos()
+                {
+                    let char_index = galley.cursor_from_pos(pos - rect.min).index.0;
+                    let byte = text
+                        .char_indices()
+                        .nth(char_index)
+                        .map(|(b, _)| b)
+                        .unwrap_or(text.len());
+                    if let Some(token) = tokens.iter().find(|t| t.range.contains(&byte)) {
+                        let (stack, range) = (token.stack.clone(), token.range.clone());
+                        self.pick(stack, Some(range));
+                    }
+                }
+                ui.painter().galley(rect.min, galley, fg);
+            });
+        if !self.picking && self.picked.is_none() {
+            ui.label(RichText::new(t!("what-colours-this-hint")).small().weak());
+        }
+        self.picked_note(ui, palette);
+    }
+
+    /// What "What colours this?" found, under the preview.
+    fn picked_note(&mut self, ui: &mut Ui, palette: &Palette) {
+        let Some(p) = &self.picked else {
+            return;
+        };
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(t!("picked-colour", name = p.simple.label()))
+                .color(palette.accent)
+                .strong(),
+        );
+        let scope = p.stack.last().map(|s| s.build_string()).unwrap_or_default();
+        ui.label(RichText::new(t!("picked-scope", scope = scope)).small());
+        ui.label(
+            RichText::new(simple::stack_text(&p.stack))
+                .font(egui::FontId::monospace(11.0))
+                .weak(),
+        )
+        .on_hover_text(t!("picked-stack-tip"));
+        match p.rule {
+            Some(rule) => {
+                ui.label(
+                    RichText::new(t!("picked-rule", rule = simple::rule_label(doc, rule))).small(),
+                );
+                if p.simple != Simple::Text && !simple::rule_follows(doc, rule, p.simple) {
+                    let note = if simple::follows_after_change(doc, &p.stack, p.simple) {
+                        t!("picked-rule-shared", name = p.simple.label())
+                    } else {
+                        t!("picked-rule-separate", name = p.simple.label())
+                    };
+                    ui.label(RichText::new(note).small().weak());
+                }
+            }
+            None => {
+                ui.label(RichText::new(t!("picked-default")).small());
+            }
+        }
+        if self.view == View::Simple
+            && p.rule.is_some()
+            && ui.small_button(t!("show-in-advanced")).clicked()
+        {
+            self.view = View::Advanced;
+            self.scroll_to_rule = true;
+        }
     }
 
     /// Undo Changes, Reset and Close. True when Close was pressed.
@@ -419,6 +666,24 @@ fn count_changes(a: &Value, b: &Value) -> usize {
                 .sum()
         }
         (Value::Array(a), Value::Array(b)) => {
+            // Theme rules are matched by scope, so a rule added at the top
+            // counts once rather than shifting every rule after it.
+            let key = |v: &Value| {
+                v.as_dictionary()
+                    .map(|d| d.get("scope").and_then(Value::as_string).unwrap_or(""))
+                    .map(str::to_owned)
+            };
+            if a.iter().chain(b.iter()).all(|v| key(v).is_some()) {
+                let mut unmatched: Vec<&Value> = b.iter().collect();
+                let mut total = 0;
+                for x in a {
+                    match unmatched.iter().position(|y| key(y) == key(x)) {
+                        Some(i) => total += count_changes(x, unmatched.remove(i)),
+                        None => total += 1,
+                    }
+                }
+                return total + unmatched.len();
+            }
             let shared: usize = a.iter().zip(b).map(|(x, y)| count_changes(x, y)).sum();
             shared + a.len().abs_diff(b.len())
         }
@@ -426,28 +691,27 @@ fn count_changes(a: &Value, b: &Value) -> usize {
     }
 }
 
-/// The editor colours. Returns true when one changed.
-fn globals(ui: &mut Ui, doc: &mut Value, palette: &Palette) -> bool {
-    let Some(list) = entries(doc) else {
-        return false;
-    };
+/// The editor colours entry of a theme (the one without a scope), made if missing.
+fn global_settings(doc: &mut Value) -> Option<&mut Dictionary> {
+    let list = entries(doc)?;
     if !list.iter().any(is_global) {
         list.insert(0, Value::Dictionary(Dictionary::new()));
     }
-    let Some(global) = list
+    let global = list
         .iter_mut()
         .find(|v| is_global(v))
-        .and_then(Value::as_dictionary_mut)
-    else {
-        return false;
-    };
+        .and_then(Value::as_dictionary_mut)?;
     if !matches!(global.get("settings"), Some(Value::Dictionary(_))) {
         global.insert("settings".to_owned(), Value::Dictionary(Dictionary::new()));
     }
-    let Some(settings) = global
+    global
         .get_mut("settings")
         .and_then(Value::as_dictionary_mut)
-    else {
+}
+
+/// The editor colours. Returns true when one changed.
+fn globals(ui: &mut Ui, doc: &mut Value, palette: &Palette) -> bool {
+    let Some(settings) = global_settings(doc) else {
         return false;
     };
     let mut changed = false;
@@ -473,8 +737,146 @@ fn globals(ui: &mut Ui, doc: &mut Value, palette: &Palette) -> bool {
     changed
 }
 
+/// A B, I or U toggle. Returns true when clicked.
+fn style_toggle(ui: &mut Ui, on: &mut bool, label: &str, name: &str) -> bool {
+    let mut text = RichText::new(label);
+    text = match label {
+        "B" => text.strong(),
+        "I" => text.italics(),
+        _ => text.underline(),
+    };
+    let clicked = crate::a11y::toggle(
+        ui.add(
+            egui::Button::new(text)
+                .selected(*on)
+                .min_size(egui::vec2(22.0, 0.0)),
+        ),
+        *on,
+        name,
+    )
+    .clicked();
+    if clicked {
+        *on = !*on;
+    }
+    clicked
+}
+
+/// The Simple view's named colours. Returns true when one changed.
+fn simple_rows(
+    ui: &mut Ui,
+    doc: &mut Value,
+    theme: &SyntectTheme,
+    selected: Option<Simple>,
+    select: &mut Option<Simple>,
+) -> bool {
+    let mut changed = false;
+    ui.label(RichText::new(t!("theme-simple-hint")).small().weak());
+    ui.add_space(4.0);
+    egui::Grid::new("style-simple")
+        .num_columns(3)
+        .spacing([16.0, 6.0])
+        .min_col_width(150.0)
+        .show(ui, |ui| {
+            for which in simple::ALL {
+                let mut look = simple::look(theme, which);
+                let label = ui
+                    .selectable_label(
+                        selected == Some(which),
+                        RichText::new(which.label()).strong(),
+                    )
+                    .on_hover_text(if which == Simple::Text {
+                        t!("simple-text-tip")
+                    } else {
+                        t!("simple-scopes-tip", scopes = which.scopes().join(", "))
+                    });
+                if label.clicked() {
+                    *select = Some(which);
+                }
+                if selected == Some(which) {
+                    label.scroll_to_me(None);
+                }
+                let mut edited = false;
+                ui.horizontal(|ui| {
+                    edited |= crate::a11y::name(
+                        color_edit_button_srgba(ui, &mut look.foreground, Alpha::Opaque),
+                        &t!("simple-colour-name", name = which.label()),
+                    )
+                    .changed();
+                    if let Some(bg) = look.background.as_mut() {
+                        edited |= crate::a11y::name(
+                            color_edit_button_srgba(ui, bg, Alpha::OnlyBlend),
+                            &t!("simple-background-name", name = which.label()),
+                        )
+                        .on_hover_text(t!("style-background"))
+                        .changed();
+                    }
+                });
+                ui.horizontal(|ui| {
+                    if which != Simple::Text {
+                        edited |= style_toggle(ui, &mut look.bold, "B", &t!("style-bold"));
+                        edited |= style_toggle(ui, &mut look.italic, "I", &t!("style-italic"));
+                        edited |=
+                            style_toggle(ui, &mut look.underline, "U", &t!("style-underline"));
+                    }
+                });
+                ui.end_row();
+                if edited {
+                    simple::set_look(doc, which, &look);
+                    *select = Some(which);
+                    changed = true;
+                }
+            }
+        });
+    changed
+}
+
+/// Tab strip, panels, status bar, ribbon and selection. Returns true when one changed.
+fn window_rows(ui: &mut Ui, doc: &mut Value, palette: &Palette) -> bool {
+    let Some(settings) = global_settings(doc) else {
+        return false;
+    };
+    let mut changed = false;
+    ui.label(RichText::new(t!("style-window")).strong());
+    ui.label(RichText::new(t!("style-window-hint")).small().weak());
+    egui::Grid::new("style-window")
+        .num_columns(2)
+        .spacing([16.0, 6.0])
+        .min_col_width(150.0)
+        .show(ui, |ui| {
+            for (key, label) in simple::WINDOW {
+                ui.label(crate::i18n::tr(label));
+                let fallback = match *key {
+                    "ettinTabStrip" => palette.tab_strip_bg,
+                    "ettinStatusBar" => palette.status_bg,
+                    "ettinRibbon" => palette.ribbon_bg,
+                    "selection" => palette.selection,
+                    _ => palette.chrome_bg,
+                };
+                ui.horizontal(|ui| {
+                    let mut c = color_of(settings, key);
+                    if optional_color(ui, &mut c, fallback) {
+                        set_color(settings, key, c);
+                        changed = true;
+                    }
+                    if c.is_none() {
+                        ui.label(RichText::new(t!("style-window-automatic")).small().weak());
+                    }
+                });
+                ui.end_row();
+            }
+        });
+    changed
+}
+
 /// The syntax colours, one row per rule. Returns true when one changed.
-fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -> bool {
+fn rules(
+    ui: &mut Ui,
+    doc: &mut Value,
+    filter: &mut String,
+    palette: &Palette,
+    highlight: Option<usize>,
+    scroll: bool,
+) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
         ui.label(RichText::new(t!("style-syntax")).strong());
@@ -493,10 +895,11 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
     let needle = filter.to_lowercase();
     let mut remove = None;
     egui::Grid::new("style-rules")
-        .num_columns(6)
+        .num_columns(7)
         .striped(true)
         .spacing([8.0, 4.0])
         .show(ui, |ui| {
+            ui.label("");
             ui.label(RichText::new(t!("rule-name")).weak());
             ui.label(RichText::new(t!("rule-scope")).weak());
             ui.label(RichText::new(t!("style-text")).weak());
@@ -521,11 +924,24 @@ fn rules(ui: &mut Ui, doc: &mut Value, filter: &mut String, palette: &Palette) -
                     .and_then(Value::as_string)
                     .unwrap_or_default()
                     .to_owned();
-                if !needle.is_empty()
+                let picked = highlight == Some(i);
+                if !picked
+                    && !needle.is_empty()
                     && !name.to_lowercase().contains(&needle)
                     && !scope.to_lowercase().contains(&needle)
                 {
                     continue;
+                }
+                let marker = ui.label(if picked {
+                    RichText::new("▶").color(palette.accent)
+                } else {
+                    RichText::new(" ")
+                });
+                if picked {
+                    marker.on_hover_text(t!("picked-rule-marker"));
+                    if scroll {
+                        ui.scroll_to_cursor(Some(egui::Align::Center));
+                    }
                 }
                 if ui
                     .add_sized(

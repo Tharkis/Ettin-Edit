@@ -141,7 +141,7 @@ impl RibbonBar {
                 .fixed_pos(Pos2::new(strip.rect.left(), strip.rect.bottom() + 2.0))
                 .show(ui.ctx(), |ui| {
                     egui::Frame::popup(ui.style())
-                        .fill(palette.chrome_bg)
+                        .fill(palette.ribbon_bg)
                         .show(ui, |ui| {
                             ui.set_max_width(strip.rect.width());
                             body(ui, tab, &mut events)

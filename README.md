@@ -51,7 +51,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | | |
 | --- | --- |
 | ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing (with a Column Mode), code folding that follows the grammar, keyword completion, parameter hints, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second, and word wrap keeps up when you resize the window. |
-| 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with live preview. Drop in any `.tmTheme` you like. |
+| 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with ten named colours (Comments, Strings, Keywords…), *What colours this?* and window colours. Drop in any `.tmTheme` you like. |
 | 🔎 **Finds things** | Find and replace with regex or extended escapes (`\n`, `\r\n`, `\t`, `\x41`), Find All in open tabs, Find in Files in the background, marks and a results panel. |
 | 🍳 **Recipes** | Save a list of Transform steps (find and replace, keep lines, sort, trim, convert, encode, even shell commands) under a name, watch a live preview after any step, on the open tab or on sample text saved with the recipe, or record one by doing the job once. Run it on a selection, every open tab, or from the command line (`ettin-edit --recipe "Tidy Whitespace" *.txt --in-place`). Recipes are plain JSON files you can share. |
 | 🔁 **Transform first** | Everything that changes text lives in one Transform menu: pipe it through any shell command, keep or drop matching lines, sort, count duplicates, number lines, reflow paragraphs, change case (camelCase, snake_case…), convert to JSON, YAML, TOML, XML, CSV or a Markdown table (it works out what you have), Base64, URL and HTML encoding, hashes, hex, JWT, and JSON and XML formatting. The toolbar's Home tab and the right-click menu put the transforms that fit your text first. |
@@ -59,7 +59,7 @@ and it carries built-in versions of the Notepad++ plugins people install first.
 | 🧰 **Tools menu** | Tools that look without changing: a live JSON tree and JSON validation (JSTool), XPath, XML syntax checks, XSD/DTD validation and XSLT (XML Tools). |
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
 | 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
-| 🌍 **Text in any shape** | About 80 languages, plus your own with a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
+| 🌍 **Text in any shape** | About 80 languages, plus your own from the **Define Language** form or a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
 | 🧩 **Plugins in Python or JavaScript** | Your choice. Add transforms that work like the built-in ones (preview, options, one undo step, recipe steps), commands, shortcuts, toolbar buttons and panels, and install them from Plugins > Manage Plugins. Plugins > New Plugin… writes one to start from and reloads it as you save. |
 | 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits any byte and opens binary files of any size, and a command palette on F1 that puts your recent commands, recipes and plugin commands first. F11 hides everything except your words. |
 | 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
@@ -136,7 +136,9 @@ Ettin Edit ships with nine themes. Ettin Dark, the default, is based on Base16 E
 Ettin Night and Ettin Light are its own; the rest are classic schemes bundled with syntect.
 All of them live as TextMate `.tmTheme` files in the themes folder, so you can change
 any colour and pick **View > Theme > Reload Themes** to see it, or use
-**View > Theme > Edit Theme Colours** for a live preview. Any other `.tmTheme` file you
+**View > Theme > Edit Theme Colours** for a live preview: its Simple view changes Comments,
+Strings, Keywords and seven more by name in every language, and *What colours this?* tells
+you which colour and rule a word uses. Any other `.tmTheme` file you
 put there appears under **View > Theme > Custom**. **View > Theme > Restore Built-in Themes** puts the
 originals back and keeps your edited copy as `<name>.tmTheme.bak`.
 
@@ -220,6 +222,8 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript), Markdown Preview (plugin example, Python) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
 | `src/macros.rs` | Macro recording and playback steps |
 | `src/prefs_ui.rs`, `src/shortcut_ui.rs`, `src/style_ui.rs` | Preferences, the Shortcut Mapper and the theme colour editor |
+| `src/theme_simple.rs` | The Simple theme colours, What colours this? and highlighted previews |
+| `src/lang_dialog.rs` | Language > Define Language (the form, its preview and `.lang.json` round trip) |
 | `src/palette_ui.rs`, `src/app/commands.rs` | The command palette and tab list, and the list of every command |
 | `src/folder_ui.rs`, `src/function_list_ui.rs`, `src/editor/map.rs`, `src/app/panels.rs` | The folder panel, function list and document map |
 | `src/function_list.rs` | Finding functions, classes and headings in about 40 languages |

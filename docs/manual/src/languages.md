@@ -20,8 +20,9 @@ Pick a language for the current file from the **Language** menu. Ettin Edit
 chooses one when a file opens, by its name, its extension and finally its
 first line (a shebang such as `#!/usr/bin/env python3`).
 
-You can add your own languages, or replace a built-in one, in two ways:
+You can add your own languages, or replace a built-in one, in three ways:
 
+- fill in the **Define Language** form (the quickest),
 - write a short `.lang.json` file (no regular expressions needed), or
 - drop in a `.sublime-syntax` grammar.
 
@@ -34,6 +35,7 @@ folder:
 - Windows: `%APPDATA%\EttinEdit\languages`
 
 Language > Open Languages Folder opens it (and creates it the first time).
+Language > Define Language… fills in a form and saves the file there, and
 Language > New Language… puts a commented template there and opens it.
 Ettin Edit reads the folder when it starts, and while it runs it notices
 when you add or save a file there and reloads it within a second, so tabs in
@@ -50,6 +52,44 @@ reads the whole folder again.
   file with `"name": "Python"` takes over `.py` files.
 - If two of your files use the same name, the one that comes later in
   alphabetical order wins.
+
+## Define Language
+
+**Language > Define Language…** describes a simple language in a form, with a
+live preview, and saves it as a `.lang.json` file in the languages folder.
+
+<p><img class="screenshot" src="images/define-language.png" alt="The Define Language window filled in for Gcode: extensions gcode nc, line comment semicolon, block comment in round brackets, a Motion keyword list G0 G1 G2 G3 coloured as Keywords and a Machine list M3 M5 M30 coloured as Functions; on the right a preview of a G-code file with the codes, comments and numbers coloured"></p>
+
+- **Name** is what the **Language** menu shows, and **File extensions** (separated by
+  spaces, such as `gcode nc`) decide which files open in it.
+- **Line comment** markers (separated by spaces) and a **Block** comment's
+  start and end.
+- **Strings** in `"…"`, `'…'` or both, whether **\\** escapes the next
+  character, and whether they **Can span lines**.
+- **Colour numbers**, and **Ignore case in keywords** so that `IF`, `If` and `if` all match.
+- **Operators** (separated by spaces) and **Folding** pairs, such as
+  `{ }, if end`, for [code folding](#code-folding).
+- **Keyword lists**: give each list a name, its words (separated by spaces)
+  and one of the [Simple theme colours](themes.md#simple-and-advanced):
+  Keywords, Functions, Types, Numbers, Strings, Comments, Tags, Attributes or
+  Errors. **+ Add list** adds another.
+
+The preview on the right shows a sample made from what you've typed. **Use
+current tab** previews the active tab's first lines instead, and you can type
+or paste your own text into the preview too. **Save Language** writes
+`languages/<name>.lang.json`, reloads the languages and switches open tabs
+with its extensions to it.
+
+To change a language later, pick it from the **Language** list at the top of
+the window (or open the window while its `.lang.json` file is the active tab).
+The form shows any file that only uses what the form has. A file that uses
+more, such as a `first_line` pattern or a `type` keyword group, opens with a
+note saying what the form can't show and an **Open the JSON** button.
+**Edit JSON instead** opens the file (or, for a new language, the commented
+template) in a tab.
+
+The form keeps to what most simple languages need. Rules made of regular
+expressions or nested parts are for [Sublime Text grammars](#sublime-text-grammars-sublime-syntax).
 
 ## User-defined languages (`.lang.json`)
 
@@ -109,6 +149,7 @@ Only `name` is required. Everything else is optional.
 | `strings` | `[open, close]` or `[open, close, escape]` entries. When the escape is the same as the close (`["'", "'", "'"]`), a doubled quote stays inside the string, as in SQL. | none |
 | `multiline_strings` | `true` lets strings run over several lines. Otherwise a string ends at the end of its line, so a missing quote only spoils one line. | `false` |
 | `keywords` | Groups of words, coloured by group (see below). Words match whole words only. | none |
+| `keyword_lists` | Named word lists coloured with a [Simple theme colour](themes.md#simple-and-advanced), as Define Language writes them: `[{"name": "Motion", "colour": "keywords", "words": ["G0", "G1"]}]`. The colour is one of `keywords`, `functions`, `types`, `numbers`, `strings`, `comments`, `tags`, `attributes` or `errors`. | none |
 | `operators` | Symbols to colour as operators, such as `"+"` or `"=="`. | none |
 | `numbers` | Colour numbers (`42`, `3.14`, `1e-9`, `0xFF`). | `true` |
 | `folding` | Pairs that open and close a block, such as `[["{", "}"], ["begin", "end"]]`. Code folding follows them; word pairs are coloured as keywords. Without pairs, `( )`, `[ ]` and `{ }` fold, or failing that, indentation. | none |
