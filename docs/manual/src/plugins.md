@@ -92,7 +92,10 @@ delimiters work too. HL7 files are coloured by the built-in HL7 language.
 You can also install a plugin someone sent you: **Install from File…** takes
 a `.zip`, and **Install from Folder…** copies a folder that has a
 `plugin.json` in it. Or copy the folder into the plugins folder yourself
-(**Plugins > Open Plugins Folder**) and choose **Plugins > Reload Plugins**.
+(**Plugins > Open Plugins Folder**): Ettin Edit notices the new folder
+within a few seconds and asks whether to let it run. Removing a plugin's
+folder stops it. **Plugins > Reload Plugins** reads the folder again at
+once.
 
 ## Permission to run
 

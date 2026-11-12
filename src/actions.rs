@@ -9,6 +9,7 @@ use egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
 
 use crate::editor::lines::{CaseKind, SortKind, TrimKind};
+use crate::plugins::shortcut::Chord;
 use crate::tools::json::JsonOp;
 use crate::tools::mime::MimeOp;
 use crate::tools::transform::TransformOp;
@@ -432,6 +433,7 @@ impl Action {
                         | TransformOp::HexEncode
                         | TransformOp::HexDecode
                         | TransformOp::JwtDecode
+                        | TransformOp::Field(_)
                 )
                 | Action::Json(JsonOp::Format | JsonOp::Minify | JsonOp::SortKeys)
                 | Action::Xml(
@@ -480,24 +482,96 @@ pub fn command_key(action: &Action) -> String {
 /// Uses the shortcuts from the settings. Returns a message for each one that
 /// can't be read; those are left out.
 pub fn set_overrides(saved: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+    let (list, chords, errors) = parse_overrides(saved);
+    *OVERRIDES.write().unwrap_or_else(|e| e.into_inner()) = list;
+    *CHORD_OVERRIDES.write().unwrap_or_else(|e| e.into_inner()) = chords;
+    errors
+}
+
+type Overrides = (
+    Vec<(Action, Vec<KeyboardShortcut>)>,
+    Vec<(Action, Vec<Chord>)>,
+    Vec<String>,
+);
+
+/// The saved shortcuts and chords by command, and messages for the ones
+/// that can't be read.
+fn parse_overrides(saved: &BTreeMap<String, Vec<String>>) -> Overrides {
     let mut errors = Vec::new();
     let mut list = Vec::new();
+    let mut chords = Vec::new();
     for (key, texts) in saved {
         let Ok(action) = serde_json::from_str::<Action>(key) else {
             // A command from an older or newer version; keep it in the settings.
             continue;
         };
         let mut shortcuts = Vec::new();
+        let mut action_chords = Vec::new();
         for text in texts {
-            match crate::plugins::shortcut::parse(text) {
-                Ok(s) => shortcuts.push(s),
-                Err(e) => errors.push(t!("shortcut-settings-error", error = e)),
+            let parsed = if crate::plugins::shortcut::is_chord(text) {
+                crate::plugins::shortcut::parse_chord(text).map(|c| action_chords.push(c))
+            } else {
+                crate::plugins::shortcut::parse(text).map(|s| shortcuts.push(s))
+            };
+            if let Err(e) = parsed {
+                errors.push(t!("shortcut-settings-error", error = e));
             }
         }
+        chords.push((action.clone(), action_chords));
         list.push((action, shortcuts));
     }
-    *OVERRIDES.write().unwrap_or_else(|e| e.into_inner()) = list;
-    errors
+    (list, chords, errors)
+}
+
+/// Like [`OVERRIDES`], for two-key chords.
+static CHORD_OVERRIDES: RwLock<Vec<(Action, Vec<Chord>)>> = RwLock::new(Vec::new());
+
+/// The default chords of a keymap preset. Ctrl+K is free in both keymaps,
+/// so both get VS Code's chords: with the Notepad++ style keys you can use
+/// these too.
+pub fn preset_chords(_keymap: crate::settings::Keymap) -> Vec<(Chord, Action)> {
+    let k = KeyboardShortcut::new(CMD, Key::K);
+    let c = |m, key| (k, KeyboardShortcut::new(m, key));
+    vec![
+        (c(NONE, Key::S), Action::SaveAll),
+        (c(NONE, Key::W), Action::CloseAll),
+        (c(NONE, Key::R), Action::OpenContainingFolder),
+        (c(NONE, Key::Z), Action::ToggleDistractionFree),
+        (c(NONE, Key::V), Action::ToggleMarkdownPreview),
+        (c(CMD, Key::S), Action::ShortcutMapper),
+        (c(CMD, Key::O), Action::OpenFolderAsWorkspace),
+        (c(CMD, Key::Num0), Action::FoldAll),
+        (c(CMD, Key::J), Action::UnfoldAll),
+        (c(CMD, Key::OpenBracket), Action::FoldCurrent),
+        (c(CMD, Key::CloseBracket), Action::UnfoldCurrent),
+    ]
+}
+
+/// The chords in use: the keymap's, after the user's changes.
+pub fn chords() -> Vec<(Chord, Action)> {
+    let overrides = CHORD_OVERRIDES.read().unwrap_or_else(|e| e.into_inner());
+    chords_with(preset_chords(keymap()), &overrides)
+}
+
+fn chords_with(
+    mut list: Vec<(Chord, Action)>,
+    overrides: &[(Action, Vec<Chord>)],
+) -> Vec<(Chord, Action)> {
+    list.retain(|(_, a)| !overrides.iter().any(|(o, _)| o == a));
+    for (action, chords) in overrides.iter() {
+        for c in chords {
+            list.push((*c, action.clone()));
+        }
+    }
+    list
+}
+
+/// The first chord of a command, as menus show it.
+pub fn chord_label(ctx: &egui::Context, action: &Action) -> Option<String> {
+    chords()
+        .iter()
+        .find(|(_, a)| a == action)
+        .map(|(c, _)| crate::plugins::shortcut::format_chord(ctx, c))
 }
 
 /// Replaces the shortcuts of commands changed in the shortcut mapper, then
@@ -576,7 +650,7 @@ pub fn vs_code_changes() -> Vec<(Action, Vec<KeyboardShortcut>)> {
     let s = |m, k| KeyboardShortcut::new(m, k);
     vec![
         (Action::SaveAs, vec![s(CMD_SHIFT, Key::S)]),
-        // VS Code's Ctrl+K S is a two-key chord, which Ettin Edit doesn't have.
+        // And VS Code's chord Ctrl+K S (see `preset_chords`).
         (Action::SaveAll, vec![s(CMD_ALT, Key::S)]),
         (
             Action::CommandPalette,
@@ -743,6 +817,7 @@ pub fn shortcut_label_in(
     all.iter()
         .find(|(_, a)| a == action)
         .map(|(s, _)| ctx.format_shortcut(s))
+        .or_else(|| chord_label(ctx, action))
 }
 
 /// The id plugins pass to `run_action` / `runAction` to run a command:
@@ -779,6 +854,59 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A chord's first key isn't also a shortcut, or it could never wait
+    /// for the second key; and chords are unique.
+    #[test]
+    fn chords_start_with_free_keys() {
+        for keymap in [Keymap::Ettin, Keymap::VsCode] {
+            let mut singles = preset_shortcuts(keymap);
+            singles.extend(editor_shortcuts());
+            let chords = preset_chords(keymap);
+            for (i, (c, a)) in chords.iter().enumerate() {
+                assert!(
+                    !singles
+                        .iter()
+                        .any(|(s, _)| crate::plugins::shortcut::same(s, &c.0)),
+                    "{keymap:?}: {a:?} starts with a shortcut"
+                );
+                for (d, b) in &chords[i + 1..] {
+                    assert!(
+                        !crate::plugins::shortcut::same_chord(c, d),
+                        "{a:?} and {b:?} share a chord"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn saved_chords_replace_a_commands_defaults() {
+        let saved = BTreeMap::from([
+            (
+                command_key(&Action::SaveAll),
+                vec!["Ctrl+Shift+S".to_owned()],
+            ),
+            (
+                command_key(&Action::FindInFiles),
+                vec!["Ctrl+K F".to_owned(), "Ctrl+Shift+F".to_owned()],
+            ),
+        ]);
+        let (singles, overrides, errors) = parse_overrides(&saved);
+        assert!(errors.is_empty());
+        let chords = chords_with(preset_chords(Keymap::Ettin), &overrides);
+        assert!(!chords.iter().any(|(_, a)| *a == Action::SaveAll));
+        let find = chords
+            .iter()
+            .find(|(_, a)| *a == Action::FindInFiles)
+            .unwrap();
+        assert_eq!(crate::plugins::shortcut::chord_to_text(&find.0), "Ctrl+K F");
+        let (_, find_keys) = singles
+            .iter()
+            .find(|(a, _)| *a == Action::FindInFiles)
+            .unwrap();
+        assert_eq!(find_keys.len(), 1);
     }
 
     #[test]

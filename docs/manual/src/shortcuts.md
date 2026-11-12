@@ -27,6 +27,38 @@ command.
 Every change is saved as you make it. **Undo Changes** at the bottom puts
 the keymap and every shortcut back as they were when you opened the window.
 
+### Two-key chords
+
+A chord is two keys pressed one after the other, like VS Code's
+<kbd>Ctrl+K</kbd> <kbd>S</kbd>: press <kbd>Ctrl+K</kbd>, let go, then press
+<kbd>S</kbd>. After the first key a note at the bottom of the window says Ettin Edit is waiting
+for the second; <kbd>Esc</kbd> cancels. The second key can be a plain letter
+or have <kbd>Ctrl</kbd> or <kbd>Alt</kbd> too.
+
+To give a command a chord, select it and click **Add Chord…**, then press the
+first key and the second. A key that starts a chord can't also be a shortcut
+on its own, and Ettin Edit says so if you try. **Remove** removes the
+selected command's shortcuts and chords. In `settings.json` a chord is
+written with a space between the keys: `"Ctrl+K S"`.
+
+Both keymaps come with these chords, so they work whichever you pick:
+
+| Chord | Command |
+| --- | --- |
+| <kbd>Ctrl+K</kbd> <kbd>S</kbd> | Save All |
+| <kbd>Ctrl+K</kbd> <kbd>W</kbd> | Close All |
+| <kbd>Ctrl+K</kbd> <kbd>R</kbd> | Open Containing Folder |
+| <kbd>Ctrl+K</kbd> <kbd>Z</kbd> | Distraction-free mode |
+| <kbd>Ctrl+K</kbd> <kbd>V</kbd> | Markdown Preview |
+| <kbd>Ctrl+K</kbd> <kbd>Ctrl+S</kbd> | Shortcut Mapper |
+| <kbd>Ctrl+K</kbd> <kbd>Ctrl+O</kbd> | Open Folder as Workspace |
+| <kbd>Ctrl+K</kbd> <kbd>Ctrl+0</kbd> | Fold All |
+| <kbd>Ctrl+K</kbd> <kbd>Ctrl+J</kbd> | Unfold All |
+| <kbd>Ctrl+K</kbd> <kbd>Ctrl+[</kbd> / <kbd>Ctrl+]</kbd> | Fold / Unfold Current Level |
+
+<kbd>Ctrl+K</kbd> on its own has no command in either keymap, so nothing is
+lost.
+
 Right-click a command and choose **Copy Command ID** to copy the id a
 [plugin](plugin-guide.md#command-ids) uses to run it.
 
@@ -76,8 +108,9 @@ switching doesn't lose them.
 | Markdown Preview | <kbd>Ctrl+Shift+M</kbd> | <kbd>Ctrl+Shift+V</kbd> |
 | Folder Panel | none | <kbd>Ctrl+B</kbd> |
 
-VS Code saves all files with the two-key chord <kbd>Ctrl+K</kbd> <kbd>S</kbd>;
-Ettin Edit has no chords, so VS Code style uses <kbd>Ctrl+Alt+S</kbd>.
+VS Code style also keeps <kbd>Ctrl+Alt+S</kbd> for Save All, next to the
+<kbd>Ctrl+K</kbd> <kbd>S</kbd> chord both keymaps have
+([Two-key chords](#two-key-chords)).
 
 ## Default shortcuts
 

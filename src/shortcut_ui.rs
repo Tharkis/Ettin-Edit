@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use egui::{Id, Key, KeyboardShortcut, RichText, Ui};
 
 use crate::actions::{self, Action};
-use crate::plugins::shortcut;
+use crate::plugins::shortcut::{self, Chord};
 use crate::settings::Keymap;
 use crate::theme::Palette;
 
@@ -16,6 +16,8 @@ pub struct Row {
     pub action: Action,
     /// The shortcuts it has without the user's changes.
     pub defaults: Vec<KeyboardShortcut>,
+    /// Its two-key chords without the user's changes.
+    pub default_chords: Vec<Chord>,
     /// Handled by the text box itself (Undo, Copy…), so it can't be changed.
     pub fixed: bool,
 }
@@ -45,6 +47,9 @@ pub struct ShortcutMapper {
 enum Capture {
     Replace,
     Add,
+    /// A chord's first key, then its second.
+    ChordFirst,
+    ChordSecond(KeyboardShortcut),
 }
 
 struct Conflict {
@@ -81,32 +86,68 @@ pub fn current(row: &Row, saved: &BTreeMap<String, Vec<String>>) -> Vec<Keyboard
     match saved.get(&actions::command_key(&row.action)) {
         Some(list) if !row.fixed => list
             .iter()
+            .filter(|t| !shortcut::is_chord(t))
             .filter_map(|t| shortcut::parse(t).ok())
             .collect(),
         _ => row.defaults.clone(),
     }
 }
 
-pub fn store(
-    saved: &mut BTreeMap<String, Vec<String>>,
-    row_defaults: &[KeyboardShortcut],
-    action: &Action,
-    list: &[KeyboardShortcut],
-) {
-    let key = actions::command_key(action);
-    let same_as_default = list.len() == row_defaults.len()
-        && list
+/// The two-key chords a command has now.
+pub fn current_chords(row: &Row, saved: &BTreeMap<String, Vec<String>>) -> Vec<Chord> {
+    match saved.get(&actions::command_key(&row.action)) {
+        Some(list) if !row.fixed => list
             .iter()
-            .zip(row_defaults)
-            .all(|(a, b)| shortcut::same(a, b));
-    if same_as_default {
-        saved.remove(&key);
-    } else {
-        saved.insert(key, list.iter().map(shortcut::to_text).collect());
+            .filter(|t| shortcut::is_chord(t))
+            .filter_map(|t| shortcut::parse_chord(t).ok())
+            .collect(),
+        _ => row.default_chords.clone(),
     }
 }
 
-fn is_modifier(key: Key) -> bool {
+/// Saves a command's shortcuts and chords; back to its defaults, nothing
+/// is saved for it.
+pub fn store(
+    saved: &mut BTreeMap<String, Vec<String>>,
+    row: &Row,
+    list: &[KeyboardShortcut],
+    chords: &[Chord],
+) {
+    let key = actions::command_key(&row.action);
+    let same_as_default = list.len() == row.defaults.len()
+        && list
+            .iter()
+            .zip(&row.defaults)
+            .all(|(a, b)| shortcut::same(a, b))
+        && chords.len() == row.default_chords.len()
+        && chords
+            .iter()
+            .zip(&row.default_chords)
+            .all(|(a, b)| shortcut::same_chord(a, b));
+    if same_as_default {
+        saved.remove(&key);
+    } else {
+        let mut texts: Vec<String> = list.iter().map(shortcut::to_text).collect();
+        texts.extend(chords.iter().map(shortcut::chord_to_text));
+        saved.insert(key, texts);
+    }
+}
+
+/// The command's shortcuts and chords as the table shows them.
+fn keys_text(ctx: &egui::Context, row: &Row, saved: &BTreeMap<String, Vec<String>>) -> String {
+    current(row, saved)
+        .iter()
+        .map(|s| ctx.format_shortcut(s))
+        .chain(
+            current_chords(row, saved)
+                .iter()
+                .map(|c| shortcut::format_chord(ctx, c)),
+        )
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub fn is_modifier(key: Key) -> bool {
     matches!(
         key,
         Key::ShiftLeft
@@ -147,6 +188,30 @@ pub fn captured(ctx: &egui::Context) -> Option<Result<KeyboardShortcut, String>>
             egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) => {
                 Some(Err(t!("shortcut-reserved-clipboard")))
             }
+            _ => None,
+        })
+    })
+}
+
+/// Reads one key press of this frame, with or without modifiers (a
+/// chord's second key).
+fn captured_any(ctx: &egui::Context) -> Option<KeyboardShortcut> {
+    ctx.input(|i| {
+        i.events.iter().find_map(|e| match e {
+            egui::Event::Key {
+                key,
+                pressed: true,
+                modifiers,
+                ..
+            } if !is_modifier(*key) => Some(KeyboardShortcut::new(
+                egui::Modifiers {
+                    command: modifiers.command || modifiers.ctrl,
+                    ctrl: false,
+                    mac_cmd: false,
+                    ..*modifiers
+                },
+                *key,
+            )),
             _ => None,
         })
     })
@@ -201,6 +266,10 @@ impl ShortcutMapper {
         }
         if ctx.input(|i| i.key_pressed(Key::Escape) && i.modifiers.is_none()) {
             self.capture = None;
+        } else if let Some(Capture::ChordSecond(_)) = self.capture {
+            if let Some(s) = captured_any(ctx) {
+                self.grabbed = Some(shortcut::parse_second(&shortcut::to_text(&s)));
+            }
         } else if let Some(result) = captured(ctx) {
             self.grabbed = Some(result);
         }
@@ -224,7 +293,9 @@ impl ShortcutMapper {
         if let Some(mode) = self.capture
             && let Some(result) = self.grabbed.take()
         {
-            {
+            if matches!(mode, Capture::ChordFirst | Capture::ChordSecond(_)) {
+                changed |= self.chord_key(rows, saved, mode, result);
+            } else {
                 self.capture = None;
                 match result {
                     Err(e) => self.error = Some(e),
@@ -255,13 +326,12 @@ impl ShortcutMapper {
         let mut open = true;
         let mut close = false;
         let shown = egui::Window::new(t!("shortcut-mapper"))
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
+            .default_rect(crate::dialog::centered(ctx, egui::vec2(680.0, 520.0)))
             .id(Id::new("shortcut-mapper"))
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
-            .default_size([680.0, 520.0])
+            .min_size([520.0, 360.0])
             .show(ctx, |ui| {
                 changed |= keymap_picker(ui, keymap);
                 ui.add_space(2.0);
@@ -280,25 +350,29 @@ impl ShortcutMapper {
                 ui.add_space(4.0);
                 changed |= self.buttons(ui, rows, saved, palette);
                 ui.separator();
-                self.table(ui, rows, saved, palette);
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(t!("changes-apply-live")).small().weak());
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(t!("close")).clicked() {
-                            close = true;
-                        }
-                        let differs = self
-                            .opened
-                            .as_ref()
-                            .is_some_and(|(s, k)| s != saved || k != keymap);
-                        if ui
-                            .add_enabled(differs, egui::Button::new(t!("undo-changes")))
-                            .on_hover_text(t!("undo-changes-tip"))
-                            .clicked()
-                        {
-                            changed |= self.undo_changes(saved, keymap);
-                        }
+                // The table takes the height the window has (Ettin Edit 2.6).
+                let table_h = crate::dialog::body_height(ui, Id::new("shortcut-mapper"), 34.0);
+                self.table(ui, rows, saved, palette, table_h);
+                crate::dialog::footer(ui, Id::new("shortcut-mapper"), |ui| {
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(t!("changes-apply-live")).small().weak());
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button(t!("close")).clicked() {
+                                close = true;
+                            }
+                            let differs = self
+                                .opened
+                                .as_ref()
+                                .is_some_and(|(s, k)| s != saved || k != keymap);
+                            if ui
+                                .add_enabled(differs, egui::Button::new(t!("undo-changes")))
+                                .on_hover_text(t!("undo-changes-tip"))
+                                .clicked()
+                            {
+                                changed |= self.undo_changes(saved, keymap);
+                            }
+                        });
                     });
                 });
             });
@@ -315,6 +389,71 @@ impl ShortcutMapper {
             self.opened = None;
         }
         changed
+    }
+
+    /// A chord key was pressed: remember the first, or give the selected
+    /// command the chord.
+    fn chord_key(
+        &mut self,
+        rows: &[Row],
+        saved: &mut BTreeMap<String, Vec<String>>,
+        mode: Capture,
+        key: Result<KeyboardShortcut, String>,
+    ) -> bool {
+        let key = match key {
+            Ok(k) => k,
+            Err(e) => {
+                self.capture = None;
+                self.error = Some(e);
+                return false;
+            }
+        };
+        let Capture::ChordSecond(first) = mode else {
+            // The first key can't also be a command's own shortcut.
+            if let Some(r) = rows
+                .iter()
+                .find(|r| current(r, saved).iter().any(|c| shortcut::same(c, &key)))
+            {
+                self.capture = None;
+                self.error = Some(t!(
+                    "chord-first-in-use",
+                    shortcut = shortcut::to_text(&key),
+                    command = r.path.clone()
+                ));
+                return false;
+            }
+            self.capture = Some(Capture::ChordSecond(key));
+            return false;
+        };
+        self.capture = None;
+        let chord = (first, key);
+        let Some(row) = self
+            .selected
+            .as_ref()
+            .and_then(|a| rows.iter().find(|r| &r.action == a))
+        else {
+            return false;
+        };
+        if let Some(other) = rows.iter().find(|r| {
+            r.action != row.action
+                && current_chords(r, saved)
+                    .iter()
+                    .any(|c| shortcut::same_chord(c, &chord))
+        }) {
+            self.error = Some(t!(
+                "chord-in-use",
+                chord = shortcut::chord_to_text(&chord),
+                command = other.path.clone()
+            ));
+            return false;
+        }
+        let mut chords = current_chords(row, saved);
+        if !chords.iter().any(|c| shortcut::same_chord(c, &chord)) {
+            chords.push(chord);
+        }
+        store(saved, row, &current(row, saved), &chords);
+        self.error = None;
+        true
     }
 
     /// Puts back the shortcuts and keymap from when the window opened.
@@ -348,14 +487,27 @@ impl ShortcutMapper {
         else {
             return false;
         };
+        // A chord's first key waits for a second, so it can't run a command.
+        if let Some(r) = rows.iter().find(|r| {
+            current_chords(r, saved)
+                .iter()
+                .any(|c| shortcut::same(&c.0, &s))
+        }) {
+            self.error = Some(t!(
+                "shortcut-starts-chord",
+                shortcut = shortcut::to_text(&s),
+                command = r.path.clone()
+            ));
+            return false;
+        }
         let mut list = match mode {
             Capture::Replace => Vec::new(),
-            Capture::Add => current(row, saved),
+            _ => current(row, saved),
         };
         if !list.iter().any(|c| shortcut::same(c, &s)) {
             list.push(s);
         }
-        store(saved, &row.defaults, &row.action, &list);
+        store(saved, row, &list, &current_chords(row, saved));
         self.error = None;
         true
     }
@@ -403,7 +555,7 @@ impl ShortcutMapper {
                             .into_iter()
                             .filter(|c| !shortcut::same(c, &conflict.shortcut))
                             .collect();
-                        store(saved, &other.defaults, &other.action, &list);
+                        store(saved, other, &list, &current_chords(other, saved));
                     }
                     changed |= self.assign(rows, saved, conflict.shortcut, conflict.mode);
                 }
@@ -419,15 +571,19 @@ impl ShortcutMapper {
                 ui.label(RichText::new(t!("shortcut-fixed", command = row.path.clone())).weak());
             }
             Some(row) => {
-                if self.capture.is_some() {
-                    ui.label(
-                        RichText::new(t!("press-shortcut"))
-                            .color(palette.accent)
-                            .strong(),
-                    );
+                if let Some(mode) = self.capture {
+                    let text = match mode {
+                        Capture::ChordFirst => t!("press-chord-first"),
+                        Capture::ChordSecond(first) => {
+                            t!("press-chord-second", key = ui.ctx().format_shortcut(&first))
+                        }
+                        _ => t!("press-shortcut"),
+                    };
+                    ui.label(RichText::new(text).color(palette.accent).strong());
                     return;
                 }
                 let has = !current(row, saved).is_empty();
+                let has_chord = !current_chords(row, saved).is_empty();
                 if ui
                     .button(if has {
                         t!("change-shortcut")
@@ -444,10 +600,18 @@ impl ShortcutMapper {
                     self.error = None;
                 }
                 if ui
-                    .add_enabled(has, egui::Button::new(t!("remove")))
+                    .button(t!("add-chord"))
+                    .on_hover_text(t!("add-chord-tip"))
                     .clicked()
                 {
-                    store(saved, &row.defaults, &row.action, &[]);
+                    self.capture = Some(Capture::ChordFirst);
+                    self.error = None;
+                }
+                if ui
+                    .add_enabled(has || has_chord, egui::Button::new(t!("remove")))
+                    .clicked()
+                {
+                    store(saved, row, &[], &[]);
                     changed = true;
                 }
                 let modified = saved.contains_key(&actions::command_key(&row.action));
@@ -485,17 +649,14 @@ impl ShortcutMapper {
         rows: &[Row],
         saved: &BTreeMap<String, Vec<String>>,
         palette: &Palette,
+        height: f32,
     ) {
         let ctx = ui.ctx().clone();
         let filter = self.filter.to_lowercase();
         let shown: Vec<(&Row, String, bool)> = rows
             .iter()
             .map(|r| {
-                let keys = current(r, saved)
-                    .iter()
-                    .map(|s| ctx.format_shortcut(s))
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let keys = keys_text(&ctx, r, saved);
                 let modified = saved.contains_key(&actions::command_key(&r.action));
                 (r, keys, modified)
             })
@@ -510,9 +671,9 @@ impl ShortcutMapper {
         egui_extras::TableBuilder::new(ui)
             .striped(true)
             .auto_shrink([false, false])
-            .min_scrolled_height(340.0)
-            // A fixed height, so the window doesn't grow to fit it.
-            .max_scroll_height(340.0)
+            .min_scrolled_height(height - 28.0)
+            // The window's height, so the window doesn't grow to fit it.
+            .max_scroll_height(height - 28.0)
             .sense(egui::Sense::click())
             .column(egui_extras::Column::remainder().at_least(260.0).clip(true))
             .column(egui_extras::Column::exact(200.0))

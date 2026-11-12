@@ -1601,6 +1601,8 @@ lang-escape = Escape \
 lang-multiline = Can span lines
 lang-numbers = Numbers
 lang-colour-numbers = Colour numbers
+lang-numbers-after-letters = Also right after a letter (X10)
+lang-numbers-after-letters-tip = For languages such as G-code, where a letter and a number go together. Off, the 10 in X10 stays uncoloured like part of a name.
 lang-case = Case
 lang-ignore-case = Ignore case in keywords (IF, If and if match)
 lang-operators = Operators
@@ -1634,3 +1636,95 @@ lang-unsupported-group = the keyword group “{ $group }”
 lang-unsupported-folding = folding pairs with spaces or commas
 lang-unsupported-first-line = a first-line pattern
 lang-unsupported-setting = the setting “{ $setting }”
+
+## Columns and Fields (2.6)
+menu-columns = Columns and Fields
+sort-natural = Sort Naturally (file2 before file10)
+sort-natural-asc = Sort Naturally Ascending
+sort-natural-desc = Sort Naturally Descending
+extract-matches = Extract Matches
+extract-matches-dots = Extract Matches…
+align-columns = Align Columns
+align-columns-dots = Align Columns…
+select-fields = Select Fields
+select-fields-dots = Select Fields…
+sort-by-field = Sort Lines by Field
+sort-by-field-dots = Sort Lines by Field…
+split-lines-at = Split Lines At
+split-lines-at-dots = Split Lines At…
+join-lines-with = Join Lines With
+join-lines-with-dots = Join Lines With…
+menu-escape-string = Escape String
+menu-unescape-string = Unescape String
+menu-unix-time = Unix Time
+unix-to-date-utc = Unix Time to Date (UTC)
+unix-to-date-local = Unix Time to Date (Local Time)
+date-to-unix-seconds = Date to Unix Time (Seconds)
+date-to-unix-millis = Date to Unix Time (Milliseconds)
+field-hint-extract = Every match of a regular expression, one per line. Pick a capture group to keep only that part of each match.
+field-hint-align = Pads the cells so the delimiters line up. Lines without the delimiter stay as they are.
+field-hint-select = Keeps or removes fields, in the order you list them. Quoted CSV fields with commas inside stay whole.
+field-hint-sort = Sorts whole lines by one field. Lines without that field go first.
+field-hint-split = Puts every piece between the separators on a line of its own.
+field-hint-join = Joins the lines into one, each in quotes if you like: a list becomes 'a', 'b', 'c' for SQL IN (…).
+field-pattern = Pattern (regex)
+field-group = Capture group
+field-group-hint = 0 keeps the whole match; 1 the first ( … ) group, and so on.
+field-unique = Each match once
+field-delimiter = Delimiter
+field-delimiter-hint = \t for a tab; empty for spaces
+field-spaced = A space each side of the delimiter
+field-fields = Fields
+field-keep = Keep these fields
+field-remove = Remove these fields
+field-output-delimiter = Join with
+field-output-same = the same delimiter
+field-field = Field number
+field-order-natural = Natural
+field-order-text = Text
+field-order-number = Number
+field-split-at = Split at
+field-trim = Trim spaces and drop empty pieces
+field-separator = Separator
+field-quote = Quote each with
+field-quote-hint = A quote inside a line is doubled, as SQL and CSV expect.
+field-utc = UTC (ends in Z)
+field-local = Local time, with its offset
+field-seconds = Seconds
+field-millis = Milliseconds
+field-spaces = spaces
+recipe-step-extract = Extract matches of “{ $pattern }”
+recipe-step-align = Align columns on “{ $delimiter }”
+recipe-step-select-fields = Keep fields { $fields }
+recipe-step-remove-fields = Remove fields { $fields }
+recipe-step-sort-field = Sort lines by field { $field }
+recipe-step-split = Split lines at “{ $separator }”
+recipe-step-join-with = Join lines with “{ $separator }”, quoted with { $quote }
+recipe-step-escape = Escape for { $language }
+recipe-step-unescape = Unescape { $language }
+
+## Chords (2.6)
+chord-two-keys = “{ $shortcut }” isn't a chord: write two keys with a space, like Ctrl+K S.
+chord-waiting = { $key } was pressed. Waiting for the second key… (Esc cancels)
+chord-unknown = { $chord } isn't a command.
+chord-first-in-use = { $shortcut } is the shortcut of { $command }, so a chord can't start with it.
+chord-in-use = { $chord } is already the chord of { $command }.
+shortcut-starts-chord = { $shortcut } starts a chord of { $command }, so it can't be a shortcut too.
+press-chord-first = Press the chord's first key, like Ctrl+K… (Esc cancels)
+press-chord-second = { $key }, then… press the second key.
+add-chord = Add Chord…
+add-chord-tip = A two-key shortcut like Ctrl+K S: press a key with Ctrl or Alt, let go, then press a second key.
+
+## Markdown web images (2.6)
+prefs-markdown-preview = Markdown Preview
+prefs-markdown-web-images = Load images from the web
+prefs-markdown-web-images-tip = Images with http:// or https:// addresses load from the internet, which tells that server you opened the file. Off, they show as their descriptions; images from files still show.
+web-image-blocked = Not loaded: { $address }. Loading web images is off in Preferences > Appearance > Markdown Preview.
+
+## Dialog windows (2.6)
+window-maximize = Fill the window
+window-restore = Restore size
+
+## Plugin folders (2.6)
+plugin-folder-added = Found the new plugin { $name }.
+plugin-folder-removed = { $name } stopped: its folder was removed.

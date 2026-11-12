@@ -767,6 +767,23 @@ struct Render<'a> {
     base: Option<&'a std::path::Path>,
 }
 
+/// Whether images with web addresses load (Preferences > Appearance >
+/// Markdown Preview). Off, they show as their descriptions.
+static WEB_IMAGES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+pub fn set_web_images(on: bool) {
+    WEB_IMAGES.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn web_images() -> bool {
+    WEB_IMAGES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// True for image addresses on the web.
+fn is_web(uri: &str) -> bool {
+    uri.starts_with("http://") || uri.starts_with("https://")
+}
+
 const BODY: f32 = 14.5;
 const CODE: f32 = 13.0;
 
@@ -1067,6 +1084,9 @@ impl Render<'_> {
         };
         let response = match uri {
             None => alt(ui, None),
+            Some(uri) if is_web(&uri) && !web_images() => {
+                alt(ui, Some(t!("web-image-blocked", address = uri)))
+            }
             Some(uri) => {
                 let image = egui::Image::new(uri)
                     .fit_to_original_size(1.0)

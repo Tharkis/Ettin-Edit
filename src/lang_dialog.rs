@@ -38,6 +38,7 @@ pub struct LangForm {
     pub escape: bool,
     pub multiline_strings: bool,
     pub numbers: bool,
+    pub numbers_after_letters: bool,
     pub ignore_case: bool,
     pub lists: Vec<WordList>,
     /// Operators separated by spaces.
@@ -59,6 +60,7 @@ impl Default for LangForm {
             escape: true,
             multiline_strings: false,
             numbers: true,
+            numbers_after_letters: false,
             ignore_case: false,
             lists: vec![WordList {
                 name: t!("lang-keywords-list"),
@@ -137,6 +139,9 @@ impl LangForm {
         m.insert("strings".into(), Value::Array(strings));
         m.insert("multiline_strings".into(), json!(self.multiline_strings));
         m.insert("numbers".into(), json!(self.numbers));
+        if self.numbers_after_letters {
+            m.insert("numbers_after_letters".into(), json!(true));
+        }
         let lists: Vec<Value> = self
             .lists
             .iter()
@@ -217,6 +222,9 @@ impl LangForm {
                 "case_sensitive" => form.ignore_case = !v.as_bool().unwrap_or(true),
                 "multiline_strings" => form.multiline_strings = v.as_bool().unwrap_or(false),
                 "numbers" => form.numbers = v.as_bool().unwrap_or(true),
+                "numbers_after_letters" => {
+                    form.numbers_after_letters = v.as_bool().unwrap_or(false)
+                }
                 "block_comment" => {
                     let pairs = v.as_array().cloned().unwrap_or_default();
                     match pairs.as_slice() {
@@ -679,7 +687,17 @@ impl LangDialog {
                 });
                 ui.end_row();
                 ui.label(t!("lang-numbers"));
-                ui.checkbox(&mut f.numbers, t!("lang-colour-numbers"));
+                ui.horizontal_wrapped(|ui| {
+                    ui.checkbox(&mut f.numbers, t!("lang-colour-numbers"));
+                    ui.add_enabled(
+                        f.numbers,
+                        egui::Checkbox::new(
+                            &mut f.numbers_after_letters,
+                            t!("lang-numbers-after-letters"),
+                        ),
+                    )
+                    .on_hover_text(t!("lang-numbers-after-letters-tip"));
+                });
                 ui.end_row();
                 ui.label(t!("lang-case"));
                 ui.checkbox(&mut f.ignore_case, t!("lang-ignore-case"));
@@ -896,6 +914,7 @@ mod tests {
             escape: true,
             multiline_strings: false,
             numbers: true,
+            numbers_after_letters: true,
             ignore_case: true,
             lists: vec![
                 WordList {
@@ -941,6 +960,8 @@ mod tests {
         assert_scope(&h, "Gcode", src, "; warm up", "comment.line");
         assert_scope(&h, "Gcode", src, "spindle on", "comment.block");
         assert_scope(&h, "Gcode", src, "1.5", "constant.numeric");
+        assert_scope(&h, "Gcode", src, "1200", "constant.numeric");
+        assert_scope(&h, "Gcode", src, "10", "constant.numeric");
 
         // Reopening the saved file in the dialog loads the same values.
         let mut dlg = LangDialog::default();
@@ -963,6 +984,7 @@ mod tests {
         form.multiline_strings = true;
         form.ignore_case = false;
         form.numbers = false;
+        form.numbers_after_letters = false;
         form.operators = "+ - == != , :".into();
         form.folding = "{ }, if end".into();
         form.block_open = String::new();

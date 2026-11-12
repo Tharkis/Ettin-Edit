@@ -194,6 +194,10 @@ pub enum Step {
         #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
         options: serde_json::Map<String, serde_json::Value>,
     },
+    /// A Columns and Fields command (Ettin Edit 2.6). Its JSON has its own
+    /// `op` (`extract_matches`, `align_columns`…), so it must stay last.
+    #[serde(untagged)]
+    Field(crate::tools::fields::FieldOp),
 }
 
 fn one() -> i64 {
@@ -343,6 +347,7 @@ impl Step {
                     | XmlOp::ChooseSchema
                     | XmlOp::XslTransform,
             } => Err(t!("recipe-step-not-allowed")),
+            Step::Field(op) => op.check().map_err(|e| e.message),
             _ => Ok(()),
         }
     }
@@ -485,6 +490,7 @@ impl Step {
                     .run_transform(plugin, transform, text, options, env.cancel)
                     .map_err(ToolError::new)?
             }
+            Step::Field(op) => op.apply(text)?,
         })
     }
 }

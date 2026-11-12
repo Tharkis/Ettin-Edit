@@ -884,6 +884,56 @@ impl EttinApp {
         self.open_at_line(&main, 1);
     }
 
+    /// Notices plugin folders added to or removed from the plugins folder
+    /// while Ettin Edit runs (2.6). A new plugin asks for permission before
+    /// it runs, as always; one whose folder went is stopped.
+    pub(super) fn sync_plugin_folders(&mut self, ctx: &egui::Context, now: f64) {
+        if !self.plugins.scanned {
+            return;
+        }
+        let Some(root) = self.plugins.dir.clone() else {
+            return;
+        };
+        let found = crate::plugins::manifest::discover(&root);
+        let mut said = Vec::new();
+        let gone: Vec<String> = self
+            .plugins
+            .plugins
+            .iter()
+            .filter(|p| !found.iter().any(|d| d.id == p.id))
+            .map(|p| p.id.clone())
+            .collect();
+        for id in gone {
+            if let Some(i) = self.plugins.index_of(&id) {
+                let name = self.plugins.plugins[i].name().to_owned();
+                self.plugins.stop(i, now);
+                self.plugins.plugins.remove(i);
+                self.plugins.prompts.retain(|p| *p != id);
+                said.push(t!("plugin-folder-removed", name = name));
+            }
+        }
+        for d in &found {
+            match self.plugins.index_of(&d.id) {
+                None => {
+                    if let Some(i) = self.plugins.add_new(&d.id) {
+                        self.start_plugin(i);
+                        let name = self.plugins.plugins[i].name().to_owned();
+                        said.push(t!("plugin-folder-added", name = name));
+                    }
+                }
+                // Copied in a moment ago, before its plugin.json.
+                Some(i) if self.plugins.plugins[i].manifest.is_err() && d.manifest.is_ok() => {
+                    self.plugins.refresh(i, now);
+                    self.start_plugin(i);
+                }
+                Some(_) => {}
+            }
+        }
+        if !said.is_empty() {
+            self.notify(ctx, said.join(" "), None);
+        }
+    }
+
     /// Restarts plugins with "Reload when its files change" on whose files
     /// changed. Called each frame.
     fn reload_changed_plugins(&mut self, ctx: &egui::Context) {

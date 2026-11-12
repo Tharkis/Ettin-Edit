@@ -1603,6 +1603,8 @@ lang-escape = Escape \
 lang-multiline = Pueden ocupar varias líneas
 lang-numbers = Números
 lang-colour-numbers = Colorear números
+lang-numbers-after-letters = También justo después de una letra (X10)
+lang-numbers-after-letters-tip = Para lenguajes como G-code, donde una letra y un número van juntos. Desactivado, el 10 de X10 queda sin color, como parte de un nombre.
 lang-case = Mayúsculas
 lang-ignore-case = Ignorar mayúsculas en palabras clave (IF, If e if)
 lang-operators = Operadores
@@ -1636,3 +1638,95 @@ lang-unsupported-group = el grupo de palabras clave «{ $group }»
 lang-unsupported-folding = pares de plegado con espacios o comas
 lang-unsupported-first-line = un patrón de primera línea
 lang-unsupported-setting = el ajuste «{ $setting }»
+
+## Columnas y campos (2.6)
+menu-columns = Columnas y campos
+sort-natural = Ordenar de forma natural (file2 antes de file10)
+sort-natural-asc = Ordenar de forma natural ascendente
+sort-natural-desc = Ordenar de forma natural descendente
+extract-matches = Extraer coincidencias
+extract-matches-dots = Extraer coincidencias…
+align-columns = Alinear columnas
+align-columns-dots = Alinear columnas…
+select-fields = Elegir campos
+select-fields-dots = Elegir campos…
+sort-by-field = Ordenar líneas por campo
+sort-by-field-dots = Ordenar líneas por campo…
+split-lines-at = Dividir líneas en
+split-lines-at-dots = Dividir líneas en…
+join-lines-with = Unir líneas con
+join-lines-with-dots = Unir líneas con…
+menu-escape-string = Escapar cadena
+menu-unescape-string = Quitar escape de cadena
+menu-unix-time = Hora Unix
+unix-to-date-utc = Hora Unix a fecha (UTC)
+unix-to-date-local = Hora Unix a fecha (hora local)
+date-to-unix-seconds = Fecha a hora Unix (segundos)
+date-to-unix-millis = Fecha a hora Unix (milisegundos)
+field-hint-extract = Cada coincidencia de una expresión regular, una por línea. Elige un grupo para quedarte solo con esa parte.
+field-hint-align = Rellena las celdas para que los delimitadores queden alineados. Las líneas sin delimitador no cambian.
+field-hint-select = Conserva o quita campos, en el orden que indiques. Los campos CSV entre comillas con comas dentro quedan enteros.
+field-hint-sort = Ordena líneas completas según un campo. Las líneas sin ese campo van primero.
+field-hint-split = Pone cada trozo entre separadores en su propia línea.
+field-hint-join = Une las líneas en una, cada una entre comillas si quieres: una lista se convierte en 'a', 'b', 'c' para SQL IN (…).
+field-pattern = Patrón (regex)
+field-group = Grupo
+field-group-hint = 0 conserva la coincidencia entera; 1 el primer grupo ( … ), y así sucesivamente.
+field-unique = Cada coincidencia una vez
+field-delimiter = Delimitador
+field-delimiter-hint = \t para tabulación; vacío para espacios
+field-spaced = Un espacio a cada lado del delimitador
+field-fields = Campos
+field-keep = Conservar estos campos
+field-remove = Quitar estos campos
+field-output-delimiter = Unir con
+field-output-same = el mismo delimitador
+field-field = Número de campo
+field-order-natural = Natural
+field-order-text = Texto
+field-order-number = Número
+field-split-at = Dividir en
+field-trim = Quitar espacios y trozos vacíos
+field-separator = Separador
+field-quote = Entrecomillar con
+field-quote-hint = Una comilla dentro de una línea se duplica, como esperan SQL y CSV.
+field-utc = UTC (termina en Z)
+field-local = Hora local, con su desfase
+field-seconds = Segundos
+field-millis = Milisegundos
+field-spaces = espacios
+recipe-step-extract = Extraer coincidencias de «{ $pattern }»
+recipe-step-align = Alinear columnas en «{ $delimiter }»
+recipe-step-select-fields = Conservar los campos { $fields }
+recipe-step-remove-fields = Quitar los campos { $fields }
+recipe-step-sort-field = Ordenar líneas por el campo { $field }
+recipe-step-split = Dividir líneas en «{ $separator }»
+recipe-step-join-with = Unir líneas con «{ $separator }», entre { $quote }
+recipe-step-escape = Escapar para { $language }
+recipe-step-unescape = Quitar escape de { $language }
+
+## Acordes (2.6)
+chord-two-keys = «{ $shortcut }» no es un acorde: escribe dos teclas separadas por un espacio, como Ctrl+K S.
+chord-waiting = Se pulsó { $key }. Esperando la segunda tecla… (Esc cancela)
+chord-unknown = { $chord } no es un comando.
+chord-first-in-use = { $shortcut } es el atajo de { $command }, así que un acorde no puede empezar con él.
+chord-in-use = { $chord } ya es el acorde de { $command }.
+shortcut-starts-chord = { $shortcut } empieza un acorde de { $command }, así que no puede ser también un atajo.
+press-chord-first = Pulsa la primera tecla del acorde, como Ctrl+K… (Esc cancela)
+press-chord-second = { $key }, luego… pulsa la segunda tecla.
+add-chord = Añadir acorde…
+add-chord-tip = Un atajo de dos teclas como Ctrl+K S: pulsa una tecla con Ctrl o Alt, suéltala y luego pulsa una segunda tecla.
+
+## Imágenes web en Markdown (2.6)
+prefs-markdown-preview = Vista previa de Markdown
+prefs-markdown-web-images = Cargar imágenes de la web
+prefs-markdown-web-images-tip = Las imágenes con direcciones http:// o https:// se cargan desde Internet, lo que le dice a ese servidor que abriste el archivo. Desactivado, se muestran como su descripción; las imágenes de archivos se siguen mostrando.
+web-image-blocked = No cargada: { $address }. La carga de imágenes web está desactivada en Preferencias > Apariencia > Vista previa de Markdown.
+
+## Dialog windows (2.6)
+window-maximize = Llenar la ventana
+window-restore = Restaurar tamaño
+
+## Plugin folders (2.6)
+plugin-folder-added = Se encontró el nuevo plugin { $name }.
+plugin-folder-removed = { $name } se detuvo: se eliminó su carpeta.

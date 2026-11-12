@@ -65,6 +65,12 @@ pub struct PreviewInput<'a> {
 #[derive(Default)]
 pub struct RecipeWindow {
     pub open: bool,
+    /// Filling the main window (Ettin Edit 2.6), for a better look at the
+    /// input and output.
+    pub maximized: bool,
+    /// Height beyond the window's usual size, shared out between the
+    /// recipe list, the steps and the preview.
+    room: f32,
     pub selected: Option<usize>,
     /// The step whose settings are showing.
     expanded: Option<usize>,
@@ -111,6 +117,7 @@ fn sort_label(kind: SortKind, desc: bool) -> String {
         SortKind::Integer => "sort-integer",
         SortKind::Decimal => "sort-decimal",
         SortKind::Length => "sort-length",
+        SortKind::Natural => "sort-natural",
     };
     tr(&format!("{id}-{}", if desc { "desc" } else { "asc" }))
 }
@@ -312,6 +319,7 @@ pub fn step_label(step: &Step) -> String {
                 plugin = plugin.clone()
             ),
         },
+        Step::Field(op) => crate::fields_ui::summary(op),
     }
 }
 
@@ -333,6 +341,7 @@ fn catalog_label(step: &Step) -> String {
         Step::NumberLines { .. } => tr("number-lines"),
         Step::Reflow { .. } => tr("reflow"),
         Step::Command { .. } => tr("pipe-title"),
+        Step::Field(op) => crate::fields_ui::name(op),
         _ => step_label(step),
     }
 }
@@ -549,6 +558,7 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
                 SortKind::Integer,
                 SortKind::Decimal,
                 SortKind::Length,
+                SortKind::Natural,
             ]
             .iter()
             .map(|k| (*k, sort_label(*k, false)))
@@ -617,6 +627,15 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
                     .color(palette.text_dim),
             );
         }
+        Step::Field(op) => {
+            let f = crate::fields_ui::form(ui, id, op);
+            if let Some(r) = &f.first
+                && std::mem::take(&mut focus)
+            {
+                r.request_focus();
+            }
+            changed |= f.changed;
+        }
         Step::Plugin { options, .. } => {
             if options.is_empty() {
                 ui.label(
@@ -633,7 +652,7 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
 }
 
 /// A box of text for the preview.
-fn preview_box(ui: &mut Ui, id: &str, text: &str, width: f32, color: Option<Color32>) {
+fn preview_box(ui: &mut Ui, id: &str, text: &str, width: f32, height: f32, color: Option<Color32>) {
     egui::Frame::new()
         .fill(ui.visuals().extreme_bg_color)
         .inner_margin(Margin::same(4))
@@ -642,8 +661,8 @@ fn preview_box(ui: &mut Ui, id: &str, text: &str, width: f32, color: Option<Colo
             ui.set_width(width - 8.0);
             egui::ScrollArea::both()
                 .id_salt(id)
-                .max_height(110.0)
-                .min_scrolled_height(110.0)
+                .max_height(height)
+                .min_scrolled_height(height)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     let mut text = RichText::new(text).monospace().size(12.0);
@@ -656,7 +675,7 @@ fn preview_box(ui: &mut Ui, id: &str, text: &str, width: f32, color: Option<Colo
 }
 
 /// The recipe's sample text, editable. Returns true when it changed.
-fn sample_box(ui: &mut Ui, sample: &mut String, width: f32) -> bool {
+fn sample_box(ui: &mut Ui, sample: &mut String, width: f32, height: f32) -> bool {
     let mut changed = false;
     egui::Frame::new()
         .fill(ui.visuals().extreme_bg_color)
@@ -666,8 +685,8 @@ fn sample_box(ui: &mut Ui, sample: &mut String, width: f32) -> bool {
             ui.set_width(width - 8.0);
             egui::ScrollArea::vertical()
                 .id_salt("recipe-sample")
-                .max_height(110.0)
-                .min_scrolled_height(110.0)
+                .max_height(height)
+                .min_scrolled_height(height)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     changed = ui
@@ -676,7 +695,7 @@ fn sample_box(ui: &mut Ui, sample: &mut String, width: f32) -> bool {
                                 .id(Id::new("recipe-sample-text"))
                                 .font(egui::TextStyle::Monospace)
                                 .frame(egui::Frame::NONE)
-                                .desired_rows(6)
+                                .desired_rows(((height / 16.0) as usize).max(6))
                                 .desired_width(f32::INFINITY),
                         )
                         .changed();
@@ -747,33 +766,48 @@ impl RecipeWindow {
         }
         self.shortcut_text = shortcut.map(str::to_owned);
         let mut open = true;
-        egui::Window::new(tr("recipes-title"))
-            .id(Id::new("recipes-window"))
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
+        let id = Id::new("recipes-window");
+        let mut window = egui::Window::new(tr("recipes-title"))
+            .id(id)
             .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .fixed_size([860.0, 590.0])
-            .show(ctx, |ui| {
-                ui.horizontal_top(|ui| {
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(210.0, 540.0),
-                        Layout::top_down(Align::Min),
-                        |ui| self.list_ui(ui, palette, recipes, &mut events),
-                    );
-                    ui.separator();
-                    ui.vertical(|ui| match self.selected {
-                        Some(i) => self.recipe_ui(ui, palette, recipes, i, input, &mut events),
-                        None => {
-                            ui.add_space(40.0);
-                            ui.label(RichText::new(tr("recipes-pick")).color(palette.text_dim));
-                        }
-                    });
+            .collapsible(false);
+        // Resizable (Ettin Edit 2.6), or filling the main window.
+        window = if self.maximized {
+            window
+                .resizable(false)
+                .fixed_rect(crate::dialog::maximized_rect(ctx))
+        } else {
+            window
+                .resizable(true)
+                .min_size([760.0, 480.0])
+                .default_rect(crate::dialog::centered(ctx, Vec2::new(860.0, 590.0)))
+        };
+        window.show(ctx, |ui| {
+            let body_h = crate::dialog::body_height(ui, id, 34.0);
+            // The usual layout fills a 500-point body; more height goes
+            // to the list, the steps and the preview.
+            self.room = (body_h - 500.0).max(0.0);
+            ui.horizontal_top(|ui| {
+                ui.set_max_height(body_h);
+                ui.allocate_ui_with_layout(
+                    Vec2::new(210.0, body_h),
+                    Layout::top_down(Align::Min),
+                    |ui| self.list_ui(ui, palette, recipes, &mut events),
+                );
+                ui.separator();
+                ui.vertical(|ui| match self.selected {
+                    Some(i) => self.recipe_ui(ui, palette, recipes, i, input, &mut events),
+                    None => {
+                        ui.add_space(40.0);
+                        ui.label(RichText::new(tr("recipes-pick")).color(palette.text_dim));
+                    }
                 });
+            });
+            crate::dialog::footer(ui, id, |ui| {
                 ui.separator();
                 self.bottom_bar(ui, recipes, &mut events);
             });
+        });
         if !open {
             self.open = false;
             self.capturing = false;
@@ -862,7 +896,8 @@ impl RecipeWindow {
                 ui,
                 &format!("{} {}", ph::ARROW_COUNTER_CLOCKWISE, tr("undo-changes")),
             )
-            + 16.0;
+            + 16.0
+            + 28.0; // the maximize button
         let labels = needed <= ui.available_width();
         let can_run = selected.is_some_and(|i| !recipes[i].name.trim().is_empty());
         ui.horizontal(|ui| {
@@ -892,6 +927,9 @@ impl RecipeWindow {
                 }
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if crate::dialog::maximize_button(ui, self.maximized) {
+                    self.maximized = !self.maximized;
+                }
                 ui.add_enabled_ui(can_run, |ui| {
                     let Some(index) = selected else {
                         return;
@@ -939,8 +977,8 @@ impl RecipeWindow {
     ) {
         egui::ScrollArea::vertical()
             .id_salt("recipe-list")
-            .max_height(470.0)
-            .min_scrolled_height(470.0)
+            .max_height(470.0 + self.room)
+            .min_scrolled_height(470.0 + self.room)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if recipes.is_empty() {
@@ -1247,8 +1285,8 @@ impl RecipeWindow {
         let count = recipe.steps.len();
         egui::ScrollArea::vertical()
             .id_salt(("recipe-steps", index))
-            .max_height(150.0)
-            .min_scrolled_height(150.0)
+            .max_height(150.0 + self.room * 0.3)
+            .min_scrolled_height(150.0 + self.room * 0.3)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if count == 0 {
@@ -1385,13 +1423,14 @@ impl RecipeWindow {
             self.focus_step_search = true;
         }
         if let Some(Some(step)) = add.inner {
-            let needs_settings = matches!(
-                step,
+            let needs_settings = match &step {
                 Step::Replace { .. }
-                    | Step::FilterLines { .. }
-                    | Step::AffixLines { .. }
-                    | Step::Command { .. }
-            );
+                | Step::FilterLines { .. }
+                | Step::AffixLines { .. }
+                | Step::Command { .. } => true,
+                Step::Field(op) => op.kind().is_some(),
+                _ => false,
+            };
             recipe.steps.push(RecipeStep::from(step));
             if needs_settings {
                 self.expanded = Some(recipe.steps.len() - 1);
@@ -1458,6 +1497,7 @@ impl RecipeWindow {
             self.preview = Some((key, before, result));
         }
         let half = (ui.available_width() - 8.0) / 2.0;
+        let box_h = 110.0 + self.room * 0.7;
         let mut sample_changed = false;
         let stopped_at_plugin = self.preview_stopped_at_plugin;
         if let Some((_, before, result)) = &self.preview {
@@ -1470,9 +1510,9 @@ impl RecipeWindow {
                     };
                     ui.label(RichText::new(label).size(12.0).color(palette.text_dim));
                     if self.use_sample {
-                        sample_changed = sample_box(ui, &mut recipe.sample, half);
+                        sample_changed = sample_box(ui, &mut recipe.sample, half, box_h);
                     } else {
-                        preview_box(ui, "recipe-before", before, half, None);
+                        preview_box(ui, "recipe-before", before, half, box_h, None);
                     }
                 });
                 ui.vertical(|ui| {
@@ -1482,7 +1522,7 @@ impl RecipeWindow {
                     };
                     ui.label(RichText::new(label).size(12.0).color(palette.text_dim));
                     match &result.text {
-                        Ok(after) => preview_box(ui, "recipe-after", after, half, None),
+                        Ok(after) => preview_box(ui, "recipe-after", after, half, box_h, None),
                         Err(f) => preview_box(
                             ui,
                             "recipe-after",
@@ -1492,6 +1532,7 @@ impl RecipeWindow {
                                 message = f.message.clone()
                             ),
                             half,
+                            box_h,
                             Some(palette.modified),
                         ),
                     }
@@ -1620,7 +1661,10 @@ mod tests {
                 // Steps that need text start empty; everything else runs as is.
                 let needs_text = matches!(
                     step,
-                    Step::Replace { .. } | Step::FilterLines { .. } | Step::Command { .. }
+                    Step::Replace { .. }
+                        | Step::FilterLines { .. }
+                        | Step::Command { .. }
+                        | Step::Field(crate::tools::fields::FieldOp::ExtractMatches { .. })
                 );
                 assert_eq!(step.check().is_err(), needs_text, "{step:?}");
             }

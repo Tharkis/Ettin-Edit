@@ -38,6 +38,12 @@ time it starts.)
 Recipes window. Your recipes are listed on the left; pick one to see and change
 its steps on the right. Double-click a recipe to run it.
 
+Drag the window's bottom-right corner to make it bigger; the preview panes
+take the extra room. The button at the right end of the bottom row
+(**Fill the window**) makes it as big as the Ettin Edit window, to see more
+of the input and output at once; click it again (**Restore size**) to go
+back.
+
 - **Name** and **Description**: the name is what the menus show; the
   description shows when you point at the recipe in the list.
 - **Shortcut**: click **Set…** and press the keys you want; **Clear** takes
@@ -103,7 +109,8 @@ keystrokes and edits. The top of each submenu in **Transform** says so.
 | Group | Steps |
 | --- | --- |
 | Find and Replace | Replace every match, with **Match case**, **Whole word**, **Regular expression** or **Extended** (`\n`, `\t`, `\xNN`), exactly as in the [find bar](search.md). `$1` or `\1` put a group back |
-| Lines | Keep or Remove Matching Lines, Count Distinct Lines, Sort (lexically, ignoring case, as integers, as decimals or by length; ascending or descending), Reverse Line Order, Remove Duplicate Lines (all, or only repeats next to each other), Remove Empty Lines (and blank ones), Trim, Join Lines, Add Prefix and Suffix, Number Lines, Reflow Paragraphs, Tabs to Spaces, Spaces to Tabs |
+| Lines | Keep or Remove Matching Lines, Count Distinct Lines, Sort (lexically, ignoring case, as integers, as decimals, naturally or by length; ascending or descending), Reverse Line Order, Remove Duplicate Lines (all, or only repeats next to each other), Remove Empty Lines (and blank ones), Trim, Join Lines, Add Prefix and Suffix, Number Lines, Reflow Paragraphs, Tabs to Spaces, Spaces to Tabs |
+| Columns and Fields | Extract Matches, Align Columns, Select Fields (or remove them), Sort Lines by Field, Split Lines At, Join Lines With, Escape String and Unescape String (JSON, C, SQL, regular expression, shell or CSV), Unix Time to Date and Date to Unix Time ([Columns and fields](transform.md#columns-and-fields)) |
 | Convert Case To | UPPERCASE, lowercase, Title Case, Sentence case, iNVERT cASE, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE |
 | Convert to | JSON, YAML, TOML, XML, CSV or a Markdown table. **Read as** is **Auto** (the format the text looks like when the step runs) or a format you pick. Recipes from 2.0.0 with a "from X to Y" step still run as before |
 | Encode and Hash | Every [MIME Tools](mime.md) encoding and decoding, MD5, SHA-1, SHA-256, SHA-512, CRC32, Text to Hex, Hex to Text, Decode JWT |
@@ -120,8 +127,8 @@ there.
 A few steps behave a little differently inside a recipe, because a recipe
 always turns text into text:
 
-- **Count Distinct Lines** replaces the text with the counts instead of
-  opening a new tab.
+- **Count Distinct Lines** and **Extract Matches** replace the text with
+  their result instead of opening a new tab.
 - A **hash** replaces the text with the hash, even when nothing is selected.
 - Case steps convert all the text, not just the word at the caret.
 - Line steps work on the text exactly as selected (the menu commands take

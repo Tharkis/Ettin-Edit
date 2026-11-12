@@ -660,17 +660,20 @@ impl EttinApp {
         shortcut: Option<egui::KeyboardShortcut>,
         force: bool,
     ) {
-        use crate::shortcut_ui::{current, store, used_by};
+        use crate::shortcut_ui::{Row, current, current_chords, store, used_by};
         let Some(id) = self.recipes.get(index).map(|r| r.id.clone()) else {
             return;
         };
         let action = Action::RunRecipe(id);
         let rows = self.shortcut_rows(ctx);
-        let defaults = rows
-            .iter()
-            .find(|r| r.action == action)
-            .map(|r| r.defaults.clone())
-            .unwrap_or_default();
+        let row = rows.iter().find(|r| r.action == action);
+        let this = Row {
+            path: String::new(),
+            action: action.clone(),
+            defaults: row.map(|r| r.defaults.clone()).unwrap_or_default(),
+            default_chords: row.map(|r| r.default_chords.clone()).unwrap_or_default(),
+            fixed: false,
+        };
         let saved = &mut self.settings.shortcuts;
         let list: Vec<egui::KeyboardShortcut> = shortcut.into_iter().collect();
         if let Some(s) = shortcut
@@ -688,9 +691,10 @@ impl EttinApp {
                 .into_iter()
                 .filter(|c| !crate::plugins::shortcut::same(c, &s))
                 .collect();
-            store(saved, &other.defaults, &other.action, &rest);
+            store(saved, other, &rest, &current_chords(other, saved));
         }
-        store(saved, &defaults, &action, &list);
+        let chords = current_chords(&this, saved);
+        store(saved, &this, &list, &chords);
         let errors = crate::actions::set_overrides(&self.settings.shortcuts);
         self.errors.extend(errors);
         self.toolbar.refresh();

@@ -1602,6 +1602,8 @@ lang-escape = Escape \
 lang-multiline = Über mehrere Zeilen
 lang-numbers = Zahlen
 lang-colour-numbers = Zahlen färben
+lang-numbers-after-letters = Auch direkt nach einem Buchstaben (X10)
+lang-numbers-after-letters-tip = Für Sprachen wie G-Code, in denen Buchstabe und Zahl zusammengehören. Aus bleibt die 10 in X10 ungefärbt, wie ein Teil eines Namens.
 lang-case = Groß/klein
 lang-ignore-case = Groß-/Kleinschreibung bei Schlüsselwörtern ignorieren (IF, If und if)
 lang-operators = Operatoren
@@ -1635,3 +1637,95 @@ lang-unsupported-group = die Schlüsselwortgruppe „{ $group }“
 lang-unsupported-folding = Faltpaare mit Leerzeichen oder Kommas
 lang-unsupported-first-line = ein Muster für die erste Zeile
 lang-unsupported-setting = die Einstellung „{ $setting }“
+
+## Spalten und Felder (2.6)
+menu-columns = Spalten und Felder
+sort-natural = Natürlich sortieren (file2 vor file10)
+sort-natural-asc = Natürlich aufsteigend sortieren
+sort-natural-desc = Natürlich absteigend sortieren
+extract-matches = Treffer herausziehen
+extract-matches-dots = Treffer herausziehen…
+align-columns = Spalten ausrichten
+align-columns-dots = Spalten ausrichten…
+select-fields = Felder auswählen
+select-fields-dots = Felder auswählen…
+sort-by-field = Zeilen nach Feld sortieren
+sort-by-field-dots = Zeilen nach Feld sortieren…
+split-lines-at = Zeilen teilen bei
+split-lines-at-dots = Zeilen teilen bei…
+join-lines-with = Zeilen verbinden mit
+join-lines-with-dots = Zeilen verbinden mit…
+menu-escape-string = Zeichenkette maskieren
+menu-unescape-string = Maskierung aufheben
+menu-unix-time = Unix-Zeit
+unix-to-date-utc = Unix-Zeit in Datum (UTC)
+unix-to-date-local = Unix-Zeit in Datum (Ortszeit)
+date-to-unix-seconds = Datum in Unix-Zeit (Sekunden)
+date-to-unix-millis = Datum in Unix-Zeit (Millisekunden)
+field-hint-extract = Jeder Treffer eines regulären Ausdrucks, einer pro Zeile. Wähle eine Gruppe, um nur diesen Teil jedes Treffers zu behalten.
+field-hint-align = Füllt die Zellen auf, sodass die Trennzeichen untereinander stehen. Zeilen ohne Trennzeichen bleiben, wie sie sind.
+field-hint-select = Behält oder entfernt Felder in der angegebenen Reihenfolge. CSV-Felder in Anführungszeichen mit Kommas bleiben ganz.
+field-hint-sort = Sortiert ganze Zeilen nach einem Feld. Zeilen ohne dieses Feld kommen zuerst.
+field-hint-split = Setzt jedes Stück zwischen den Trennzeichen in eine eigene Zeile.
+field-hint-join = Verbindet die Zeilen zu einer, auf Wunsch jede in Anführungszeichen: aus einer Liste wird 'a', 'b', 'c' für SQL IN (…).
+field-pattern = Muster (Regex)
+field-group = Gruppe
+field-group-hint = 0 behält den ganzen Treffer; 1 die erste ( … )-Gruppe und so weiter.
+field-unique = Jeden Treffer nur einmal
+field-delimiter = Trennzeichen
+field-delimiter-hint = \t für Tab; leer für Leerzeichen
+field-spaced = Ein Leerzeichen auf beiden Seiten des Trennzeichens
+field-fields = Felder
+field-keep = Diese Felder behalten
+field-remove = Diese Felder entfernen
+field-output-delimiter = Verbinden mit
+field-output-same = demselben Trennzeichen
+field-field = Feldnummer
+field-order-natural = Natürlich
+field-order-text = Text
+field-order-number = Zahl
+field-split-at = Teilen bei
+field-trim = Leerzeichen entfernen und leere Stücke weglassen
+field-separator = Trennzeichen
+field-quote = Jedes einschließen in
+field-quote-hint = Ein Anführungszeichen in einer Zeile wird verdoppelt, wie SQL und CSV es erwarten.
+field-utc = UTC (endet auf Z)
+field-local = Ortszeit mit Versatz
+field-seconds = Sekunden
+field-millis = Millisekunden
+field-spaces = Leerzeichen
+recipe-step-extract = Treffer von „{ $pattern }“ herausziehen
+recipe-step-align = Spalten an „{ $delimiter }“ ausrichten
+recipe-step-select-fields = Felder { $fields } behalten
+recipe-step-remove-fields = Felder { $fields } entfernen
+recipe-step-sort-field = Zeilen nach Feld { $field } sortieren
+recipe-step-split = Zeilen bei „{ $separator }“ teilen
+recipe-step-join-with = Zeilen mit „{ $separator }“ verbinden, in { $quote }
+recipe-step-escape = Für { $language } maskieren
+recipe-step-unescape = { $language }-Maskierung aufheben
+
+## Akkorde (2.6)
+chord-two-keys = „{ $shortcut }“ ist kein Akkord: Schreibe zwei Tasten mit Leerzeichen, etwa Strg+K S.
+chord-waiting = { $key } wurde gedrückt. Warte auf die zweite Taste… (Esc bricht ab)
+chord-unknown = { $chord } ist kein Befehl.
+chord-first-in-use = { $shortcut } ist das Tastenkürzel von { $command }, daher kann kein Akkord damit beginnen.
+chord-in-use = { $chord } ist bereits der Akkord von { $command }.
+shortcut-starts-chord = { $shortcut } beginnt einen Akkord von { $command } und kann daher kein Tastenkürzel sein.
+press-chord-first = Drücke die erste Taste des Akkords, etwa Strg+K… (Esc bricht ab)
+press-chord-second = { $key }, dann… drücke die zweite Taste.
+add-chord = Akkord hinzufügen…
+add-chord-tip = Ein Kürzel aus zwei Tasten wie Strg+K S: eine Taste mit Strg oder Alt drücken, loslassen, dann eine zweite Taste drücken.
+
+## Markdown-Webbilder (2.6)
+prefs-markdown-preview = Markdown-Vorschau
+prefs-markdown-web-images = Bilder aus dem Web laden
+prefs-markdown-web-images-tip = Bilder mit http://- oder https://-Adressen werden aus dem Internet geladen, wodurch dieser Server erfährt, dass du die Datei geöffnet hast. Aus: Sie erscheinen als ihre Beschreibung; Bilder aus Dateien werden weiter gezeigt.
+web-image-blocked = Nicht geladen: { $address }. Das Laden von Webbildern ist unter Optionen > Darstellung > Markdown-Vorschau ausgeschaltet.
+
+## Dialog windows (2.6)
+window-maximize = Fenster ausfüllen
+window-restore = Größe wiederherstellen
+
+## Plugin folders (2.6)
+plugin-folder-added = Neues Plugin { $name } gefunden.
+plugin-folder-removed = { $name } beendet: sein Ordner wurde entfernt.

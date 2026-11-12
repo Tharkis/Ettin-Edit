@@ -108,6 +108,10 @@ pub struct UserLanguage {
     pub operators: Vec<String>,
     #[serde(default = "yes")]
     pub numbers: bool,
+    /// Numbers right after one letter are coloured too, as in G-code's
+    /// `X10` (Ettin Edit 2.6).
+    #[serde(default)]
+    pub numbers_after_letters: bool,
     /// Bracket pairs that open and close a block.
     #[serde(default)]
     pub folding: Vec<[String; 2]>,
@@ -294,8 +298,14 @@ impl UserLanguage {
         }
 
         if self.numbers {
+            // After one letter (X10) when asked, otherwise not inside a word.
+            let before = if self.numbers_after_letters {
+                "(?:(?<![\\w.])|(?<=\\b[A-Za-z]))"
+            } else {
+                "(?<![\\w.])"
+            };
             push_rule(format!(
-                "    - match: '(?<![\\w.])(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d+)?)(?![\\w.])'\n      scope: constant.numeric.{slug}\n"
+                "    - match: '{before}(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d+)?)(?![\\w.])'\n      scope: constant.numeric.{slug}\n"
             ));
         }
 
@@ -440,6 +450,26 @@ mod tests {
         assert_scope(&h, l, src, "\\\"", "constant.character.escape");
         assert_scope(&h, l, src, "# note", "comment.line");
         assert_scope(&h, l, src, " c ", "comment.block");
+    }
+
+    #[test]
+    fn numbers_after_a_letter_only_when_asked() {
+        let src = "x2 X10 abc12 7\n";
+        let tokens = |after: bool| {
+            let json = format!(
+                r#"{{"name": "Nums", "extensions": "nums", "numbers_after_letters": {after}}}"#
+            );
+            crate::highlight::tests::tokens(&highlighter_with(&json), "Nums", src)
+        };
+        let numeric = |toks: &[(String, String)]| -> Vec<String> {
+            toks.iter()
+                .filter(|(_, s)| s.contains("constant.numeric"))
+                .map(|(t, _)| t.clone())
+                .collect()
+        };
+        assert_eq!(numeric(&tokens(false)), ["7"]);
+        // One letter and a number (X10) yes, a longer word (abc12) no.
+        assert_eq!(numeric(&tokens(true)), ["2", "10", "7"]);
     }
 
     #[test]

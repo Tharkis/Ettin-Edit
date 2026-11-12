@@ -189,6 +189,10 @@ on the panel, to close it.
   Markdown file (`![Logo](img/logo.png)`) or from the web. An image that
   can't be found or read shows its description instead. Images in an unsaved
   tab only load from the web, as there's no folder to look in yet.
+- To keep the preview off the network, untick **Load images from the web**
+  in **Settings > Preferences > Appearance > Markdown Preview**. Web images
+  then show their description, and pointing at one says why. Images from
+  files still show.
 - The preview scrolls along with the text: scroll the editor and the preview
   shows the same place. Untick **Scroll with the text** at the top of the
   preview to scroll it on its own.

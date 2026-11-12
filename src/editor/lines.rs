@@ -24,6 +24,9 @@ pub enum SortKind {
     Decimal,
     /// By length.
     Length,
+    /// Numbers inside the text by their value, so `file2` comes before
+    /// `file10`; letters ignoring case (Ettin Edit 2.6).
+    Natural,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -164,6 +167,7 @@ pub fn sort_lines(lines: &mut [String], kind: SortKind, desc: bool) {
                 }
             }
             SortKind::Length => a.chars().count().cmp(&b.chars().count()),
+            SortKind::Natural => crate::tools::fields::natural_cmp(a, b),
         }
     };
     lines.sort_by(|a, b| if desc { cmp(b, a) } else { cmp(a, b) });

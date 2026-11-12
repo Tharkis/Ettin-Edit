@@ -922,7 +922,7 @@ pub fn options_window(
         .id(egui::Id::new("plugin-options"))
         .open(&mut open)
         .collapsible(false)
-        .resizable(false)
+        .resizable(true)
         .default_width(460.0)
         .show(ctx, |ui| {
             ui.label(

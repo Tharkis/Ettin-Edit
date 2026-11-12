@@ -19,6 +19,10 @@ going back:
 - **Reset Section** puts the settings of the section you're looking at back
   to Ettin Edit's defaults.
 
+Preferences, the Shortcut Mapper, the Recipes window, the Transform dialogs
+and the other larger windows can be resized: drag a corner or an edge. The
+rows of settings wrap when the window is narrow.
+
 Theme Colours, Customise Toolbar, the Shortcut Mapper and the Recipes window
 work the same way: changes are saved as you make them, and **Undo Changes**
 puts things back as they were when the window opened.
@@ -68,6 +72,12 @@ search can find them. Clear the box to go back to the sections.
 
 Whatever font you choose, Chinese, Japanese and Korean characters are drawn
 with a CJK font from your system when one is installed.
+
+**Markdown Preview**
+
+- **Load images from the web**: on by default. Untick it and the
+  [Markdown Preview](view.md#markdown-preview) only shows images from files,
+  so opening a Markdown file never reaches the network.
 
 ## Editing
 
