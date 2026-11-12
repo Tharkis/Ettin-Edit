@@ -432,6 +432,7 @@ impl Action {
                         | TransformOp::HexEncode
                         | TransformOp::HexDecode
                         | TransformOp::JwtDecode
+                        | TransformOp::Field(_)
                 )
                 | Action::Json(JsonOp::Format | JsonOp::Minify | JsonOp::SortKeys)
                 | Action::Xml(

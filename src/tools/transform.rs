@@ -60,6 +60,8 @@ pub enum TransformOp {
     Pipe {
         command: String,
     },
+    /// A Columns and Fields command (Ettin Edit 2.6).
+    Field(super::fields::FieldOp),
 }
 
 /// How line numbers are padded to the width of the largest one.

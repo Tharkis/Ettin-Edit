@@ -16,6 +16,7 @@ mod csv_query;
 mod document;
 mod editor;
 mod encoding;
+mod fields_ui;
 mod file_ui;
 mod folder_ui;
 mod fonts;

@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::theme::Palette;
 use crate::tools::pipe::RunError;
+use crate::tools::fields::{FieldKind, FieldOp};
 use crate::tools::transform::{self, LineMatcher, NumberPad, TransformOp};
 
 /// Which dialog a Transform menu item opens.
@@ -25,6 +26,8 @@ pub enum DialogKind {
     AffixLines,
     NumberLines,
     Reflow,
+    /// A Columns and Fields dialog (Ettin Edit 2.6).
+    Field(FieldKind),
 }
 
 impl DialogKind {
@@ -36,6 +39,7 @@ impl DialogKind {
             DialogKind::AffixLines => "prefix-suffix",
             DialogKind::NumberLines => "number-lines",
             DialogKind::Reflow => "reflow",
+            DialogKind::Field(kind) => kind.keys().1,
         }
     }
 
@@ -43,7 +47,8 @@ impl DialogKind {
     /// shell commands, so a surprising command can't spoil the text.
     pub fn default_dest(self) -> Dest {
         match self {
-            DialogKind::Pipe => Dest::NewTab,
+            // Pulling matches out shouldn't throw the rest of the text away.
+            DialogKind::Pipe | DialogKind::Field(FieldKind::Extract) => Dest::NewTab,
             _ => Dest::ThisTab,
         }
     }
@@ -145,6 +150,9 @@ pub struct TransformDialog {
     separator: String,
     pad: NumberPad,
     width: String,
+    /// The Columns and Fields settings, one for each dialog, kept while
+    /// Ettin Edit runs.
+    fields: Vec<FieldOp>,
     /// The live preview of the line dialogs: what it was worked out for,
     /// the input and the output (or why the settings are wrong).
     live: Option<(u64, String, Result<String, String>)>,
@@ -177,6 +185,7 @@ impl Default for TransformDialog {
             separator: ". ".into(),
             pad: NumberPad::None,
             width: "80".into(),
+            fields: FieldKind::ALL.iter().map(|k| k.default_op()).collect(),
             live: None,
             pipe_result: None,
             pipe_job: None,
@@ -341,6 +350,10 @@ impl TransformDialog {
                 DialogKind::AffixLines => (t!("affix-lines-title"), t!("affix-lines-hint")),
                 DialogKind::NumberLines => (t!("number-lines-title"), t!("number-lines-hint")),
                 DialogKind::Reflow => (t!("reflow-title"), t!("reflow-hint")),
+                DialogKind::Field(k) => (
+                    crate::i18n::tr(k.keys().1),
+                    crate::i18n::tr(crate::fields_ui::hint_key(k)),
+                ),
             };
             ui.heading(title);
             ui.add_space(4.0);
@@ -381,10 +394,19 @@ impl TransformDialog {
                     r
                 }
                 DialogKind::Reflow => field(ui, &t!("reflow-width"), &mut self.width, 80.0),
+                DialogKind::Field(k) => {
+                    let op = self.field_mut(k);
+                    let f = crate::fields_ui::form(ui, Id::new("field-dialog"), op);
+                    enter |= f.enter;
+                    f.first.expect("every Columns and Fields dialog has a text box")
+                }
             };
             if matches!(
                 kind,
-                DialogKind::AffixLines | DialogKind::NumberLines | DialogKind::Reflow
+                DialogKind::AffixLines
+                    | DialogKind::NumberLines
+                    | DialogKind::Reflow
+                    | DialogKind::Field(_)
             ) {
                 self.live_ui(ui, palette, kind, source);
             }
@@ -801,7 +823,10 @@ impl TransformDialog {
         if self.live.as_ref().is_none_or(|(k, _, _)| *k != key) {
             let all = (source.text)();
             let input = first_lines(&all, PREVIEW_LINES).to_owned();
-            let output = op.map(|op| preview_op(&op, &input));
+            let output = op.and_then(|op| match &op {
+                TransformOp::Field(f) => f.apply(&input).map_err(|e| e.message),
+                op => Ok(preview_op(op, &input)),
+            });
             self.live = Some((key, input, output));
         }
         let Some((_, input, output)) = &self.live else {
@@ -835,6 +860,18 @@ impl TransformDialog {
                 palette,
             );
         });
+    }
+
+    /// The settings of a Columns and Fields dialog.
+    fn field_mut(&mut self, kind: FieldKind) -> &mut FieldOp {
+        let i = match self.fields.iter().position(|op| op.kind() == Some(kind)) {
+            Some(i) => i,
+            None => {
+                self.fields.push(kind.default_op());
+                self.fields.len() - 1
+            }
+        };
+        &mut self.fields[i]
     }
 
     fn request(&self, kind: DialogKind) -> Result<TransformOp, String> {
@@ -882,6 +919,16 @@ impl TransformDialog {
                     width: width.clamp(1, 10_000) as usize,
                 }
             }
+            DialogKind::Field(k) => {
+                let op = self
+                    .fields
+                    .iter()
+                    .find(|op| op.kind() == Some(k))
+                    .cloned()
+                    .unwrap_or_else(|| k.default_op());
+                op.check().map_err(|e| e.message)?;
+                TransformOp::Field(op)
+            }
         })
     }
 }
@@ -911,6 +958,7 @@ pub fn preview_op(op: &TransformOp, text: &str) -> String {
             Ok(m) => transform::filter_lines(text, &m, *keep),
             Err(e) => e.message,
         },
+        TransformOp::Field(op) => op.apply(text).unwrap_or_else(|e| e.message),
         _ => text.to_owned(),
     }
 }

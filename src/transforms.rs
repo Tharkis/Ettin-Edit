@@ -10,6 +10,7 @@ use crate::macros::MacroStep;
 use crate::recipes::Step;
 use crate::search::SearchOptions;
 use crate::tools::convert::DataFormat;
+use crate::tools::fields::{FieldKind, FieldOp, StringKind};
 use crate::tools::json::JsonOp;
 use crate::tools::mime::MimeOp;
 use crate::tools::transform::{HashKind, NumberPad, TransformOp};
@@ -21,6 +22,8 @@ use crate::transform_ui::DialogKind;
 pub enum GroupId {
     FindReplace,
     Lines,
+    /// Columns and Fields (Ettin Edit 2.6).
+    Columns,
     Case,
     ConvertTo,
     Encode,
@@ -37,6 +40,7 @@ impl GroupId {
         tr(match self {
             GroupId::FindReplace => "recipe-group-replace",
             GroupId::Lines => "menu-transform-lines",
+            GroupId::Columns => "menu-columns",
             GroupId::Case => "menu-convert-case",
             GroupId::ConvertTo => "menu-convert-to",
             GroupId::Encode => "recipe-group-encode",
@@ -189,6 +193,7 @@ fn lines() -> Vec<Entry> {
         (["sort-integer-asc", "sort-integer-desc"], SortKind::Integer),
         (["sort-decimal-asc", "sort-decimal-desc"], SortKind::Decimal),
         (["sort-length-asc", "sort-length-desc"], SortKind::Length),
+        (["sort-natural-asc", "sort-natural-desc"], SortKind::Natural),
     ]
     .into_iter()
     .flat_map(|(labels, kind)| {
@@ -319,6 +324,69 @@ fn lines() -> Vec<Entry> {
             Action::SpacesToTabs { all: true },
             None,
         ),
+    ]
+}
+
+/// Columns and Fields: the dialogs, then Escape, Unescape and Unix Time.
+fn columns() -> Vec<Entry> {
+    let dialog = |kind: FieldKind| {
+        item(
+            kind.keys().0,
+            Action::TransformDialog(DialogKind::Field(kind)),
+            Some(Step::Field(kind.default_op())),
+        )
+    };
+    let op = |label: &str, op: FieldOp| {
+        item(
+            label,
+            Action::Transform(TransformOp::Field(op.clone())),
+            Some(Step::Field(op)),
+        )
+    };
+    let strings = |unescape: bool| -> Vec<Entry> {
+        StringKind::ALL
+            .iter()
+            .map(|&language| {
+                let op = if unescape {
+                    FieldOp::UnescapeString { language }
+                } else {
+                    FieldOp::EscapeString { language }
+                };
+                named(
+                    language.name().to_owned(),
+                    Action::Transform(TransformOp::Field(op.clone())),
+                    Some(Step::Field(op)),
+                )
+            })
+            .collect()
+    };
+    vec![
+        dialog(FieldKind::Extract),
+        Entry::Separator,
+        dialog(FieldKind::Align),
+        dialog(FieldKind::Select),
+        dialog(FieldKind::SortBy),
+        Entry::Separator,
+        dialog(FieldKind::Split),
+        dialog(FieldKind::Join),
+        Entry::Separator,
+        Entry::Submenu {
+            label: tr("menu-escape-string"),
+            entries: strings(false),
+        },
+        Entry::Submenu {
+            label: tr("menu-unescape-string"),
+            entries: strings(true),
+        },
+        Entry::Submenu {
+            label: tr("menu-unix-time"),
+            entries: vec![
+                op("unix-to-date-utc", FieldOp::UnixTimeToDate { utc: true }),
+                op("unix-to-date-local", FieldOp::UnixTimeToDate { utc: false }),
+                op("date-to-unix-seconds", FieldOp::DateToUnixTime { millis: false }),
+                op("date-to-unix-millis", FieldOp::DateToUnixTime { millis: true }),
+            ],
+        },
     ]
 }
 
@@ -465,6 +533,7 @@ pub fn catalogue() -> Vec<Group> {
             )],
         ),
         group(GroupId::Lines, lines()),
+        group(GroupId::Columns, columns()),
         group(GroupId::Case, cases()),
         group(
             GroupId::ConvertTo,
@@ -590,6 +659,7 @@ pub fn step_for(action: &Action, find: &str, replace: &str, opts: &SearchOptions
             TransformOp::HexDecode => Step::HexDecode,
             TransformOp::JwtDecode => Step::JwtDecode,
             TransformOp::Pipe { command } => Step::Command { command },
+            TransformOp::Field(op) => Step::Field(op),
         },
         Action::SortLines { kind, desc } => Step::SortLines {
             kind: *kind,
@@ -690,6 +760,7 @@ mod tests {
             SortKind::Integer,
             SortKind::Decimal,
             SortKind::Length,
+            SortKind::Natural,
         ] {
             for desc in [false, true] {
                 expected.push(Action::SortLines { kind, desc });
@@ -714,6 +785,25 @@ mod tests {
             XmlOp::Unescape,
         ] {
             expected.push(Action::Xml(op));
+        }
+        for kind in FieldKind::ALL {
+            expected.push(Action::TransformDialog(DialogKind::Field(kind)));
+        }
+        for language in StringKind::ALL {
+            expected.push(Action::Transform(TransformOp::Field(FieldOp::EscapeString {
+                language,
+            })));
+            expected.push(Action::Transform(TransformOp::Field(
+                FieldOp::UnescapeString { language },
+            )));
+        }
+        for op in [
+            FieldOp::UnixTimeToDate { utc: true },
+            FieldOp::UnixTimeToDate { utc: false },
+            FieldOp::DateToUnixTime { millis: false },
+            FieldOp::DateToUnixTime { millis: true },
+        ] {
+            expected.push(Action::Transform(TransformOp::Field(op)));
         }
         for a in &expected {
             assert!(actions.contains(a), "{a:?} isn't in the Transform menu");
@@ -796,6 +886,7 @@ mod tests {
                 kind: SortKind::Lexical,
                 descending: false,
             },
+            Step::Field(FieldKind::Extract.default_op()),
         ];
         for k in &kinds {
             assert!(

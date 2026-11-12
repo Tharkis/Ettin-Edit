@@ -7,6 +7,7 @@
 
 pub mod convert;
 pub mod csv;
+pub mod fields;
 pub mod dtd;
 pub mod js;
 pub mod json;

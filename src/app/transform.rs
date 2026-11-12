@@ -249,6 +249,15 @@ impl EttinApp {
                 }
             }
             TransformOp::Pipe { command } => self.start_pipe(ctx, command),
+            TransformOp::Field(op) => {
+                let what = crate::fields_ui::name(&op);
+                let targets = if op.whole_lines() {
+                    self.line_targets()
+                } else {
+                    self.docs[self.active].editor.tool_targets()
+                };
+                self.transform_ranges(ctx, &what, targets, |t| op.apply(t));
+            }
         }
     }
 

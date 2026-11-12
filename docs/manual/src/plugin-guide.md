@@ -849,6 +849,8 @@ commands when it is built.
 | Transform › Lines › Sort Lines › Sort As Decimals Descending | `{"SortLines":{"kind":"Decimal","desc":true}}` |
 | Transform › Lines › Sort Lines › Sort By Length Ascending | `{"SortLines":{"kind":"Length","desc":false}}` |
 | Transform › Lines › Sort Lines › Sort By Length Descending | `{"SortLines":{"kind":"Length","desc":true}}` |
+| Transform › Lines › Sort Lines › Sort Naturally Ascending | `{"SortLines":{"kind":"Natural","desc":false}}` |
+| Transform › Lines › Sort Lines › Sort Naturally Descending | `{"SortLines":{"kind":"Natural","desc":true}}` |
 | Transform › Lines › Reverse Line Order | `ReverseLines` |
 | Transform › Lines › Remove Duplicate Lines | `RemoveDuplicateLines` |
 | Transform › Lines › Remove Consecutive Duplicate Lines | `RemoveConsecutiveDuplicates` |
@@ -864,6 +866,28 @@ commands when it is built.
 | Transform › Lines › Tabs to Spaces | `TabsToSpaces` |
 | Transform › Lines › Leading Spaces to Tabs | `{"SpacesToTabs":{"all":false}}` |
 | Transform › Lines › All Spaces to Tabs | `{"SpacesToTabs":{"all":true}}` |
+| Transform › Columns and Fields › Extract Matches… | `{"TransformDialog":{"Field":"Extract"}}` |
+| Transform › Columns and Fields › Align Columns… | `{"TransformDialog":{"Field":"Align"}}` |
+| Transform › Columns and Fields › Select Fields… | `{"TransformDialog":{"Field":"Select"}}` |
+| Transform › Columns and Fields › Sort Lines by Field… | `{"TransformDialog":{"Field":"SortBy"}}` |
+| Transform › Columns and Fields › Split Lines At… | `{"TransformDialog":{"Field":"Split"}}` |
+| Transform › Columns and Fields › Join Lines With… | `{"TransformDialog":{"Field":"Join"}}` |
+| Transform › Columns and Fields › Escape String › JSON / JavaScript | `{"Transform":{"Field":{"op":"escape_string","language":"json"}}}` |
+| Transform › Columns and Fields › Escape String › C / Java / C# | `{"Transform":{"Field":{"op":"escape_string","language":"c"}}}` |
+| Transform › Columns and Fields › Escape String › SQL | `{"Transform":{"Field":{"op":"escape_string","language":"sql"}}}` |
+| Transform › Columns and Fields › Escape String › Regex | `{"Transform":{"Field":{"op":"escape_string","language":"regex"}}}` |
+| Transform › Columns and Fields › Escape String › Shell | `{"Transform":{"Field":{"op":"escape_string","language":"shell"}}}` |
+| Transform › Columns and Fields › Escape String › CSV | `{"Transform":{"Field":{"op":"escape_string","language":"csv"}}}` |
+| Transform › Columns and Fields › Unescape String › JSON / JavaScript | `{"Transform":{"Field":{"op":"unescape_string","language":"json"}}}` |
+| Transform › Columns and Fields › Unescape String › C / Java / C# | `{"Transform":{"Field":{"op":"unescape_string","language":"c"}}}` |
+| Transform › Columns and Fields › Unescape String › SQL | `{"Transform":{"Field":{"op":"unescape_string","language":"sql"}}}` |
+| Transform › Columns and Fields › Unescape String › Regex | `{"Transform":{"Field":{"op":"unescape_string","language":"regex"}}}` |
+| Transform › Columns and Fields › Unescape String › Shell | `{"Transform":{"Field":{"op":"unescape_string","language":"shell"}}}` |
+| Transform › Columns and Fields › Unescape String › CSV | `{"Transform":{"Field":{"op":"unescape_string","language":"csv"}}}` |
+| Transform › Columns and Fields › Unix Time › Unix Time to Date (UTC) | `{"Transform":{"Field":{"op":"unix_time_to_date","utc":true}}}` |
+| Transform › Columns and Fields › Unix Time › Unix Time to Date (Local Time) | `{"Transform":{"Field":{"op":"unix_time_to_date","utc":false}}}` |
+| Transform › Columns and Fields › Unix Time › Date to Unix Time (Seconds) | `{"Transform":{"Field":{"op":"date_to_unix_time","millis":false}}}` |
+| Transform › Columns and Fields › Unix Time › Date to Unix Time (Milliseconds) | `{"Transform":{"Field":{"op":"date_to_unix_time","millis":true}}}` |
 | Transform › Convert Case To › UPPERCASE | `{"ConvertCase":"Upper"}` |
 | Transform › Convert Case To › lowercase | `{"ConvertCase":"Lower"}` |
 | Transform › Convert Case To › Title Case | `{"ConvertCase":"Title"}` |

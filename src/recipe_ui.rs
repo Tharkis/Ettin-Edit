@@ -111,6 +111,7 @@ fn sort_label(kind: SortKind, desc: bool) -> String {
         SortKind::Integer => "sort-integer",
         SortKind::Decimal => "sort-decimal",
         SortKind::Length => "sort-length",
+        SortKind::Natural => "sort-natural",
     };
     tr(&format!("{id}-{}", if desc { "desc" } else { "asc" }))
 }
@@ -312,6 +313,7 @@ pub fn step_label(step: &Step) -> String {
                 plugin = plugin.clone()
             ),
         },
+        Step::Field(op) => crate::fields_ui::summary(op),
     }
 }
 
@@ -333,6 +335,7 @@ fn catalog_label(step: &Step) -> String {
         Step::NumberLines { .. } => tr("number-lines"),
         Step::Reflow { .. } => tr("reflow"),
         Step::Command { .. } => tr("pipe-title"),
+        Step::Field(op) => crate::fields_ui::name(op),
         _ => step_label(step),
     }
 }
@@ -549,6 +552,7 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
                 SortKind::Integer,
                 SortKind::Decimal,
                 SortKind::Length,
+                SortKind::Natural,
             ]
             .iter()
             .map(|k| (*k, sort_label(*k, false)))
@@ -616,6 +620,15 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
                     .size(12.0)
                     .color(palette.text_dim),
             );
+        }
+        Step::Field(op) => {
+            let f = crate::fields_ui::form(ui, id, op);
+            if let Some(r) = &f.first
+                && std::mem::take(&mut focus)
+            {
+                r.request_focus();
+            }
+            changed |= f.changed;
         }
         Step::Plugin { options, .. } => {
             if options.is_empty() {
@@ -1385,13 +1398,14 @@ impl RecipeWindow {
             self.focus_step_search = true;
         }
         if let Some(Some(step)) = add.inner {
-            let needs_settings = matches!(
-                step,
+            let needs_settings = match &step {
                 Step::Replace { .. }
-                    | Step::FilterLines { .. }
-                    | Step::AffixLines { .. }
-                    | Step::Command { .. }
-            );
+                | Step::FilterLines { .. }
+                | Step::AffixLines { .. }
+                | Step::Command { .. } => true,
+                Step::Field(op) => op.kind().is_some(),
+                _ => false,
+            };
             recipe.steps.push(RecipeStep::from(step));
             if needs_settings {
                 self.expanded = Some(recipe.steps.len() - 1);
@@ -1620,7 +1634,10 @@ mod tests {
                 // Steps that need text start empty; everything else runs as is.
                 let needs_text = matches!(
                     step,
-                    Step::Replace { .. } | Step::FilterLines { .. } | Step::Command { .. }
+                    Step::Replace { .. }
+                        | Step::FilterLines { .. }
+                        | Step::Command { .. }
+                        | Step::Field(crate::tools::fields::FieldOp::ExtractMatches { .. })
                 );
                 assert_eq!(step.check().is_err(), needs_text, "{step:?}");
             }

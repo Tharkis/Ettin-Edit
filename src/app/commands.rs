@@ -419,6 +419,7 @@ pub(crate) fn documented_commands(ctx: &egui::Context) -> Vec<(String, String)> 
         GroupId::Command,
         GroupId::FindReplace,
         GroupId::Lines,
+        GroupId::Columns,
         GroupId::Case,
         GroupId::ConvertTo,
         GroupId::Encode,
