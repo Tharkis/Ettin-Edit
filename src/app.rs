@@ -2353,11 +2353,11 @@ impl EttinApp {
             }
             return true;
         }
-        let Some(first) = pressed.iter().copied().find(|p| {
-            chords
-                .iter()
-                .any(|(c, _)| shortcut::same(&c.0, p))
-        }) else {
+        let Some(first) = pressed
+            .iter()
+            .copied()
+            .find(|p| chords.iter().any(|(c, _)| shortcut::same(&c.0, p)))
+        else {
             return false;
         };
         self.chord_first = Some(first);

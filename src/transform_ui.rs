@@ -14,15 +14,17 @@ use egui::{Align, Color32, Id, Key, Layout, Margin, RichText, Ui, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::theme::Palette;
-use crate::tools::pipe::RunError;
 use crate::tools::fields::{FieldKind, FieldOp};
+use crate::tools::pipe::RunError;
 use crate::tools::transform::{self, LineMatcher, NumberPad, TransformOp};
 
 /// Which dialog a Transform menu item opens.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DialogKind {
     Pipe,
-    FilterLines { keep: bool },
+    FilterLines {
+        keep: bool,
+    },
     AffixLines,
     NumberLines,
     Reflow,
@@ -205,6 +207,31 @@ fn field(ui: &mut Ui, label: &str, value: &mut String, width: f32) -> egui::Resp
     .inner
 }
 
+/// Draws a dialog's contents in a box whose corner can be dragged to make
+/// it bigger or smaller (Ettin Edit 2.6); the Input and Output panes take
+/// the extra room.
+pub(crate) fn resizable(ui: &mut Ui, id_salt: &str, default: Vec2, add: impl FnOnce(&mut Ui)) {
+    let max = (ui.ctx().content_rect().size() - Vec2::splat(80.0)).max(default);
+    egui::Resize::default()
+        .id_salt(id_salt)
+        .default_size(default)
+        .min_size([420.0, 220.0])
+        .max_size(max)
+        .with_stroke(false)
+        .show(ui, add);
+}
+
+/// The id a dialog's footer height is remembered under.
+pub(crate) fn footer_id() -> Id {
+    Id::new("transform-dialog-footer")
+}
+
+/// How tall the Input and Output panes are: the room left above the
+/// dialog's footer (Result goes to and the buttons).
+pub(crate) fn pane_height(ui: &Ui) -> f32 {
+    (crate::dialog::body_height(ui, footer_id(), 70.0) - 26.0).max(80.0)
+}
+
 /// A read-only box of text for the Input and Output panes.
 pub(crate) fn pane(
     ui: &mut Ui,
@@ -213,6 +240,7 @@ pub(crate) fn pane(
     text: &str,
     color: Option<Color32>,
     palette: &Palette,
+    height: f32,
 ) {
     ui.vertical(|ui| {
         ui.label(RichText::new(title).size(12.0).color(palette.text_dim));
@@ -224,8 +252,8 @@ pub(crate) fn pane(
                 ui.set_width(ui.available_width());
                 egui::ScrollArea::both()
                     .id_salt(id)
-                    .max_height(130.0)
-                    .min_scrolled_height(130.0)
+                    .max_height(height)
+                    .min_scrolled_height(height)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         let mut text = RichText::new(text).monospace().size(12.0);
@@ -337,11 +365,9 @@ impl TransformDialog {
         let mut enter = false;
         self.poll(ctx, source);
         let mut body = |ui: &mut Ui| {
-            ui.set_width(match kind {
-                DialogKind::Pipe => 640.0,
-                DialogKind::FilterLines { .. } => 440.0,
-                _ => 600.0,
-            });
+            if matches!(kind, DialogKind::FilterLines { .. }) {
+                ui.set_width(440.0);
+            }
             let (title, hint) = match kind {
                 DialogKind::Pipe => (t!("pipe-title"), t!("pipe-hint")),
                 DialogKind::FilterLines { .. } => {
@@ -398,7 +424,8 @@ impl TransformDialog {
                     let op = self.field_mut(k);
                     let f = crate::fields_ui::form(ui, Id::new("field-dialog"), op);
                     enter |= f.enter;
-                    f.first.expect("every Columns and Fields dialog has a text box")
+                    f.first
+                        .expect("every Columns and Fields dialog has a text box")
                 }
             };
             if matches!(
@@ -414,54 +441,56 @@ impl TransformDialog {
                 first.request_focus();
             }
             enter |= submitted(ui, &first);
-            ui.add_space(6.0);
-            self.dest_ui(ui, palette, kind);
-            if let Some(e) = &self.error {
-                ui.add_space(4.0);
-                egui::ScrollArea::vertical()
-                    .max_height(140.0)
-                    .show(ui, |ui| {
-                        ui.label(RichText::new(e).color(palette.modified).size(12.0));
-                    });
-            }
-            ui.add_space(8.0);
-            ui.allocate_ui_with_layout(
-                Vec2::new(ui.available_width(), 26.0),
-                Layout::right_to_left(Align::Center),
-                |ui| {
-                    if let Some(cmd) = &self.running {
-                        if ui.button(t!("stop")).clicked() {
-                            result = Some(DialogAction::Stop);
-                        }
-                        ui.spinner();
-                        ui.label(
-                            RichText::new(t!("pipe-running", command = cmd.clone()))
-                                .color(palette.text_dim),
-                        );
-                        return;
-                    }
-                    if ui.button(t!("cancel")).clicked() {
-                        close = true;
-                    }
-                    let ok = match kind {
-                        DialogKind::Pipe => t!("pipe-run"),
-                        DialogKind::FilterLines { .. } if self.keep => t!("filter-keep-button"),
-                        DialogKind::FilterLines { .. } => t!("filter-remove-button"),
-                        _ => t!("ok"),
-                    };
-                    let run = egui::Button::new(ok).fill(palette.accent.gamma_multiply(0.55));
-                    if ui.add(run).clicked() || enter {
-                        match self.request(kind) {
-                            Ok(op) => {
-                                result = Some(DialogAction::Run(op, self.dest));
-                                // The command dialog stays open until the command ends.
-                                close = kind != DialogKind::Pipe;
+            crate::dialog::footer(ui, footer_id(), |ui| {
+                ui.add_space(6.0);
+                self.dest_ui(ui, palette, kind);
+                if let Some(e) = &self.error {
+                    ui.add_space(4.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(140.0)
+                        .show(ui, |ui| {
+                            ui.label(RichText::new(e).color(palette.modified).size(12.0));
+                        });
+                }
+                ui.add_space(8.0);
+                ui.allocate_ui_with_layout(
+                    Vec2::new(ui.available_width(), 26.0),
+                    Layout::right_to_left(Align::Center),
+                    |ui| {
+                        if let Some(cmd) = &self.running {
+                            if ui.button(t!("stop")).clicked() {
+                                result = Some(DialogAction::Stop);
                             }
-                            Err(e) => self.error = Some(e),
+                            ui.spinner();
+                            ui.label(
+                                RichText::new(t!("pipe-running", command = cmd.clone()))
+                                    .color(palette.text_dim),
+                            );
+                            return;
                         }
-                    }
-                },
-            );
+                        if ui.button(t!("cancel")).clicked() {
+                            close = true;
+                        }
+                        let ok = match kind {
+                            DialogKind::Pipe => t!("pipe-run"),
+                            DialogKind::FilterLines { .. } if self.keep => t!("filter-keep-button"),
+                            DialogKind::FilterLines { .. } => t!("filter-remove-button"),
+                            _ => t!("ok"),
+                        };
+                        let run = egui::Button::new(ok).fill(palette.accent.gamma_multiply(0.55));
+                        if ui.add(run).clicked() || enter {
+                            match self.request(kind) {
+                                Ok(op) => {
+                                    result = Some(DialogAction::Run(op, self.dest));
+                                    // The command dialog stays open until the command ends.
+                                    close = kind != DialogKind::Pipe;
+                                }
+                                Err(e) => self.error = Some(e),
+                            }
+                        }
+                    },
+                );
+            });
         };
         // Keep or Remove Matching Lines sits at the top right of the text,
         // so the green and red lines stay in view; the others are modal.
@@ -478,7 +507,13 @@ impl TransformDialog {
                 ctx.input(|i| i.key_pressed(Key::Escape))
             }
             _ => egui::Modal::new(Id::new("transform-dialog"))
-                .show(ctx, |ui| body(ui))
+                .show(ctx, |ui| {
+                    let size = match kind {
+                        DialogKind::Pipe => Vec2::new(640.0, 400.0),
+                        _ => Vec2::new(600.0, 400.0),
+                    };
+                    resizable(ui, kind.key(), size, |ui| body(ui));
+                })
                 .should_close(),
         };
         if should_close && self.running.is_none() {
@@ -694,6 +729,7 @@ impl TransformDialog {
                 Some(palette.text_dim),
             ),
         };
+        let h = pane_height(ui);
         ui.columns(2, |cols| {
             pane(
                 &mut cols[0],
@@ -702,6 +738,7 @@ impl TransformDialog {
                 &input,
                 None,
                 palette,
+                h,
             );
             pane(
                 &mut cols[1],
@@ -710,6 +747,7 @@ impl TransformDialog {
                 &out_text,
                 out_color,
                 palette,
+                h,
             );
         });
         if self
@@ -842,6 +880,7 @@ impl TransformDialog {
             Ok(text) => (text.clone(), None),
             Err(e) => (e.clone(), Some(palette.modified)),
         };
+        let h = pane_height(ui);
         ui.columns(2, |cols| {
             pane(
                 &mut cols[0],
@@ -850,6 +889,7 @@ impl TransformDialog {
                 input,
                 None,
                 palette,
+                h,
             );
             pane(
                 &mut cols[1],
@@ -858,6 +898,7 @@ impl TransformDialog {
                 &out,
                 color,
                 palette,
+                h,
             );
         });
     }

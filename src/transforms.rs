@@ -383,8 +383,14 @@ fn columns() -> Vec<Entry> {
             entries: vec![
                 op("unix-to-date-utc", FieldOp::UnixTimeToDate { utc: true }),
                 op("unix-to-date-local", FieldOp::UnixTimeToDate { utc: false }),
-                op("date-to-unix-seconds", FieldOp::DateToUnixTime { millis: false }),
-                op("date-to-unix-millis", FieldOp::DateToUnixTime { millis: true }),
+                op(
+                    "date-to-unix-seconds",
+                    FieldOp::DateToUnixTime { millis: false },
+                ),
+                op(
+                    "date-to-unix-millis",
+                    FieldOp::DateToUnixTime { millis: true },
+                ),
             ],
         },
     ]
@@ -790,9 +796,9 @@ mod tests {
             expected.push(Action::TransformDialog(DialogKind::Field(kind)));
         }
         for language in StringKind::ALL {
-            expected.push(Action::Transform(TransformOp::Field(FieldOp::EscapeString {
-                language,
-            })));
+            expected.push(Action::Transform(TransformOp::Field(
+                FieldOp::EscapeString { language },
+            )));
             expected.push(Action::Transform(TransformOp::Field(
                 FieldOp::UnescapeString { language },
             )));

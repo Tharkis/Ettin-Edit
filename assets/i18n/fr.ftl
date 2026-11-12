@@ -1719,3 +1719,7 @@ prefs-markdown-preview = Aperçu Markdown
 prefs-markdown-web-images = Charger les images du web
 prefs-markdown-web-images-tip = Les images aux adresses http:// ou https:// se chargent depuis Internet, ce qui indique à ce serveur que vous avez ouvert le fichier. Désactivé, elles s’affichent sous forme de description ; les images de fichiers s’affichent toujours.
 web-image-blocked = Non chargée : { $address }. Le chargement des images web est désactivé dans Préférences > Apparence > Aperçu Markdown.
+
+## Dialog windows (2.6)
+window-maximize = Remplir la fenêtre
+window-restore = Restaurer la taille

@@ -100,7 +100,11 @@ pub fn chord_to_text(c: &Chord) -> String {
 
 /// A chord as menus show it, in the platform's style.
 pub fn format_chord(ctx: &egui::Context, c: &Chord) -> String {
-    format!("{} {}", ctx.format_shortcut(&c.0), ctx.format_shortcut(&c.1))
+    format!(
+        "{} {}",
+        ctx.format_shortcut(&c.0),
+        ctx.format_shortcut(&c.1)
+    )
 }
 
 /// True when both chords are the same keys.
@@ -157,7 +161,10 @@ mod tests {
         let c = parse_chord("ctrl+k ctrl+0").unwrap();
         assert_eq!(chord_to_text(&c), "Ctrl+K Ctrl+0");
         assert!(parse_chord("Ctrl+K").is_err());
-        assert!(parse_chord("K S").is_err(), "the first key needs a modifier");
+        assert!(
+            parse_chord("K S").is_err(),
+            "the first key needs a modifier"
+        );
         assert!(parse_chord("Ctrl+K Bogus").is_err());
         assert!(is_chord(" Ctrl+K  S ") && !is_chord("Ctrl+K"));
     }

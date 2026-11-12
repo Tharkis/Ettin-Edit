@@ -200,105 +200,125 @@ impl PluginTransformDialog {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
         let modal = egui::Modal::new(Id::new("plugin-transform-dialog")).show(ctx, |ui| {
-            ui.set_width(600.0);
-            ui.heading(&target.title);
-            ui.label(
-                RichText::new(t!(
-                    "plugin-transform-from",
-                    plugin = target.plugin_name.clone()
-                ))
-                .size(12.0)
-                .color(palette.text_dim),
-            );
-            ui.add_space(6.0);
-            options_form(ui, Id::new("plugin-transform-options"), &mut self.options);
-            if ui
-                .add_enabled(
-                    self.options != self.defaults,
-                    egui::Button::new(t!("plugin-options-reset")).small(),
-                )
-                .clicked()
-            {
-                self.options = self.defaults.clone();
-            }
-            ui.add_space(6.0);
-            let (input, output) = match &self.preview {
-                Some((_, input, out)) => (input.as_str(), Some(out)),
-                None => ("", None),
-            };
-            let input_title = if source.selection {
-                t!("pipe-input-selection")
-            } else {
-                t!("pipe-input-tab")
-            };
-            let half = (ui.available_width() - 8.0) / 2.0;
-            ui.horizontal_top(|ui| {
-                ui.allocate_ui(Vec2::new(half, 160.0), |ui| {
-                    pane(ui, "plugin-in", &input_title, input, None, palette);
-                });
-                ui.allocate_ui(Vec2::new(half, 160.0), |ui| {
-                    let stale = self.preview.as_ref().is_some_and(|(k, ..)| *k != key);
-                    let title = if self.waiting.is_some() {
-                        t!("plugin-previewing")
-                    } else if stale {
-                        t!("pipe-preview-stale")
-                    } else {
-                        t!("pipe-output")
-                    };
-                    match output {
-                        Some(Ok(out)) => pane(ui, "plugin-out", &title, out, None, palette),
-                        Some(Err(e)) => {
-                            pane(ui, "plugin-out", &title, e, Some(palette.modified), palette)
-                        }
-                        None => pane(ui, "plugin-out", &title, "", None, palette),
-                    }
-                });
-            });
-            if source.lines > PREVIEW_LINES {
+            crate::transform_ui::resizable(ui, "plugin-transform", Vec2::new(600.0, 400.0), |ui| {
+                ui.heading(&target.title);
                 ui.label(
-                    RichText::new(t!("plugin-preview-first-lines", count = PREVIEW_LINES))
-                        .size(11.0)
-                        .color(palette.text_dim),
+                    RichText::new(t!(
+                        "plugin-transform-from",
+                        plugin = target.plugin_name.clone()
+                    ))
+                    .size(12.0)
+                    .color(palette.text_dim),
                 );
-            }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.label(t!("result-goes-to"));
-                ui.radio_value(&mut self.dest, Dest::ThisTab, t!("result-this-tab"));
-                ui.radio_value(&mut self.dest, Dest::NewTab, t!("result-new-tab"));
-                ui.radio_value(&mut self.dest, Dest::Clipboard, t!("result-clipboard"));
-            });
-            if let Some(e) = &self.error {
-                ui.add_space(4.0);
-                ui.label(RichText::new(e).color(palette.modified).size(12.0));
-            }
-            ui.add_space(8.0);
-            ui.allocate_ui_with_layout(
-                Vec2::new(ui.available_width(), 26.0),
-                Layout::right_to_left(Align::Center),
-                |ui| {
-                    if self.running {
-                        if ui.button(t!("stop")).clicked() {
-                            result = Some(PluginDialogAction::Stop);
+                ui.add_space(6.0);
+                options_form(ui, Id::new("plugin-transform-options"), &mut self.options);
+                if ui
+                    .add_enabled(
+                        self.options != self.defaults,
+                        egui::Button::new(t!("plugin-options-reset")).small(),
+                    )
+                    .clicked()
+                {
+                    self.options = self.defaults.clone();
+                }
+                ui.add_space(6.0);
+                let (input, output) = match &self.preview {
+                    Some((_, input, out)) => (input.as_str(), Some(out)),
+                    None => ("", None),
+                };
+                let input_title = if source.selection {
+                    t!("pipe-input-selection")
+                } else {
+                    t!("pipe-input-tab")
+                };
+                let half = (ui.available_width() - 8.0) / 2.0;
+                let h = crate::transform_ui::pane_height(ui)
+                    - if source.lines > PREVIEW_LINES {
+                        16.0
+                    } else {
+                        0.0
+                    };
+                let h = h.max(80.0);
+                ui.horizontal_top(|ui| {
+                    ui.allocate_ui(Vec2::new(half, h + 30.0), |ui| {
+                        pane(ui, "plugin-in", &input_title, input, None, palette, h);
+                    });
+                    ui.allocate_ui(Vec2::new(half, h + 30.0), |ui| {
+                        let stale = self.preview.as_ref().is_some_and(|(k, ..)| *k != key);
+                        let title = if self.waiting.is_some() {
+                            t!("plugin-previewing")
+                        } else if stale {
+                            t!("pipe-preview-stale")
+                        } else {
+                            t!("pipe-output")
+                        };
+                        match output {
+                            Some(Ok(out)) => pane(ui, "plugin-out", &title, out, None, palette, h),
+                            Some(Err(e)) => pane(
+                                ui,
+                                "plugin-out",
+                                &title,
+                                e,
+                                Some(palette.modified),
+                                palette,
+                                h,
+                            ),
+                            None => pane(ui, "plugin-out", &title, "", None, palette, h),
                         }
-                        ui.spinner();
-                        ui.label(
-                            RichText::new(t!("pipe-running", command = target.title.clone()))
-                                .color(palette.text_dim),
-                        );
-                        return;
+                    });
+                });
+                if source.lines > PREVIEW_LINES {
+                    ui.label(
+                        RichText::new(t!("plugin-preview-first-lines", count = PREVIEW_LINES))
+                            .size(11.0)
+                            .color(palette.text_dim),
+                    );
+                }
+                crate::dialog::footer(ui, crate::transform_ui::footer_id(), |ui| {
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.label(t!("result-goes-to"));
+                        ui.radio_value(&mut self.dest, Dest::ThisTab, t!("result-this-tab"));
+                        ui.radio_value(&mut self.dest, Dest::NewTab, t!("result-new-tab"));
+                        ui.radio_value(&mut self.dest, Dest::Clipboard, t!("result-clipboard"));
+                    });
+                    if let Some(e) = &self.error {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(e).color(palette.modified).size(12.0));
                     }
-                    if ui.button(t!("cancel")).clicked() {
-                        close = true;
-                    }
-                    let run =
-                        egui::Button::new(t!("pipe-run")).fill(palette.accent.gamma_multiply(0.55));
-                    if ui.add(run).clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
-                        self.error = None;
-                        result = Some(PluginDialogAction::Run(self.options.clone(), self.dest));
-                    }
-                },
-            );
+                    ui.add_space(8.0);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(ui.available_width(), 26.0),
+                        Layout::right_to_left(Align::Center),
+                        |ui| {
+                            if self.running {
+                                if ui.button(t!("stop")).clicked() {
+                                    result = Some(PluginDialogAction::Stop);
+                                }
+                                ui.spinner();
+                                ui.label(
+                                    RichText::new(t!(
+                                        "pipe-running",
+                                        command = target.title.clone()
+                                    ))
+                                    .color(palette.text_dim),
+                                );
+                                return;
+                            }
+                            if ui.button(t!("cancel")).clicked() {
+                                close = true;
+                            }
+                            let run = egui::Button::new(t!("pipe-run"))
+                                .fill(palette.accent.gamma_multiply(0.55));
+                            if ui.add(run).clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
+                                self.error = None;
+                                result =
+                                    Some(PluginDialogAction::Run(self.options.clone(), self.dest));
+                            }
+                        },
+                    );
+                });
+            });
         });
         if modal.should_close() && !self.running {
             close = true;

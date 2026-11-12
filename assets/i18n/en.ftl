@@ -1718,3 +1718,7 @@ prefs-markdown-preview = Markdown Preview
 prefs-markdown-web-images = Load images from the web
 prefs-markdown-web-images-tip = Images with http:// or https:// addresses load from the internet, which tells that server you opened the file. Off, they show as their descriptions; images from files still show.
 web-image-blocked = Not loaded: { $address }. Loading web images is off in Preferences > Appearance > Markdown Preview.
+
+## Dialog windows (2.6)
+window-maximize = Fill the window
+window-restore = Restore size

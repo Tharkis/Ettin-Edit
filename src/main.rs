@@ -13,6 +13,7 @@ mod cli;
 mod compare;
 mod compare_ui;
 mod csv_query;
+mod dialog;
 mod document;
 mod editor;
 mod encoding;

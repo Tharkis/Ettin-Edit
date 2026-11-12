@@ -71,7 +71,14 @@ pub fn form(ui: &mut Ui, id: Id, op: &mut FieldOp) -> Form {
             });
         }
         FieldOp::AlignColumns { delimiter, spaced } => {
-            text(ui, id, &tr("field-delimiter"), delimiter, &delim_hint, &mut f);
+            text(
+                ui,
+                id,
+                &tr("field-delimiter"),
+                delimiter,
+                &delim_hint,
+                &mut f,
+            );
             f.changed |= ui.checkbox(spaced, tr("field-spaced")).changed();
         }
         FieldOp::SelectFields {
@@ -80,8 +87,22 @@ pub fn form(ui: &mut Ui, id: Id, op: &mut FieldOp) -> Form {
             remove,
             output_delimiter,
         } => {
-            text(ui, id, &tr("field-fields"), fields, "2,1 · 3-5 · 4-", &mut f);
-            text(ui, id, &tr("field-delimiter"), delimiter, &delim_hint, &mut f);
+            text(
+                ui,
+                id,
+                &tr("field-fields"),
+                fields,
+                "2,1 · 3-5 · 4-",
+                &mut f,
+            );
+            text(
+                ui,
+                id,
+                &tr("field-delimiter"),
+                delimiter,
+                &delim_hint,
+                &mut f,
+            );
             ui.horizontal(|ui| {
                 f.changed |= ui.radio_value(remove, false, tr("field-keep")).changed();
                 f.changed |= ui.radio_value(remove, true, tr("field-remove")).changed();
@@ -101,7 +122,14 @@ pub fn form(ui: &mut Ui, id: Id, op: &mut FieldOp) -> Form {
             order,
             descending,
         } => {
-            text(ui, id, &tr("field-delimiter"), delimiter, &delim_hint, &mut f);
+            text(
+                ui,
+                id,
+                &tr("field-delimiter"),
+                delimiter,
+                &delim_hint,
+                &mut f,
+            );
             number(ui, &tr("field-field"), field, 1, &mut f);
             ui.horizontal(|ui| {
                 for (o, key) in [

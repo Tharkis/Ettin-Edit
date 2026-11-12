@@ -5,8 +5,10 @@
 use std::sync::mpsc::{Receiver, channel};
 
 /// The width of the Preferences window.
-const PREFS_WIDTH: f32 = 760.0;
-/// The tallest the Preferences window gets.
+const PREFS_WIDTH: f32 = 820.0;
+/// The narrowest Preferences gets: the section list and a column of settings.
+const PREFS_MIN_WIDTH: f32 = 560.0;
+/// The height the Preferences window starts at, at most.
 const PREFS_HEIGHT: f32 = 500.0;
 /// The width of the labels in front of controls.
 const LABEL_W: f32 = 190.0;
@@ -232,7 +234,9 @@ impl Form {
     /// A label and the controls that set it, on one row.
     fn row(&mut self, ui: &mut Ui, label: &str, keywords: &str, add: impl FnOnce(&mut Ui)) {
         if self.show(ui, label, keywords) {
-            ui.horizontal(|ui| {
+            // Controls that don't fit go on to the next line rather than
+            // past the window's edge.
+            ui.horizontal_wrapped(|ui| {
                 row_label(ui, label);
                 add(ui);
             });
@@ -307,22 +311,30 @@ impl PrefsDialog {
         let mut open = true;
         let mut close = false;
         egui::Window::new(t!("preferences"))
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
             .id(Id::new("preferences"))
             .open(&mut open)
             .collapsible(false)
-            .resizable(false)
-            // One size for every section, so the window doesn't jump; at
-            // most the size of the main window.
-            .fixed_size([
-                PREFS_WIDTH,
-                (ctx.content_rect().height() - 90.0).clamp(300.0, PREFS_HEIGHT),
-            ])
+            // Resizable (Ettin Edit 2.6); the same size for every section, so
+            // the window doesn't jump. It starts at most the size of the
+            // main window.
+            .resizable(true)
+            .min_size([PREFS_MIN_WIDTH, 300.0])
+            .default_rect(crate::dialog::centered(
+                ctx,
+                egui::vec2(
+                    PREFS_WIDTH,
+                    (ctx.content_rect().height() - 90.0).clamp(300.0, PREFS_HEIGHT),
+                ),
+            ))
             .show(ctx, |ui| {
-                let body = egui::vec2(ui.available_width(), ui.available_height() - 34.0);
-                ui.allocate_ui(body, |ui| {
+                // The body is only as big as the window, so the window can
+                // be made smaller as well as bigger.
+                let body_h = crate::dialog::body_height(ui, Id::new("preferences"), 34.0);
+                {
                     ui.horizontal_top(|ui| {
+                        // The separator between the columns is as tall as
+                        // the row may be.
+                        ui.set_max_height(body_h);
                         ui.vertical(|ui| {
                             ui.set_width(170.0);
                             let r = ui.add(
@@ -363,9 +375,16 @@ impl PrefsDialog {
                         ui.vertical(|ui| {
                             // Long lines wrap instead of widening the window.
                             ui.set_max_width(ui.available_width());
+                            // A scroll area remembers how wide its content was,
+                            // so it would stop the window getting narrower; the
+                            // pass that measures how narrow it may get skips it.
+                            if ui.is_sizing_pass() {
+                                return;
+                            }
                             ScrollArea::vertical()
                                 .id_salt("prefs-scroll")
                                 .auto_shrink([false, false])
+                                .max_height(body_h)
                                 .show(ui, |ui| {
                                     self.sections(
                                         ui,
@@ -377,10 +396,12 @@ impl PrefsDialog {
                                     )
                                 });
                         });
-                    })
+                    });
+                }
+                close = crate::dialog::footer(ui, Id::new("preferences"), |ui| {
+                    ui.separator();
+                    self.footer(ui, settings)
                 });
-                ui.separator();
-                close = self.footer(ui, settings);
             });
         if !open || close {
             self.open = false;
@@ -733,7 +754,7 @@ impl PrefsDialog {
         } else {
             name_of(&settings.ui_language)
         };
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             row_label(ui, &t!("prefs-interface-language"));
             egui::ComboBox::from_id_salt("ui-language")
                 .selected_text(selected)

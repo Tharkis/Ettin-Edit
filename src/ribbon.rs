@@ -1084,6 +1084,20 @@ pub fn button_label(label: &str) -> String {
         .to_owned()
 }
 
+/// The icon of a Columns and Fields command.
+fn field_icon(kind: Option<crate::tools::fields::FieldKind>) -> &'static str {
+    use crate::tools::fields::FieldKind;
+    match kind {
+        Some(FieldKind::Extract) => ph::MAGNIFYING_GLASS_PLUS,
+        Some(FieldKind::Align) => ph::ALIGN_LEFT,
+        Some(FieldKind::Select) => ph::COLUMNS,
+        Some(FieldKind::SortBy) => ph::SORT_ASCENDING,
+        Some(FieldKind::Split) => ph::ARROWS_SPLIT,
+        Some(FieldKind::Join) => ph::ARROWS_MERGE,
+        None => ph::QUOTES,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1311,19 +1325,5 @@ mod tests {
         assert_eq!(tab.name.show(), "Mine");
         assert_eq!(tab.groups[0].items[0].size, Size::Small);
         assert_eq!(tab.groups[0].items[0].action(), Some(Action::Save));
-    }
-}
-
-/// The icon of a Columns and Fields command.
-fn field_icon(kind: Option<crate::tools::fields::FieldKind>) -> &'static str {
-    use crate::tools::fields::FieldKind;
-    match kind {
-        Some(FieldKind::Extract) => ph::MAGNIFYING_GLASS_PLUS,
-        Some(FieldKind::Align) => ph::ALIGN_LEFT,
-        Some(FieldKind::Select) => ph::COLUMNS,
-        Some(FieldKind::SortBy) => ph::SORT_ASCENDING,
-        Some(FieldKind::Split) => ph::ARROWS_SPLIT,
-        Some(FieldKind::Join) => ph::ARROWS_MERGE,
-        None => ph::QUOTES,
     }
 }

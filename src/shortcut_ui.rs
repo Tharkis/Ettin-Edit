@@ -326,13 +326,12 @@ impl ShortcutMapper {
         let mut open = true;
         let mut close = false;
         let shown = egui::Window::new(t!("shortcut-mapper"))
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
+            .default_rect(crate::dialog::centered(ctx, egui::vec2(680.0, 520.0)))
             .id(Id::new("shortcut-mapper"))
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
-            .default_size([680.0, 520.0])
+            .min_size([520.0, 360.0])
             .show(ctx, |ui| {
                 changed |= keymap_picker(ui, keymap);
                 ui.add_space(2.0);
@@ -351,25 +350,29 @@ impl ShortcutMapper {
                 ui.add_space(4.0);
                 changed |= self.buttons(ui, rows, saved, palette);
                 ui.separator();
-                self.table(ui, rows, saved, palette);
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(t!("changes-apply-live")).small().weak());
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(t!("close")).clicked() {
-                            close = true;
-                        }
-                        let differs = self
-                            .opened
-                            .as_ref()
-                            .is_some_and(|(s, k)| s != saved || k != keymap);
-                        if ui
-                            .add_enabled(differs, egui::Button::new(t!("undo-changes")))
-                            .on_hover_text(t!("undo-changes-tip"))
-                            .clicked()
-                        {
-                            changed |= self.undo_changes(saved, keymap);
-                        }
+                // The table takes the height the window has (Ettin Edit 2.6).
+                let table_h = crate::dialog::body_height(ui, Id::new("shortcut-mapper"), 34.0);
+                self.table(ui, rows, saved, palette, table_h);
+                crate::dialog::footer(ui, Id::new("shortcut-mapper"), |ui| {
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(t!("changes-apply-live")).small().weak());
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button(t!("close")).clicked() {
+                                close = true;
+                            }
+                            let differs = self
+                                .opened
+                                .as_ref()
+                                .is_some_and(|(s, k)| s != saved || k != keymap);
+                            if ui
+                                .add_enabled(differs, egui::Button::new(t!("undo-changes")))
+                                .on_hover_text(t!("undo-changes-tip"))
+                                .clicked()
+                            {
+                                changed |= self.undo_changes(saved, keymap);
+                            }
+                        });
                     });
                 });
             });
@@ -571,10 +574,9 @@ impl ShortcutMapper {
                 if let Some(mode) = self.capture {
                     let text = match mode {
                         Capture::ChordFirst => t!("press-chord-first"),
-                        Capture::ChordSecond(first) => t!(
-                            "press-chord-second",
-                            key = ui.ctx().format_shortcut(&first)
-                        ),
+                        Capture::ChordSecond(first) => {
+                            t!("press-chord-second", key = ui.ctx().format_shortcut(&first))
+                        }
                         _ => t!("press-shortcut"),
                     };
                     ui.label(RichText::new(text).color(palette.accent).strong());
@@ -647,6 +649,7 @@ impl ShortcutMapper {
         rows: &[Row],
         saved: &BTreeMap<String, Vec<String>>,
         palette: &Palette,
+        height: f32,
     ) {
         let ctx = ui.ctx().clone();
         let filter = self.filter.to_lowercase();
@@ -668,9 +671,9 @@ impl ShortcutMapper {
         egui_extras::TableBuilder::new(ui)
             .striped(true)
             .auto_shrink([false, false])
-            .min_scrolled_height(340.0)
-            // A fixed height, so the window doesn't grow to fit it.
-            .max_scroll_height(340.0)
+            .min_scrolled_height(height - 28.0)
+            // The window's height, so the window doesn't grow to fit it.
+            .max_scroll_height(height - 28.0)
             .sense(egui::Sense::click())
             .column(egui_extras::Column::remainder().at_least(260.0).clip(true))
             .column(egui_extras::Column::exact(200.0))

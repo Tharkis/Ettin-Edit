@@ -1718,4 +1718,8 @@ add-chord-tip = Ein Kürzel aus zwei Tasten wie Strg+K S: eine Taste mit Strg od
 prefs-markdown-preview = Markdown-Vorschau
 prefs-markdown-web-images = Bilder aus dem Web laden
 prefs-markdown-web-images-tip = Bilder mit http://- oder https://-Adressen werden aus dem Internet geladen, wodurch dieser Server erfährt, dass du die Datei geöffnet hast. Aus: Sie erscheinen als ihre Beschreibung; Bilder aus Dateien werden weiter gezeigt.
-web-image-blocked = Nicht geladen: { $address }. Das Laden von Webbildern ist unter Einstellungen > Darstellung > Markdown-Vorschau ausgeschaltet.
+web-image-blocked = Nicht geladen: { $address }. Das Laden von Webbildern ist unter Optionen > Darstellung > Markdown-Vorschau ausgeschaltet.
+
+## Dialog windows (2.6)
+window-maximize = Fenster ausfüllen
+window-restore = Größe wiederherstellen

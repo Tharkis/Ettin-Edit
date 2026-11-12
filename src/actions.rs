@@ -884,7 +884,10 @@ mod tests {
     #[test]
     fn saved_chords_replace_a_commands_defaults() {
         let saved = BTreeMap::from([
-            (command_key(&Action::SaveAll), vec!["Ctrl+Shift+S".to_owned()]),
+            (
+                command_key(&Action::SaveAll),
+                vec!["Ctrl+Shift+S".to_owned()],
+            ),
             (
                 command_key(&Action::FindInFiles),
                 vec!["Ctrl+K F".to_owned(), "Ctrl+Shift+F".to_owned()],

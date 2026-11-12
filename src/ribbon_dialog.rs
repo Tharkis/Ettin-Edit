@@ -55,12 +55,17 @@ pub struct CustomiseDialog {
     sel: Option<Sel>,
     choosing_icon: bool,
     icon_filter: String,
+    /// How tall the two lists are; drag the corner below them to change it
+    /// (Ettin Edit 2.6). Zero until the window first opens.
+    list_h: f32,
 }
 
 const ROW_H: f32 = 22.0;
 const LIST_W: f32 = 300.0;
 const TREE_W: f32 = 300.0;
 const LIST_H: f32 = 330.0;
+/// The room the lists' titles and the filter box take above them.
+const LIST_HEAD: f32 = 52.0;
 
 impl CustomiseDialog {
     pub fn show(&mut self, layout: &Layout) {
@@ -116,21 +121,33 @@ impl CustomiseDialog {
                 let Some(mut draft) = self.draft.take() else {
                     return;
                 };
-                ui.horizontal_top(|ui| {
-                    ui.vertical(|ui| {
-                        ui.set_width(LIST_W);
-                        self.command_list(ui, &mut draft, commands, palette);
+                // The lists get taller or shorter with the grip below them;
+                // the rest of the window sizes itself.
+                egui::Resize::default()
+                    .id_salt("toolbar-lists")
+                    .resizable([false, true])
+                    .with_stroke(false)
+                    .default_height(LIST_H + LIST_HEAD)
+                    .min_height(200.0)
+                    .max_height((ctx.content_rect().height() - 260.0).max(240.0))
+                    .show(ui, |ui| {
+                        self.list_h = (ui.available_height() - LIST_HEAD).max(120.0);
+                        ui.horizontal_top(|ui| {
+                            ui.vertical(|ui| {
+                                ui.set_width(LIST_W);
+                                self.command_list(ui, &mut draft, commands, palette);
+                            });
+                            ui.vertical(|ui| {
+                                ui.set_width(110.0);
+                                ui.add_space(60.0);
+                                self.middle_buttons(ui, &mut draft);
+                            });
+                            ui.vertical(|ui| {
+                                ui.set_width(TREE_W);
+                                self.tree(ui, &mut draft, commands, palette);
+                            });
+                        });
                     });
-                    ui.vertical(|ui| {
-                        ui.set_width(110.0);
-                        ui.add_space(60.0);
-                        self.middle_buttons(ui, &mut draft);
-                    });
-                    ui.vertical(|ui| {
-                        ui.set_width(TREE_W);
-                        self.tree(ui, &mut draft, commands, palette);
-                    });
-                });
                 ui.separator();
                 self.properties(ui, &mut draft, commands, palette);
                 ui.separator();
@@ -206,8 +223,8 @@ impl CustomiseDialog {
             .show(ui, |ui| {
                 ScrollArea::vertical()
                     .id_salt("toolbar-commands")
-                    .max_height(LIST_H)
-                    .min_scrolled_height(LIST_H)
+                    .max_height(self.list_h)
+                    .min_scrolled_height(self.list_h)
                     .auto_shrink([false, false])
                     .show_rows(ui, ROW_H, shown.len(), |ui, range| {
                         for c in &shown[range] {
@@ -305,8 +322,8 @@ impl CustomiseDialog {
             .show(ui, |ui| {
                 ScrollArea::vertical()
                     .id_salt("toolbar-tree")
-                    .max_height(LIST_H - 4.0)
-                    .min_scrolled_height(LIST_H - 4.0)
+                    .max_height(self.list_h - 4.0)
+                    .min_scrolled_height(self.list_h - 4.0)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing.y = 0.0;

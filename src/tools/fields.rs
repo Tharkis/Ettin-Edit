@@ -589,7 +589,10 @@ fn unescape_c(text: &str, kind: StringKind) -> ToolResult {
             continue;
         }
         let Some((_, e)) = it.next() else {
-            return Err(ToolError::at("A backslash at the end has nothing to escape.", i));
+            return Err(ToolError::at(
+                "A backslash at the end has nothing to escape.",
+                i,
+            ));
         };
         match e {
             'n' => out.push('\n'),
@@ -990,8 +993,7 @@ mod tests {
 
     #[test]
     fn ops_read_and_write_recipe_json() {
-        let op: FieldOp =
-            serde_json::from_str(r#"{"op": "join_with", "quote": "'"}"#).unwrap();
+        let op: FieldOp = serde_json::from_str(r#"{"op": "join_with", "quote": "'"}"#).unwrap();
         assert_eq!(op.apply("a\nb\n").unwrap(), "'a', 'b'\n");
         for kind in FieldKind::ALL {
             let op = kind.default_op();
@@ -1105,9 +1107,15 @@ mod tests {
         assert_eq!(escape("it's", StringKind::Shell), r"'it'\''s'");
         assert_eq!(escape("a.b*", StringKind::Regex), r"a\.b\*");
         assert_eq!(escape("O'Neil", StringKind::Sql), "O''Neil");
-        assert_eq!(unescape(r#""\ud83d\ude00""#, StringKind::Json).unwrap(), "😀");
+        assert_eq!(
+            unescape(r#""\ud83d\ude00""#, StringKind::Json).unwrap(),
+            "😀"
+        );
         assert!(unescape(r"\q", StringKind::Json).is_err());
-        assert_eq!(unescape(r#"a\ b"c\$d""#, StringKind::Shell).unwrap(), "a bc$d");
+        assert_eq!(
+            unescape(r#"a\ b"c\$d""#, StringKind::Shell).unwrap(),
+            "a bc$d"
+        );
     }
 
     #[test]
