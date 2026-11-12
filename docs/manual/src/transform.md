@@ -67,6 +67,7 @@ Then one submenu for each kind of transform:
 | --- | --- |
 | **Find and Replace** | **Replace…** (<kbd>Ctrl+H</kbd>), the [find bar](search.md) with the replace field |
 | **Lines** | Keep or remove matching lines, count distinct lines, sort, reverse, remove duplicate and empty lines, trim, join, add a prefix and suffix, number, reflow, tabs and spaces |
+| **Columns and Fields** | Extract Matches, Align Columns, Select Fields, Sort Lines by Field, Split Lines At, Join Lines With, Escape String, Unescape String and Unix Time ([Columns and fields](#columns-and-fields)) |
 | **Convert Case To** | UPPERCASE, lowercase, Title Case, Sentence case, iNVERT cASE, and the identifier cases |
 | **Convert to** | JSON, YAML, TOML, XML, CSV and Markdown table |
 | **Encode and Hash** | Base64, URL, Quoted-Printable, HTML and SAML ([MIME Tools](mime.md)), Text to Hex, Hex to Text, Decode JWT, and **Hash** |
@@ -169,6 +170,9 @@ whole document when nothing is selected. Everything is one undo step.
 - **Ignoring Case**: `a` and `A` together.
 - **As Integers** and **As Decimals**: by the number at the start of each
   line, so `9` comes before `10`. Lines without a number go first.
+- **Naturally** (file2 before file10): the way a person would, comparing runs of digits by their
+  value and letters ignoring case, so `file2` comes before `file10` and
+  `v1.9` before `v1.10`.
 - **By Length**: shortest first.
 - **Reverse Line Order** flips the lines without sorting.
 
@@ -302,6 +306,59 @@ In **Transform > Encode and Hash**:
   JSON with its `header` and `payload`, and says when it was issued and when
   it expires, in your local time. The signature is not checked, so don't
   trust what a token says because it decoded.
+
+## Columns and fields
+
+<p><img class="screenshot" src="images/select-fields.png" alt="The Select Fields dialog: Fields 1, Delimiter comma, Keep these fields, Join with the same delimiter; Input shows four CSV lines with name, qty and city, and Output shows only the names"></p>
+
+**Transform > Columns and Fields** works on text laid out in columns, such as
+CSV, logs and command output, and on bits of text that need to go into code.
+The commands with settings open a dialog with a live preview, like the
+others ([Try before you apply](#try-before-you-apply)).
+
+A **delimiter** is the text between fields: `,` for CSV, `\t` for a tab,
+`|`, `;` or anything longer. Leave it empty to split on runs of spaces and
+tabs, like most command output. With a one-character delimiter, a field in
+double quotes can hold the delimiter (`"Paris, France"`), as in CSV.
+
+- **Extract Matches…** puts every match of a regular expression on a line of
+  its own, in a new tab by default: every error code in a log, every e-mail
+  address in a page. **Capture group** takes a group instead of the whole
+  match (`id=(\d+)` with group 1 gives the numbers). **Each match once**
+  drops repeats and keeps the order they were found in.
+- **Align Columns…** pads the cells so the columns line up, the way
+  `column -t` does. Lines without the delimiter are left alone, and
+  indentation is kept. **A space each side of the delimiter** writes `a | b`
+  instead of `a|b`.
+- **Select Fields…** keeps or removes fields by number: `2,1` swaps the first
+  two, `3-5` is three to five, `4-` is the fourth onwards and `-2` the last
+  two. **Join with** writes the fields with a different delimiter, which
+  turns CSV into tab-separated text and back.
+- **Sort Lines by Field…** sorts the lines by one field: naturally, as text
+  or as numbers, ascending or descending. Lines that don't have that field
+  stay at the top in their order.
+- **Split Lines At…** breaks each line at every separator, so each piece is
+  on a line of its own. **Trim spaces and drop empty pieces** tidies the
+  result.
+- **Join Lines With…** joins the lines into one, with a separator and quotes
+  around each: lines `a`, `b`, `c` with separator `, ` and quote `'` give
+  `'a', 'b', 'c'`, ready for an SQL `IN (…)` list. A quote inside a line is
+  doubled. **Skip empty lines** leaves blank lines out.
+- **Escape String** and **Unescape String** prepare text to go inside a
+  string, or read it back, for **JSON / JavaScript** (`\"`, `\n`,
+  `\u00e9`), **C / C++ / Java / C#** (as JSON, plus `\'`, `\0`, `\xHH`),
+  **SQL** (`'` doubled), **Regular expression** (a backslash before every
+  special character), **Shell** (the whole text in single quotes) and
+  **CSV** (double quotes when needed). Unescape takes off the outer quotes
+  when the language uses them.
+- **Unix Time** turns Unix times (10-digit seconds or 13-digit milliseconds)
+  into ISO 8601 dates, in UTC or your local time, and ISO 8601 dates
+  (`2026-11-12T22:10:02Z`, with an offset, or with a space for the `T`) back
+  into Unix seconds or milliseconds. Everything else in the text stays as it
+  is, so you can run it over a whole log.
+
+Every one of these can be a [recipe](recipes.md) step, and macros record
+them.
 
 ## Encoding, JSON and XML
 

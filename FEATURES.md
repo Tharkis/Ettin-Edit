@@ -19,6 +19,27 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.6: Columns and fields
+
+Requested on 2026-11-12: the first release after the UX plan, chosen to fit "a text-transformation aid". Joe added two-key chords, a setting for web images in the Markdown preview, resizable dialogs and a full-size recipe editor, and reported Preferences overflowing its window.
+
+- [x] **Transform > Columns and Fields** (`src/tools/fields.rs`, `src/fields_ui.rs`), each a dialog with the live Input/Output preview, a macro step and a recipe step ([Columns and fields](docs/manual/src/transform.md#columns-and-fields)):
+  - **Extract Matches…**: every regex match (or capture group) on its own line, optionally each once; opens in a new tab by default
+  - **Align Columns…**: pads cells so columns line up (`column -t`), wide characters counted right, indentation kept
+  - **Select Fields…**: keep or remove fields by number (`2,1`, `3-5`, `4-`, `-2`), with another delimiter on the way out; quoted CSV fields stay whole
+  - **Sort Lines by Field…**: naturally, as text or as numbers, ascending or descending
+  - **Split Lines At…** and **Join Lines With…** (separator and quotes, quotes inside doubled: an SQL `IN` list in one step)
+  - **Escape String** / **Unescape String** for JSON/JavaScript, C/C++/Java/C#, SQL, regular expressions, POSIX shell and CSV
+  - **Unix Time**: 10- and 13-digit Unix times to ISO 8601 (UTC or local) and ISO 8601 dates back to seconds or milliseconds, leaving the rest of the text alone
+- [x] **Natural sort** (file2 before file10) in Lines > Sort and in recipes
+- [x] **Two-key chords** such as <kbd>Ctrl+K</kbd> <kbd>S</kbd>: both keymaps get ten Ctrl+K chords; the Shortcut Mapper has **Add Chord…**; menus and the command palette show them; chords are saved as `"Ctrl+K S"` in `settings.json` ([Two-key chords](docs/manual/src/shortcuts.md#two-key-chords)). The keymap default stays Notepad++ style
+- [x] **Load images from the web** setting for the Markdown preview (Preferences > Appearance, on by default)
+- [x] **Resizable dialogs**: Preferences, Shortcut Mapper, Recipes, every Transform dialog, plugin transform and plugin options dialogs and Customise Toolbar; the Input/Output panes and lists take the extra room. The Recipes window has **Fill the window** to see more of the input and output (`src/dialog.rs`)
+- [x] Fixed: Preferences was wider than its window when the interface language row didn't fit; rows now wrap and the window can be made narrower
+- [x] Define Language: **Also right after a letter (X10)** colours numbers that follow one letter, for G-code (`numbers_after_letters` in `.lang.json`)
+- [x] Plugin folders copied into or removed from the plugins folder are picked up while Ettin Edit runs; a new one asks for permission first
+- [x] New text in all four interface languages
+
 ### 2.5: Themes and languages
 
 Requested on 2026-11-11: the seventh and last release of the UX plan (review items R13 and R18). Making a theme or a simple language no longer needs TextMate scopes or JSON.
@@ -659,6 +680,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| Preferences was wider than its window: the Interface language row ran past the right edge | 2.6 |
 | Opening a file while Ettin Edit was minimized added the tab but left the window minimized ([#36](https://github.com/Tharkis/Ettin-Edit/issues/36)) | 2.4.1 |
 | On Windows, starting with the window maximized made it flicker: it showed, vanished and came back maximized ([#30](https://github.com/Tharkis/Ettin-Edit/issues/30)) | 2.1.1 |
 | Macros recorded commands but not typing: text typed while recording was left out | 2.1 |
@@ -676,10 +698,7 @@ Features that are planned or only partly done.
 ### Planned (not yet scheduled)
 The UX plan from the 2.0.0 review is finished with 2.5.
 
-- [ ] Define Language: numbers right after a letter (`X10` in G-code) are not coloured, because the number rule needs a non-word character before it
-
-- [ ] Live reload of plugin folders (2.4 watches settings, themes, languages, translations and recipes; plugins keep their own *Reload when its files change* switch)
-- [ ] Two-key chord shortcuts (VS Code's Ctrl+K S for Save All); VS Code style uses Ctrl+Alt+S for now
+Nothing else is scheduled after 2.6.
 
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 
@@ -691,4 +710,4 @@ The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-pan
 
 ### Platform and distribution
 - [x] Translations (1.2): English, German, French and Spanish, plus your own `.ftl` files
-- [~] Packages: Arch package (0.2), Windows installer and `.deb` (1.0), APT repository and AppStream metadata (1.4); AppImage and Flatpak are not yet available
+- [x] Packages: Arch package (0.2), Windows installer and `.deb` (1.0), APT repository and AppStream metadata (1.4), RPM, Flatpak and AppImage with signed RPM and Flatpak repositories (1.9.1)

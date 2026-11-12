@@ -66,7 +66,9 @@ live preview, and saves it as a `.lang.json` file in the languages folder.
   start and end.
 - **Strings** in `"…"`, `'…'` or both, whether **\\** escapes the next
   character, and whether they **Can span lines**.
-- **Colour numbers**, and **Ignore case in keywords** so that `IF`, `If` and `if` all match.
+- **Colour numbers**, and **Also right after a letter (X10)** for languages
+  such as G-code where a letter and a number go together; without it, the
+  `10` in `X10` stays uncoloured like part of a name. **Ignore case in keywords** so that `IF`, `If` and `if` all match.
 - **Operators** (separated by spaces) and **Folding** pairs, such as
   `{ }, if end`, for [code folding](#code-folding).
 - **Keyword lists**: give each list a name, its words (separated by spaces)
@@ -152,6 +154,7 @@ Only `name` is required. Everything else is optional.
 | `keyword_lists` | Named word lists coloured with a [Simple theme colour](themes.md#simple-and-advanced), as Define Language writes them: `[{"name": "Motion", "colour": "keywords", "words": ["G0", "G1"]}]`. The colour is one of `keywords`, `functions`, `types`, `numbers`, `strings`, `comments`, `tags`, `attributes` or `errors`. | none |
 | `operators` | Symbols to colour as operators, such as `"+"` or `"=="`. | none |
 | `numbers` | Colour numbers (`42`, `3.14`, `1e-9`, `0xFF`). | `true` |
+| `numbers_after_letters` | Also colour a number right after one letter, such as the `10` in G-code's `X10`. Longer words (`abc12`) are left alone. | `false` |
 | `folding` | Pairs that open and close a block, such as `[["{", "}"], ["begin", "end"]]`. Code folding follows them; word pairs are coloured as keywords. Without pairs, `( )`, `[ ]` and `{ }` fold, or failing that, indentation. | none |
 
 A key Ettin Edit does not recognise is reported as an error, so a typo such as

@@ -68,6 +68,23 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.6.0" date="2026-11-12">
+      <description>
+        <p>Columns and fields: pull matches out of text, line up columns, pick
+        and sort fields, join lines into a quoted list, escape strings and
+        convert Unix times.</p>
+        <ul>
+          <li>Transform &gt; Columns and Fields: Extract Matches, Align Columns, Select Fields, Sort Lines by Field, Split Lines At and Join Lines With, all with a live preview</li>
+          <li>Escape and unescape strings for JSON, C, SQL, regular expressions, the shell and CSV; Unix times to ISO 8601 dates and back</li>
+          <li>Sort lines naturally, so file2 comes before file10</li>
+          <li>Two-key chord shortcuts such as Ctrl+K S, in both keymaps</li>
+          <li>Preferences, the Recipes window and the Transform dialogs can be resized; the Recipes window can fill the main window</li>
+          <li>A setting to stop the Markdown preview loading images from the web</li>
+          <li>Plugin folders added or removed while Ettin Edit runs are picked up, and Define Language can colour numbers after a letter (G-code X10)</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.6.0</url>
+    </release>
     <release version="2.5.0" date="2026-11-11">
       <description>
         <p>Themes and languages: change a theme's colours by name and define a
