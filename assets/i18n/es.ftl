@@ -1603,6 +1603,8 @@ lang-escape = Escape \
 lang-multiline = Pueden ocupar varias líneas
 lang-numbers = Números
 lang-colour-numbers = Colorear números
+lang-numbers-after-letters = También justo después de una letra (X10)
+lang-numbers-after-letters-tip = Para lenguajes como G-code, donde una letra y un número van juntos. Desactivado, el 10 de X10 queda sin color, como parte de un nombre.
 lang-case = Mayúsculas
 lang-ignore-case = Ignorar mayúsculas en palabras clave (IF, If e if)
 lang-operators = Operadores
@@ -1724,3 +1726,7 @@ web-image-blocked = No cargada: { $address }. La carga de imágenes web está de
 ## Dialog windows (2.6)
 window-maximize = Llenar la ventana
 window-restore = Restaurar tamaño
+
+## Plugin folders (2.6)
+plugin-folder-added = Se encontró el nuevo plugin { $name }.
+plugin-folder-removed = { $name } se detuvo: se eliminó su carpeta.

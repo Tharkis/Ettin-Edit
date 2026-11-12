@@ -1601,6 +1601,8 @@ lang-escape = Escape \
 lang-multiline = Can span lines
 lang-numbers = Numbers
 lang-colour-numbers = Colour numbers
+lang-numbers-after-letters = Also right after a letter (X10)
+lang-numbers-after-letters-tip = For languages such as G-code, where a letter and a number go together. Off, the 10 in X10 stays uncoloured like part of a name.
 lang-case = Case
 lang-ignore-case = Ignore case in keywords (IF, If and if match)
 lang-operators = Operators
@@ -1722,3 +1724,7 @@ web-image-blocked = Not loaded: { $address }. Loading web images is off in Prefe
 ## Dialog windows (2.6)
 window-maximize = Fill the window
 window-restore = Restore size
+
+## Plugin folders (2.6)
+plugin-folder-added = Found the new plugin { $name }.
+plugin-folder-removed = { $name } stopped: its folder was removed.

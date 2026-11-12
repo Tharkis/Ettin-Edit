@@ -190,6 +190,8 @@ pub struct EttinApp {
     toolbar: ribbon::Toolbar,
     /// Notices settings files edited while Ettin Edit runs.
     watcher: Option<crate::watch::Watcher>,
+    /// When to look at the plugins folder again after a folder appeared.
+    plugin_folders_again: Option<f64>,
     theme_probe: settings_live::SystemThemeProbe,
     import_confirm: Option<settings_live::ImportConfirm>,
     /// The recipes when the Recipes window opened, for Undo Changes.
@@ -408,6 +410,7 @@ impl EttinApp {
             char_panel: Default::default(),
             toolbar,
             watcher: None,
+            plugin_folders_again: None,
             theme_probe: Default::default(),
             import_confirm: None,
             recipes_opened: None,

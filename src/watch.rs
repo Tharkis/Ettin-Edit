@@ -1,5 +1,6 @@
 //! Notices changes to the settings files while Ettin Edit runs: the themes,
-//! languages, translations and recipes folders, and `settings.json`.
+//! languages, translations and recipes folders, `settings.json`, and
+//! plugin folders being added or removed (Ettin Edit 2.6).
 //!
 //! Changes are collected for [`DEBOUNCE`] seconds (editors often save a
 //! file in several steps) before they are handed to the app. Files the app
@@ -22,6 +23,8 @@ pub enum Kind {
     Language,
     Translation,
     Recipe,
+    /// A folder in the plugins folder was added or removed.
+    Plugins,
 }
 
 /// The folders watched, each with what its files are.
@@ -31,6 +34,7 @@ pub fn watched_dirs(config: &Path) -> Vec<(PathBuf, Kind)> {
         (config.join("languages"), Kind::Language),
         (config.join("translations"), Kind::Translation),
         (config.join("recipes"), Kind::Recipe),
+        (config.join("plugins"), Kind::Plugins),
     ]
 }
 
@@ -49,6 +53,8 @@ pub fn classify(config: &Path, path: &Path) -> Option<Kind> {
         Kind::Language => name.ends_with(".lang.json") || name.ends_with(".sublime-syntax"),
         Kind::Translation => name.ends_with(".ftl"),
         Kind::Recipe => name.ends_with(".json"),
+        // Like plugin discovery: `.sdk` and `_hidden` folders don't count.
+        Kind::Plugins => !name.starts_with('.') && !name.starts_with('_'),
         Kind::Settings => false,
     };
     wanted.then_some(kind)
@@ -233,6 +239,15 @@ mod tests {
             Some(Kind::Translation)
         );
         assert_eq!(classify(config, Path::new("/cfg/themes/notes.txt")), None);
+        assert_eq!(
+            classify(config, Path::new("/cfg/plugins/word-count")),
+            Some(Kind::Plugins)
+        );
+        assert_eq!(classify(config, Path::new("/cfg/plugins/.sdk")), None);
+        assert_eq!(
+            classify(config, Path::new("/cfg/plugins/word-count/main.py")),
+            None
+        );
         assert_eq!(
             classify(config, Path::new("/cfg/backups/settings.json")),
             None

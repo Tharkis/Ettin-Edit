@@ -16,6 +16,8 @@ use crate::watch::Kind;
 /// Seconds between asks for the desktop's light/dark setting when the
 /// window system doesn't report it (X11).
 const PROBE_EVERY: f64 = 3.0;
+/// Seconds after a plugin folder appears to look at it once more.
+const PLUGIN_FOLDERS_AGAIN: f64 = 2.0;
 
 /// Asks the desktop for its light/dark setting in the background.
 #[derive(Default)]
@@ -80,8 +82,23 @@ impl EttinApp {
         if waiting {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
+        let mut plugins = false;
         for (kind, path) in ready {
-            self.reload_changed(ctx, kind, &path);
+            if kind == Kind::Plugins {
+                plugins = true;
+            } else {
+                self.reload_changed(ctx, kind, &path);
+            }
+        }
+        // A folder being copied in may not have its plugin.json yet: look
+        // again a moment later too.
+        let again = self.plugin_folders_again.is_some_and(|t| now >= t);
+        if plugins || again {
+            self.sync_plugin_folders(ctx, now);
+            self.plugin_folders_again = plugins.then_some(now + PLUGIN_FOLDERS_AGAIN);
+            if plugins {
+                ctx.request_repaint_after(std::time::Duration::from_secs_f64(PLUGIN_FOLDERS_AGAIN));
+            }
         }
     }
 
@@ -245,6 +262,7 @@ impl EttinApp {
                     None => self.live_ok(ctx, path),
                 }
             }
+            Kind::Plugins => {}
             Kind::Recipe => {
                 if let Some(text) = &text
                     && let Err(e) = crate::recipes::Recipe::from_json(text)
