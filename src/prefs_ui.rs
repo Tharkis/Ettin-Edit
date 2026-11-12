@@ -66,6 +66,7 @@ macro_rules! section_fields {
                 show_toolbar,
                 toolbar_mode,
                 show_menu_bar,
+                markdown_web_images,
                 editor_font,
                 default_font_size
             ),
@@ -599,6 +600,18 @@ impl PrefsDialog {
             "menus file edit hide alt",
             |ui| {
                 ui.checkbox(&mut settings.show_menu_bar, t!("prefs-show"));
+            },
+        );
+        form.row(
+            ui,
+            &t!("prefs-markdown-preview"),
+            "markdown preview images web internet remote privacy http",
+            |ui| {
+                ui.checkbox(
+                    &mut settings.markdown_web_images,
+                    t!("prefs-markdown-web-images"),
+                )
+                .on_hover_text(t!("prefs-markdown-web-images-tip"));
             },
         );
         form.heading(t!("prefs-font"));

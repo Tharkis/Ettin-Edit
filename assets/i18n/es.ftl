@@ -1714,3 +1714,9 @@ press-chord-first = Pulsa la primera tecla del acorde, como Ctrl+K… (Esc cance
 press-chord-second = { $key }, luego… pulsa la segunda tecla.
 add-chord = Añadir acorde…
 add-chord-tip = Un atajo de dos teclas como Ctrl+K S: pulsa una tecla con Ctrl o Alt, suéltala y luego pulsa una segunda tecla.
+
+## Imágenes web en Markdown (2.6)
+prefs-markdown-preview = Vista previa de Markdown
+prefs-markdown-web-images = Cargar imágenes de la web
+prefs-markdown-web-images-tip = Las imágenes con direcciones http:// o https:// se cargan desde Internet, lo que le dice a ese servidor que abriste el archivo. Desactivado, se muestran como su descripción; las imágenes de archivos se siguen mostrando.
+web-image-blocked = No cargada: { $address }. La carga de imágenes web está desactivada en Preferencias > Apariencia > Vista previa de Markdown.

@@ -2240,6 +2240,7 @@ impl EttinApp {
     }
 
     fn handle_input(&mut self, ctx: &egui::Context) {
+        crate::manual::set_web_images(self.settings.markdown_web_images);
         self.shortcut_mapper.grab_keys(ctx);
         self.recipe_window.grab_keys(ctx);
         self.watch_alt(ctx);

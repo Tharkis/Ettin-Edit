@@ -112,6 +112,9 @@ pub struct Settings {
     /// The File, Edit, View… menu bar. When it is hidden, tapping Alt shows it
     /// until a command runs.
     pub show_menu_bar: bool,
+    /// Markdown Preview (and Markdown in plugin panels) loads images from
+    /// web addresses. Off, they show as their descriptions (Ettin Edit 2.6).
+    pub markdown_web_images: bool,
     /// Commands run with Transform > Filter Through Command, newest first.
     pub pipe_commands: Vec<String>,
     /// Recipes whose shell commands may run without asking, by
@@ -324,6 +327,7 @@ impl Default for Settings {
             toolbar_collapsed: false,
             toolbar_mode: ToolbarMode::Full,
             show_menu_bar: true,
+            markdown_web_images: true,
             pipe_commands: Vec::new(),
             allowed_recipes: Vec::new(),
             recent_commands: Vec::new(),

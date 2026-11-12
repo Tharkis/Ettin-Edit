@@ -1712,3 +1712,9 @@ press-chord-first = Press the chord's first key, like Ctrl+K… (Esc cancels)
 press-chord-second = { $key }, then… press the second key.
 add-chord = Add Chord…
 add-chord-tip = A two-key shortcut like Ctrl+K S: press a key with Ctrl or Alt, let go, then press a second key.
+
+## Markdown web images (2.6)
+prefs-markdown-preview = Markdown Preview
+prefs-markdown-web-images = Load images from the web
+prefs-markdown-web-images-tip = Images with http:// or https:// addresses load from the internet, which tells that server you opened the file. Off, they show as their descriptions; images from files still show.
+web-image-blocked = Not loaded: { $address }. Loading web images is off in Preferences > Appearance > Markdown Preview.
