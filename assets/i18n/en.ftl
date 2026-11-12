@@ -1700,3 +1700,15 @@ recipe-step-split = Split lines at “{ $separator }”
 recipe-step-join-with = Join lines with “{ $separator }”, quoted with { $quote }
 recipe-step-escape = Escape for { $language }
 recipe-step-unescape = Unescape { $language }
+
+## Chords (2.6)
+chord-two-keys = “{ $shortcut }” isn't a chord: write two keys with a space, like Ctrl+K S.
+chord-waiting = { $key } was pressed. Waiting for the second key… (Esc cancels)
+chord-unknown = { $chord } isn't a command.
+chord-first-in-use = { $shortcut } is the shortcut of { $command }, so a chord can't start with it.
+chord-in-use = { $chord } is already the chord of { $command }.
+shortcut-starts-chord = { $shortcut } starts a chord of { $command }, so it can't be a shortcut too.
+press-chord-first = Press the chord's first key, like Ctrl+K… (Esc cancels)
+press-chord-second = { $key }, then… press the second key.
+add-chord = Add Chord…
+add-chord-tip = A two-key shortcut like Ctrl+K S: press a key with Ctrl or Alt, let go, then press a second key.

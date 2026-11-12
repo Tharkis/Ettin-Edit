@@ -1701,3 +1701,15 @@ recipe-step-split = Couper les lignes à « { $separator } »
 recipe-step-join-with = Joindre les lignes avec « { $separator } », entre { $quote }
 recipe-step-escape = Échapper pour { $language }
 recipe-step-unescape = Déséchapper { $language }
+
+## Accords (2.6)
+chord-two-keys = « { $shortcut } » n’est pas un accord : écrivez deux touches séparées par un espace, comme Ctrl+K S.
+chord-waiting = { $key } a été pressé. En attente de la deuxième touche… (Échap annule)
+chord-unknown = { $chord } n’est pas une commande.
+chord-first-in-use = { $shortcut } est le raccourci de { $command }, un accord ne peut donc pas commencer par lui.
+chord-in-use = { $chord } est déjà l’accord de { $command }.
+shortcut-starts-chord = { $shortcut } commence un accord de { $command }, il ne peut donc pas être aussi un raccourci.
+press-chord-first = Appuyez sur la première touche de l’accord, comme Ctrl+K… (Échap annule)
+press-chord-second = { $key }, puis… appuyez sur la deuxième touche.
+add-chord = Ajouter un accord…
+add-chord-tip = Un raccourci à deux touches comme Ctrl+K S : appuyez sur une touche avec Ctrl ou Alt, relâchez, puis appuyez sur une deuxième touche.

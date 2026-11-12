@@ -63,6 +63,51 @@ pub fn to_text(s: &KeyboardShortcut) -> String {
     text
 }
 
+/// A two-key chord (Ettin Edit 2.6): a shortcut, then a second key that
+/// may be pressed on its own or with modifiers, like VS Code's `Ctrl+K S`.
+pub type Chord = (KeyboardShortcut, KeyboardShortcut);
+
+/// True when `text` is written as a chord: two shortcuts with a space.
+pub fn is_chord(text: &str) -> bool {
+    text.trim().contains(' ')
+}
+
+/// Parses a chord such as `Ctrl+K S` or `Ctrl+K Ctrl+0`.
+pub fn parse_chord(text: &str) -> Result<Chord, String> {
+    let mut parts = text.split_whitespace();
+    let (Some(first), Some(second), None) = (parts.next(), parts.next(), parts.next()) else {
+        return Err(t!("chord-two-keys", shortcut = text.trim()));
+    };
+    let first = parse(first)?;
+    Ok((first, parse_second(second)?))
+}
+
+/// The second key of a chord: any key, with or without modifiers.
+pub fn parse_second(text: &str) -> Result<KeyboardShortcut, String> {
+    match parse(text) {
+        Ok(s) => Ok(s),
+        Err(e) if text.contains('+') && !text.ends_with("++") => Err(e),
+        Err(_) => key_from_name(text.trim())
+            .map(|k| KeyboardShortcut::new(Modifiers::NONE, k))
+            .ok_or_else(|| t!("unknown-key", key = text.trim(), shortcut = text)),
+    }
+}
+
+/// Writes a chord the way [`parse_chord`] reads it.
+pub fn chord_to_text(c: &Chord) -> String {
+    format!("{} {}", to_text(&c.0), to_text(&c.1))
+}
+
+/// A chord as menus show it, in the platform's style.
+pub fn format_chord(ctx: &egui::Context, c: &Chord) -> String {
+    format!("{} {}", ctx.format_shortcut(&c.0), ctx.format_shortcut(&c.1))
+}
+
+/// True when both chords are the same keys.
+pub fn same_chord(a: &Chord, b: &Chord) -> bool {
+    same(&a.0, &b.0) && same(&a.1, &b.1)
+}
+
 fn key_from_name(name: &str) -> Option<Key> {
     let alias = match name.to_ascii_lowercase().as_str() {
         "del" => "Delete",
@@ -102,6 +147,20 @@ fn modifier_bits(s: &KeyboardShortcut) -> (bool, bool, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_chords() {
+        let c = parse_chord("Ctrl+K S").unwrap();
+        assert!(c.0.modifiers.command && c.0.logical_key == Key::K);
+        assert!(c.1.modifiers.is_none() && c.1.logical_key == Key::S);
+        assert_eq!(chord_to_text(&c), "Ctrl+K S");
+        let c = parse_chord("ctrl+k ctrl+0").unwrap();
+        assert_eq!(chord_to_text(&c), "Ctrl+K Ctrl+0");
+        assert!(parse_chord("Ctrl+K").is_err());
+        assert!(parse_chord("K S").is_err(), "the first key needs a modifier");
+        assert!(parse_chord("Ctrl+K Bogus").is_err());
+        assert!(is_chord(" Ctrl+K  S ") && !is_chord("Ctrl+K"));
+    }
 
     #[test]
     fn parses_common_shortcuts() {

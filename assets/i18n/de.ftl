@@ -1701,3 +1701,15 @@ recipe-step-split = Zeilen bei „{ $separator }“ teilen
 recipe-step-join-with = Zeilen mit „{ $separator }“ verbinden, in { $quote }
 recipe-step-escape = Für { $language } maskieren
 recipe-step-unescape = { $language }-Maskierung aufheben
+
+## Akkorde (2.6)
+chord-two-keys = „{ $shortcut }“ ist kein Akkord: Schreibe zwei Tasten mit Leerzeichen, etwa Strg+K S.
+chord-waiting = { $key } wurde gedrückt. Warte auf die zweite Taste… (Esc bricht ab)
+chord-unknown = { $chord } ist kein Befehl.
+chord-first-in-use = { $shortcut } ist das Tastenkürzel von { $command }, daher kann kein Akkord damit beginnen.
+chord-in-use = { $chord } ist bereits der Akkord von { $command }.
+shortcut-starts-chord = { $shortcut } beginnt einen Akkord von { $command } und kann daher kein Tastenkürzel sein.
+press-chord-first = Drücke die erste Taste des Akkords, etwa Strg+K… (Esc bricht ab)
+press-chord-second = { $key }, dann… drücke die zweite Taste.
+add-chord = Akkord hinzufügen…
+add-chord-tip = Ein Kürzel aus zwei Tasten wie Strg+K S: eine Taste mit Strg oder Alt drücken, loslassen, dann eine zweite Taste drücken.

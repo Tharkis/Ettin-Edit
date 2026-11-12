@@ -599,6 +599,7 @@ impl EttinApp {
                 let detail = crate::actions::effective_shortcut(&c.action, c.plugin_shortcut)
                     .or_else(|| all.iter().find(|(_, a)| *a == c.action).map(|(s, _)| *s))
                     .map(|s| ctx.format_shortcut(&s))
+                    .or_else(|| crate::actions::chord_label(ctx, &c.action))
                     .unwrap_or_default();
                 let key = crate::actions::command_key(&c.action);
                 let recent = recent.iter().position(|k| *k == key);
@@ -631,6 +632,7 @@ impl EttinApp {
     /// The shortcut mapper's rows: every command with its default shortcuts.
     pub(super) fn shortcut_rows(&self, ctx: &egui::Context) -> Vec<crate::shortcut_ui::Row> {
         let defaults = crate::actions::default_shortcuts();
+        let chord_defaults = crate::actions::preset_chords(crate::actions::keymap());
         let fixed = crate::actions::editor_shortcuts();
         self.command_catalog(ctx)
             .into_iter()
@@ -643,10 +645,16 @@ impl EttinApp {
                     .map(|(s, _)| *s)
                     .collect();
                 list.extend(c.plugin_shortcut);
+                let chords = chord_defaults
+                    .iter()
+                    .filter(|(_, a)| *a == c.action)
+                    .map(|(ch, _)| *ch)
+                    .collect();
                 crate::shortcut_ui::Row {
                     path: c.path,
                     action: c.action,
                     defaults: list,
+                    default_chords: chords,
                     fixed: is_fixed,
                 }
             })

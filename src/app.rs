@@ -90,6 +90,8 @@ pub struct EttinApp {
     startup_window: crate::startup_window::StartupWindow,
     /// Alt is down: true while nothing else has been pressed with it.
     alt_tap: Option<bool>,
+    /// The first key of a two-key chord, while waiting for the second.
+    chord_first: Option<egui::KeyboardShortcut>,
     /// Where the menu bar was last drawn.
     menu_rect: Option<egui::Rect>,
     quitting: bool,
@@ -334,6 +336,7 @@ impl EttinApp {
             size_window: cc.storage.is_none_or(|s| s.get_string("window").is_none()),
             startup_window: crate::startup_window::StartupWindow::new(),
             alt_tap: None,
+            chord_first: None,
             menu_rect: None,
             quitting: false,
             focus_editor: true,
@@ -2240,7 +2243,9 @@ impl EttinApp {
         self.shortcut_mapper.grab_keys(ctx);
         self.recipe_window.grab_keys(ctx);
         self.watch_alt(ctx);
-        if !self.any_dialog_open() {
+        if self.any_dialog_open() {
+            self.chord_first = None;
+        } else if !self.handle_chords(ctx) {
             let mut fired = Vec::new();
             let mut shortcuts = actions::default_shortcuts();
             // Shift and Alt may be held for a shortcut without them, so
@@ -2280,6 +2285,85 @@ impl EttinApp {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
             self.pending.push(Action::Quit);
         }
+    }
+
+    /// Two-key chords like Ctrl+K S. Returns true when this frame's keys
+    /// belonged to a chord, so they mustn't run single shortcuts too.
+    fn handle_chords(&mut self, ctx: &egui::Context) -> bool {
+        use crate::plugins::shortcut;
+        let chords = actions::chords();
+        if chords.is_empty() {
+            self.chord_first = None;
+            return false;
+        }
+        // The key presses of this frame, with Ctrl and Command as one.
+        let pressed: Vec<egui::KeyboardShortcut> = ctx.input(|i| {
+            i.events
+                .iter()
+                .filter_map(|e| match e {
+                    egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } if !crate::shortcut_ui::is_modifier(*key) => {
+                        Some(egui::KeyboardShortcut::new(
+                            egui::Modifiers {
+                                command: modifiers.command || modifiers.ctrl,
+                                ctrl: false,
+                                mac_cmd: false,
+                                ..*modifiers
+                            },
+                            *key,
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect()
+        });
+        let swallow = |ctx: &egui::Context| {
+            ctx.input_mut(|i| {
+                i.events
+                    .retain(|e| !matches!(e, egui::Event::Key { .. } | egui::Event::Text(_)))
+            })
+        };
+        if let Some(first) = self.chord_first {
+            let Some(second) = pressed.first().copied() else {
+                // Waiting: typed letters mustn't reach the text.
+                ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Text(_))));
+                return true;
+            };
+            self.chord_first = None;
+            swallow(ctx);
+            if second.logical_key == egui::Key::Escape && second.modifiers.is_none() {
+                self.notice = None;
+                return true;
+            }
+            let chord = (first, second);
+            match chords.iter().find(|(c, _)| shortcut::same_chord(c, &chord)) {
+                Some((_, action)) => {
+                    self.notice = None;
+                    self.pending.push(action.clone());
+                }
+                None => {
+                    let keys = shortcut::format_chord(ctx, &chord);
+                    self.notify(ctx, t!("chord-unknown", chord = keys), None);
+                }
+            }
+            return true;
+        }
+        let Some(first) = pressed.iter().copied().find(|p| {
+            chords
+                .iter()
+                .any(|(c, _)| shortcut::same(&c.0, p))
+        }) else {
+            return false;
+        };
+        self.chord_first = Some(first);
+        swallow(ctx);
+        let keys = ctx.format_shortcut(&first);
+        self.notify(ctx, t!("chord-waiting", key = keys), None);
+        true
     }
 
     /// While the menu bar is hidden, a tap of Alt on its own shows it until a
