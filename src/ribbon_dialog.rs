@@ -348,8 +348,7 @@ impl CustomiseDialog {
                                 })
                                 .inner;
                             self.tree_row(&response, sel, &mut dropped, palette);
-                            for g in 0..draft.tabs[t].groups.len() {
-                                let group = &draft.tabs[t].groups[g];
+                            for (g, group) in draft.tabs[t].groups.iter().enumerate() {
                                 let sel = Sel::Group(t, g);
                                 let response = row(
                                     ui,
@@ -361,8 +360,7 @@ impl CustomiseDialog {
                                     palette,
                                 );
                                 self.tree_row(&response, sel, &mut dropped, palette);
-                                for i in 0..group.items.len() {
-                                    let item = &group.items[i];
+                                for (i, item) in group.items.iter().enumerate() {
                                     let sel = Sel::Item(t, g, i);
                                     let entry = commands.iter().find(|c| c.key == item.command);
                                     let (icon, label) = item_look(item, entry);
