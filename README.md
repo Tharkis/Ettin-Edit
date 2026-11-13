@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>A text editor with two heads, because one opinion about tabs was never enough.</b><br>
-  Fast, friendly and free of Notepad++ code. Runs on Linux and Windows.
+  Built for turning one system's text into another's: reshape exports, convert formats,<br>
+  clean up logs and save the steps as a recipe. Free of Notepad++ code. Runs on Linux and Windows.
 </p>
 
 <p align="center">
@@ -20,6 +21,7 @@
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#what-it-does">Features</a> ·
+  <a href="#from-the-command-line">Command line</a> ·
   <a href="#plugins">Plugins</a> ·
   <a href="#building">Build</a> ·
   <a href="FEATURES.md">Full feature list</a>
@@ -44,29 +46,37 @@ They argue a lot. You get an editor that does both.
 
 ## What it does
 
-Ettin Edit is a clean-room editor inspired by Notepad++. It looks the same on every
-platform because it draws its own window with [egui](https://github.com/emilk/egui),
-and it carries built-in versions of the Notepad++ plugins people install first.
+Ettin Edit is for people who spend their day turning one system's output into
+another system's input: log files, CSV and JSON exports, Excel workbooks, XML and
+HL7 messages. Every change is a transform you can preview before it touches
+anything, and any list of them can be saved as a recipe and run again on next
+week's file, even from the command line.
+
+Underneath it's a complete clean-room editor inspired by Notepad++, with built-in
+versions of the Notepad++ plugins people install first. It draws its own window
+with [egui](https://github.com/emilk/egui), so it looks the same on every platform.
 
 | | |
 | --- | --- |
-| ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing (with a Column Mode), code folding that follows the grammar, keyword completion, parameter hints, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second, and word wrap keeps up when you resize the window. |
-| 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with ten named colours (Comments, Strings, Keywords…), *What colours this?* and window colours. Drop in any `.tmTheme` you like. |
-| 🔎 **Finds things** | Find and replace with regex or extended escapes (`\n`, `\r\n`, `\t`, `\x41`), Find All in open tabs, Find in Files in the background, marks and a results panel. |
-| 🍳 **Recipes** | Save a list of Transform steps (find and replace, keep lines, sort, trim, convert, encode, even shell commands) under a name, watch a live preview after any step, on the open tab or on sample text saved with the recipe, or record one by doing the job once. Run it on a selection, every open tab, or from the command line (`ettin-edit --recipe "Tidy Whitespace" *.txt --in-place`). Recipes are plain JSON files you can share. |
 | 🔁 **Transform first** | Everything that changes text lives in one Transform menu: pipe it through any shell command, keep or drop matching lines, sort, count duplicates, number lines, reflow paragraphs, change case (camelCase, snake_case…), pull regex matches into a new tab, line up columns, pick, drop and sort fields of CSV or log lines, join lines into a quoted list for SQL `IN (…)`, escape strings for JSON, C, SQL, regex or the shell, turn Unix times into dates, convert to JSON, YAML, TOML, XML, CSV or a Markdown table (it works out what you have), Base64, URL and HTML encoding, hashes, hex, JWT, and JSON and XML formatting. The toolbar's Home tab and the right-click menu put the transforms that fit your text first. |
 | 👀 **Try before you apply** | Keep Matching Lines paints the lines that stay green and the ones that go red as you type; the other transform dialogs show Input and Output side by side, and Filter Through Command previews a shell command before it touches anything. Send any result to this tab, a new tab or the clipboard. Open a one-line JSON file and a bar offers to format it (also for tokens, Base64, CSV and mixed line endings). |
+| 🧮 **Tables** | Open an Excel workbook, a CSV, a JSON or XML export or a file of HL7 v2 messages as a table, like a spreadsheet for structured data. Typed columns, dates read the way they were written (`DD/MM/YYYY`), filters, sorting, renames and value clean-up, each a step you can switch off or change. Pick the rows out of a nested JSON or XML tree, explode lists into rows, and read HL7 one message or one result per row, with each field's name when you point at a column. Export as CSV, `.xlsx`, nested JSON, YAML, XML, HL7 from a template or Markdown, and save the steps as a recipe for next week's export. Made-up [sample files](samples/tables) to try it on are included. |
+| 🍳 **Recipes** | Save a list of Transform steps (find and replace, keep lines, sort, trim, convert, encode, even shell commands) under a name, watch a live preview after any step, on the open tab or on sample text saved with the recipe, or record one by doing the job once. Run it on a selection, every open tab, or from the command line (`ettin-edit --recipe "Tidy Whitespace" *.txt --in-place`). Recipes are plain JSON files you can share. |
+| 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
 | 🧰 **Tools menu** | Tools that look without changing: a live JSON tree and JSON validation (JSTool), XPath, XML syntax checks, XSD/DTD validation and XSLT (XML Tools). |
 | ⚖️ **Compare** | Two tabs, the last save, the clipboard or your last Git commit, with word-level highlights and moved blocks (our take on ComparePlus). |
-| 🧮 **Tables** | Open an Excel workbook, a CSV, JSON or XML export or HL7 v2 messages as a table: typed columns, dates read the way they were written (`DD/MM/YYYY`), filters, sorting, renames and value clean-up, each a step you can switch off or change. Pull nested lists out into rows, read HL7 one message or one segment per row with field names on hover. Export as CSV, `.xlsx`, JSON, YAML, XML, HL7 from a template or Markdown, and save the steps as a recipe for next week's export. |
-| 📊 **CsvQuery** | Run SQL against the CSV you have open, join it with other open tabs and sort the results. Your spreadsheet would like a word. |
+| ✍️ **A proper editor** | Tabs, split view, multiple carets, column editing (with a Column Mode), code folding that follows the grammar, keyword completion, parameter hints, macros, bookmarks, auto-close and smart indent. Opens a 50 MB file in about a second, and word wrap keeps up when you resize the window. |
+| 🔎 **Finds things** | Find and replace with regex or extended escapes (`\n`, `\r\n`, `\t`, `\x41`), Find All in open tabs, Find in Files in the background, marks and a results panel. |
 | 🌍 **Text in any shape** | About 80 languages, plus your own from the **Define Language** form or a short `.lang.json` file. UTF-8, UTF-16 and legacy code pages, every line ending, Chinese, Japanese and Korean text. |
+| 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a Markdown preview that scrolls with the text and shows images, a hex view that edits any byte and opens binary files of any size, and a command palette on F1 that puts your recent commands, recipes and plugin commands first. F11 hides everything except your words. |
 | 🧩 **Plugins in Python or JavaScript** | Your choice. Add transforms that work like the built-in ones (preview, options, one undo step, recipe steps), commands, shortcuts, toolbar buttons and panels, and install them from Plugins > Manage Plugins. Plugins > New Plugin… writes one to start from and reloads it as you save. |
-| 🧭 **Panels** | Function list, document map, a folder workspace, a character panel with every Unicode name, a hex view that edits any byte and opens binary files of any size, and a command palette on F1 that puts your recent commands, recipes and plugin commands first. F11 hides everything except your words. |
-| 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
+| 🎨 **Looks good in the dark** | Nine themes (Ettin Dark is the default), every one an editable file, plus a colour editor with ten named colours (Comments, Strings, Keywords…), *What colours this?* and window colours. Drop in any `.tmTheme` you like. |
 | 🎛️ **A toolbar you arrange** | Office-style tabs of buttons for the commands you use most. Drag any menu command, macro or plugin command onto it, pick icons and labels, switch to a one-row simplified toolbar, or collapse it out of the way. Hide the toolbar, the menu bar or both for a cleaner window (tap Alt to reach the menus). |
 | ⌨️ **Yours to bend** | A searchable Preferences window where changes apply at once (with Undo Changes), light/dark themes that follow your desktop, per-language indentation, Notepad++ or VS Code keys plus two-key chords like Ctrl+K S, resizable dialogs, settings files that reload as you save them, and Export/Import Settings to take it all to another computer. |
+| 🛟 **Doesn't lose your work** | Sessions and backups of unsaved changes come back after a crash, a reboot or a cat on the keyboard. |
 | 🗣️ **Speaks your language** | English, plus Deutsch, Français and Español (machine-translated for now, corrections welcome), following your system's language. Add your own with one text file. |
+
+![Lab results from an HL7 file shown as a table, one row per result, with the Table toolbar above, the Steps panel at the right and a tooltip naming the PID.5.1 column Patient Name, Family Name](docs/screenshots/table.png)
 
 Everything that works today, and the few things that don't yet, is ticked off in
 [FEATURES.md](FEATURES.md).
@@ -106,6 +116,23 @@ To build the Arch package yourself from a checkout:
 cd packaging/arch
 makepkg -si
 ```
+
+## From the command line
+
+Recipes run without opening a window, so a job you set up once by hand can go in a
+script or a scheduled task:
+
+```sh
+ettin-edit --list-recipes                                      # what's saved
+ettin-edit --recipe "Tidy Whitespace" *.txt --in-place          # change files where they are
+ettin-edit --recipe "Ward report" export.csv > report.json      # result to standard output
+ettin-edit --recipe "Ward report" export.xlsx --out report.xlsx # result to a file (needed for .xlsx)
+some-command | ettin-edit --recipe "Mask IDs" > masked.txt       # no files: reads standard input
+```
+
+A recipe with shell command steps only runs them with `--allow-commands`. Without
+`--recipe`, the files you name open in the window as usual
+([details](https://tharkis.github.io/Ettin-Edit/recipes.html#from-the-command-line)).
 
 ## Plugins
 
@@ -203,13 +230,20 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `src/search.rs` | Search queries (plain, extended escapes, whole word, regex), replacement templates, and Find in Files |
 | `src/search_ui.rs` | The find bar, results panel, and the Go to Line and Find in Files dialogs |
 | `src/tools_ui.rs` | The Column Editor and macro dialogs |
-| `src/tools/` | The text tools behind the Transform and Tools menus: `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0), `csv.rs` (reading delimited text), `sql.rs` (CsvQuery's SQLite tables and queries) |
+| `src/tools/` | The text tools behind the Transform and Tools menus: `transform.rs` (keep or remove lines, count distinct, prefix and suffix, number lines, reflow, hashes, hex, JWT), `fields.rs` (extract matches, align columns, fields, split and join, escapes, Unix times), `convert.rs` (JSON, YAML, TOML, XML, CSV and Markdown tables), `pipe.rs` (running shell commands), `mime.rs` (Base64, URL, quoted-printable, HTML, SAML), `json.rs` (JSON parser, formatter and tree), `js.rs` (JavaScript formatter and minifier), `xml.rs` (pretty print, linearize, syntax check, XPath at the caret), `xpath.rs` (XPath 1.0), `csv.rs` (reading delimited text), `sql.rs` (CsvQuery's SQLite tables and queries) |
 | `src/csv_query.rs`, `src/app/csv_query.rs` | The CsvQuery panel, its background query thread, and which tabs are tables |
 | `src/text_tools_ui.rs` | The JSON tree and XPath panels, and the notices tools show |
 | `src/menu.rs`, `src/app/menus.rs` | Menus as data, so the Edit, Transform and Tools menus are drawn in both the menu bar and the right-click menu |
 | `src/transform_ui.rs`, `src/app/transform.rs` | The Transform dialogs, their previews and Result goes to, and running shell commands |
 | `src/suggest.rs`, `src/app/suggest.rs` | The suggestion bar's detectors (one-line JSON and XML, JWT, Base64, CSV, mixed line endings and indentation) and the bar |
 | `src/app/welcome.rs` | The Welcome tab, What's new (release notes from the metainfo) and the guided tour |
+| `src/fields_ui.rs` | The settings form of the Columns and Fields commands, shared by their dialogs and the Recipes window |
+| `src/app/convert.rs` | Working out which format a tab is in, and the Convert to and Read as menus |
+| `src/recipes.rs`, `src/app/recipes.rs`, `src/recipe_ui.rs` | Recipes: the steps and their runner, running and recording them in the app, and the Recipes window |
+| `src/cli.rs` | Running a recipe from the command line (`--recipe`, `--list-recipes`, `--in-place`, `--out`) |
+| `src/table/` | The table engine: `mod.rs` (typed columns), `import.rs` (CSV, workbooks, JSON, XML and HL7 into a table), `hl7.rs` and `hl7_dict.txt` (the HL7 v2 reader, writer and field names), `pattern.rs` (date patterns), `steps.rs` (the steps), `export.rs` (CSV, `.xlsx`, JSON, YAML, XML, HL7 and Markdown), `job.rs` (a whole job, as kept in a recipe) |
+| `src/table_ui.rs`, `src/app/tables.rs` | The table tab: the grid, the Steps panel and the dialogs, and opening workbooks and text as tables |
+| `samples/tables/` | Made-up sample data (HL7, JSON, XML, CSV) for trying tables and for the tests |
 | `src/transforms.rs` | The transform catalogue: every command that changes text, in the groups the Transform menu, the right-click menu and the recipe window's Add Step all use |
 | `src/app/text_tools.rs` | Runs the text tools on the current document |
 | `src/app/views.rs` | Split view: which tabs are in which view, moving and cloning tabs, the divider |
@@ -222,6 +256,11 @@ See [LICENSE](LICENSE). The toolbar icons are [Phosphor](https://phosphoricons.c
 | `plugins/sdk/` | The Python and JavaScript SDKs that plugins import, and their type hints (`ettin.pyi`, `ettin.d.ts`) |
 | `plugins/samples/` | The sample plugins: Text Statistics (Python), Markdown Outline (JavaScript), Markdown Preview (plugin example, Python) and HL7 Viewer (Python; `hl7.py` parses messages, `hl7_defs.py` is the HL7 v2.5.1 dictionary) |
 | `src/macros.rs` | Macro recording and playback steps |
+| `src/ribbon.rs`, `src/ribbon_ui.rs`, `src/ribbon_dialog.rs`, `src/app/ribbon.rs` | The toolbar: its layout, drawing it, Customise Toolbar, and which commands it can show |
+| `src/i18n.rs`, `assets/i18n/` | Translations of the interface (Fluent `.ftl` files) |
+| `src/a11y.rs` | Names for screen readers of buttons that show only an icon |
+| `src/dialog.rs` | Helpers for resizable dialogs |
+| `src/startup_window.rs` | Opening maximized without a flicker on Windows |
 | `src/prefs_ui.rs`, `src/shortcut_ui.rs`, `src/style_ui.rs` | Preferences, the Shortcut Mapper and the theme colour editor |
 | `src/theme_simple.rs` | The Simple theme colours, What colours this? and highlighted previews |
 | `src/lang_dialog.rs` | Language > Define Language (the form, its preview and `.lang.json` round trip) |
