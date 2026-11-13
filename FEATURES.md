@@ -1,7 +1,8 @@
 # Ettin Edit Features
 
 This document lists the features of Ettin Edit, the release each one arrived in, and the
-work that remains. It is updated with every release.
+work that remains. It is updated with every release, along with the "What's new" section of
+the [README](README.md#whats-new), which always covers the latest two releases.
 
 | Status | Meaning |
 | --- | --- |
