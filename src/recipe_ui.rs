@@ -320,6 +320,11 @@ pub fn step_label(step: &Step) -> String {
             ),
         },
         Step::Field(op) => crate::fields_ui::summary(op),
+        Step::Table(job) => t!(
+            "recipe-step-table",
+            steps = job.steps.iter().filter(|s| s.enabled).count(),
+            format = job.write.summary()
+        ),
     }
 }
 
@@ -635,6 +640,16 @@ fn step_settings(ui: &mut Ui, id: Id, step: &mut Step, palette: &Palette, focus:
                 r.request_focus();
             }
             changed |= f.changed;
+        }
+        Step::Table(job) => {
+            for line in job.summary() {
+                ui.label(RichText::new(format!("• {line}")).size(12.0));
+            }
+            ui.label(
+                RichText::new(tr("recipe-table-hint"))
+                    .size(12.0)
+                    .color(palette.text_dim),
+            );
         }
         Step::Plugin { options, .. } => {
             if options.is_empty() {

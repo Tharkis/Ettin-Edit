@@ -205,6 +205,7 @@ runs on Linux and Windows only.
 | Recipes > Manage Recipes… | <kbd>Ctrl+Alt+R</kbd> |
 | Filter Through Command… | <kbd>Ctrl+Alt+P</kbd> |
 | Lines > Keep Matching Lines… | <kbd>Ctrl+Alt+K</kbd> |
+| Table > Show as Table / Show as Text | <kbd>Ctrl+Alt+T</kbd> |
 | Macros > Start or Stop Recording | <kbd>Ctrl+Shift+R</kbd> |
 | Macros > Playback | <kbd>Ctrl+Shift+P</kbd> |
 | Convert Case To > UPPERCASE | <kbd>Ctrl+Shift+U</kbd> |

@@ -17,6 +17,8 @@ use crate::tools::xml::XmlOp;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Action {
+    /// A table tab command (2.7).
+    Table(crate::table_ui::TableCmd),
     NewTab,
     Open,
     OpenPath(std::path::PathBuf),
@@ -691,6 +693,10 @@ fn ettin_shortcuts() -> Vec<(KeyboardShortcut, Action)> {
         (s(CMD_ALT, Key::N), Action::Json(JsonOp::Minify)),
         (s(CMD_ALT, Key::J), Action::ToggleJsonTree),
         (s(CMD_ALT, Key::Q), Action::ToggleCsvQuery),
+        (
+            s(CMD_ALT, Key::T),
+            Action::Table(crate::table_ui::TableCmd::ShowAsTable),
+        ),
         (
             s(CMD_ALT, Key::P),
             Action::TransformDialog(crate::transform_ui::DialogKind::Pipe),

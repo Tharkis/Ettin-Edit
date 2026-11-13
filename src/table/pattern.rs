@@ -110,13 +110,6 @@ impl Pattern {
         Ok(Self { tokens })
     }
 
-    /// Whether the pattern has a time of day.
-    pub fn has_time(&self) -> bool {
-        self.tokens
-            .iter()
-            .any(|t| matches!(t, Token::Hour24 | Token::Hour12))
-    }
-
     /// Reads `text` (surrounding spaces ignored); `None` when it doesn't
     /// match or isn't a real date.
     pub fn parse(&self, text: &str) -> Option<NaiveDateTime> {
@@ -177,7 +170,11 @@ impl Pattern {
                     match numeric {
                         Token::Year4 => year = Some(v as i32),
                         Token::Year2 => {
-                            year = Some(if v < 50 { 2000 + v as i32 } else { 1900 + v as i32 })
+                            year = Some(if v < 50 {
+                                2000 + v as i32
+                            } else {
+                                1900 + v as i32
+                            })
                         }
                         Token::Month => month = Some(v),
                         Token::Day => day = Some(v),
@@ -220,7 +217,10 @@ mod tests {
 
     #[test]
     fn reads_common_layouts() {
-        assert_eq!(p("DD/MM/YYYY", "02/03/1984").unwrap(), "1984-03-02 00:00:00");
+        assert_eq!(
+            p("DD/MM/YYYY", "02/03/1984").unwrap(),
+            "1984-03-02 00:00:00"
+        );
         assert_eq!(p("DD/MM/YYYY", "2/3/1984").unwrap(), "1984-03-02 00:00:00");
         assert_eq!(p("M/D/YY", "12/30/67").unwrap(), "1967-12-30 00:00:00");
         assert_eq!(p("YYYYMMDD", "19840302").unwrap(), "1984-03-02 00:00:00");

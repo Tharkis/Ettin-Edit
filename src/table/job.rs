@@ -91,7 +91,12 @@ impl TableJob {
     /// One line per step, for recipes.
     pub fn summary(&self) -> Vec<String> {
         let mut out = vec![self.read.summary()];
-        out.extend(self.steps.iter().filter(|s| s.enabled).map(|s| s.op.summary()));
+        out.extend(
+            self.steps
+                .iter()
+                .filter(|s| s.enabled)
+                .map(|s| s.op.summary()),
+        );
         out.push(t!("table-export-to", format = self.write.summary()));
         out
     }

@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-pub use job::{JobStep, TableJob};
+pub use job::TableJob;
 pub use steps::TableStep;
 
 /// What a column holds. It decides how values sort, compare and export.
@@ -97,12 +97,10 @@ impl Kind {
                 (Some(x), Some(y)) => Some(x.total_cmp(&y)),
                 _ => None,
             },
-            Kind::Date | Kind::DateTime => {
-                match (parse_iso_datetime(a), parse_iso_datetime(b)) {
-                    (Some(x), Some(y)) => Some(x.cmp(&y)),
-                    _ => None,
-                }
-            }
+            Kind::Date | Kind::DateTime => match (parse_iso_datetime(a), parse_iso_datetime(b)) {
+                (Some(x), Some(y)) => Some(x.cmp(&y)),
+                _ => None,
+            },
             Kind::Boolean => match (parse_bool(a), parse_bool(b)) {
                 (Some(x), Some(y)) => Some(x.cmp(&y)),
                 _ => None,
@@ -179,7 +177,11 @@ pub fn parse_iso_datetime(v: &str) -> Option<chrono::NaiveDateTime> {
     let s: u32 = match b.len() {
         5 => 0,
         8 if b[5] == b':' => time[6..8].parse().ok()?,
-        n if n > 9 && b[5] == b':' && b[8] == b'.' && time[9..].bytes().all(|c| c.is_ascii_digit()) => {
+        n if n > 9
+            && b[5] == b':'
+            && b[8] == b'.'
+            && time[9..].bytes().all(|c| c.is_ascii_digit()) =>
+        {
             time[6..8].parse().ok()?
         }
         _ => return None,
@@ -246,6 +248,7 @@ impl Cells {
         out
     }
 
+    #[cfg(test)]
     pub fn from_values<S: AsRef<str>>(values: impl IntoIterator<Item = S>) -> Self {
         let mut out = Cells::default();
         for v in values {
@@ -482,7 +485,15 @@ mod tests {
         let mut t = table(
             &["id", "zip", "price", "day", "at", "ok", "name"],
             &[
-                &["1", "007", "1.5", "2026-01-02", "2026-01-02 10:00", "true", "x"],
+                &[
+                    "1",
+                    "007",
+                    "1.5",
+                    "2026-01-02",
+                    "2026-01-02 10:00",
+                    "true",
+                    "x",
+                ],
                 &["22", "123", "2", "", "2026-01-02T10:00:30", "false", "y"],
             ],
         );

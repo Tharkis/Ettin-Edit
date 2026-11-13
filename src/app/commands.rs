@@ -440,6 +440,8 @@ pub(crate) fn documented_commands(ctx: &egui::Context) -> Vec<(String, String)> 
         xml_check_on_save: false,
         close_tags: false,
     };
+    let table = super::menus::table_entries(&mut m, false, false);
+    flatten(&t!("menu-table"), &table, &m, &mut out);
     let tools = super::menus::tools_entries(&mut m, &state, Vec::new());
     flatten(&t!("menu-tools"), &tools, &m, &mut out);
     let mut seen = Vec::new();
@@ -489,6 +491,8 @@ impl EttinApp {
         flatten(&t!("menu-transform"), &transform, &m, &mut out);
         let edit = self.edit_menu(&mut m, self.active);
         flatten(&t!("menu-edit"), &edit, &m, &mut out);
+        let table = self.table_menu(&mut m);
+        flatten(&t!("menu-table"), &table, &m, &mut out);
         let tools = self.tools_menu(&mut m);
         flatten(&t!("menu-tools"), &tools, &m, &mut out);
         let plugins: Vec<PluginCommands> = self

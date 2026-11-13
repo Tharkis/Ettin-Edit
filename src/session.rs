@@ -38,6 +38,12 @@ pub struct SessionTab {
     /// Edited as bytes in the hex view; a backup holds bytes, not text.
     #[serde(default)]
     pub binary: bool,
+    /// How the tab is read as a table, with its steps, when it has a table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table: Option<crate::table::TableJob>,
+    /// The table is showing rather than the text.
+    #[serde(default)]
+    pub table_shown: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -195,6 +201,8 @@ mod tests {
                 caret: 3,
                 view: 1,
                 binary: false,
+                table: None,
+                table_shown: false,
             }],
             active: 0,
         };

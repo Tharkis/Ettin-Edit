@@ -1,18 +1,21 @@
 //! Running a recipe from the command line, without opening a window:
 //!
 //! ```text
-//! ettin-edit --recipe NAME-OR-ID [--allow-commands] [--in-place] [FILE...]
+//! ettin-edit --recipe NAME-OR-ID [--allow-commands] [--in-place] [--out FILE] [FILE...]
 //! ettin-edit --list-recipes
 //! ```
 //!
 //! With no files the text comes from standard input. Results go to standard
-//! output, or back into the files with `--in-place`.
+//! output, back into the files with `--in-place`, or to one file with
+//! `--out`. A recipe whose table step reads a workbook gets the file's
+//! bytes, and one that writes a workbook needs `--out`.
 
 use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use crate::recipes::{self, Env, Recipe};
+use crate::table::export::Output;
 
 /// Exit codes.
 const FAILED: i32 = 1;
@@ -27,6 +30,7 @@ enum Request {
         files: Vec<PathBuf>,
         in_place: bool,
         allow_commands: bool,
+        out: Option<PathBuf>,
     },
 }
 
@@ -42,11 +46,19 @@ fn parse(args: &[OsString]) -> Option<Result<Request, String>> {
     let mut files = Vec::new();
     let mut in_place = false;
     let mut allow_commands = false;
+    let mut out = None;
+    let mut skip = None;
     for (i, arg) in args.iter().enumerate() {
-        if i == at || i == at + 1 {
+        if i == at || i == at + 1 || Some(i) == skip {
             continue;
         }
-        if arg == "--in-place" {
+        if arg == "--out" {
+            let Some(path) = args.get(i + 1) else {
+                return Some(Err("--out needs a file name".into()));
+            };
+            out = Some(PathBuf::from(path));
+            skip = Some(i + 1);
+        } else if arg == "--in-place" {
             in_place = true;
         } else if arg == "--allow-commands" {
             allow_commands = true;
@@ -59,11 +71,15 @@ fn parse(args: &[OsString]) -> Option<Result<Request, String>> {
     if in_place && files.is_empty() {
         return Some(Err("--in-place needs files to change".into()));
     }
+    if out.is_some() && (in_place || files.len() > 1) {
+        return Some(Err("--out takes the result of one file".into()));
+    }
     Some(Ok(Request::Run {
         recipe: recipe.to_owned(),
         files,
         in_place,
         allow_commands,
+        out,
     }))
 }
 
@@ -126,12 +142,12 @@ pub fn run(args: &[OsString]) -> Option<i32> {
         Err(e) => {
             eprintln!("ettin-edit: {e}");
             eprintln!(
-                "usage: ettin-edit --recipe NAME-OR-ID [--allow-commands] [--in-place] [FILE...]\n       ettin-edit --list-recipes"
+                "usage: ettin-edit --recipe NAME-OR-ID [--allow-commands] [--in-place] [--out FILE] [FILE...]\n       ettin-edit --list-recipes"
             );
             return Some(USAGE);
         }
     };
-    let (recipe, files, in_place, allow_commands) = match request {
+    let (recipe, files, in_place, allow_commands, out_path) = match request {
         Request::List => {
             let Some(dir) = recipes::recipes_dir() else {
                 return Some(FAILED);
@@ -154,7 +170,8 @@ pub fn run(args: &[OsString]) -> Option<i32> {
             files,
             in_place,
             allow_commands,
-        } => (recipe, files, in_place, allow_commands),
+            out,
+        } => (recipe, files, in_place, allow_commands, out),
     };
     let recipe = match find_recipe(&recipe) {
         Ok(r) => r,
@@ -182,7 +199,8 @@ pub fn run(args: &[OsString]) -> Option<i32> {
     let cwd = std::env::current_dir().ok();
     // Plugin steps start the plugins they use, once, as Ettin Edit would.
     let plugins = crate::plugins::headless::Headless::from_settings(&settings);
-    let apply = |text: &str, file: Option<&Path>| -> Result<String, String> {
+    let wants_bytes = recipe.wants_bytes();
+    let apply = |input: Output, file: Option<&Path>| -> Result<Output, String> {
         let dir = file
             .and_then(|f| f.parent())
             .filter(|d| !d.as_os_str().is_empty())
@@ -195,7 +213,7 @@ pub fn run(args: &[OsString]) -> Option<i32> {
             cancel: None,
             plugins: Some(&plugins),
         };
-        recipe.run(text, &env).map_err(|f| {
+        recipe.run_output(input, &env).map_err(|f| {
             t!(
                 "recipe-failed",
                 name = recipe.name.clone(),
@@ -204,20 +222,39 @@ pub fn run(args: &[OsString]) -> Option<i32> {
             )
         })
     };
+    // The bytes to write for one input: text goes back with the input's
+    // line ends and byte-order mark.
+    let run_one =
+        |bytes: Vec<u8>, what: &str, file: Option<&Path>| -> Result<(bool, Vec<u8>), String> {
+            if wants_bytes {
+                let out = apply(Output::Bytes(bytes.clone()), file)
+                    .map_err(|e| format!("{what}: {e}"))?;
+                let out = out.into_bytes();
+                return Ok((out != bytes, out));
+            }
+            let (text, shape) = to_editor(bytes, what)?;
+            match apply(Output::Text(text.clone()), file).map_err(|e| format!("{what}: {e}"))? {
+                Output::Text(t) => Ok((t != text, from_editor(&t, &shape).into_bytes())),
+                Output::Bytes(b) => Ok((true, b)),
+            }
+        };
     let mut stdout = std::io::stdout().lock();
+    let deliver = |stdout: &mut std::io::StdoutLock, out: Vec<u8>| -> Result<(), String> {
+        match &out_path {
+            Some(path) => std::fs::write(path, out).map_err(|e| format!("{}: {e}", path.display())),
+            None => stdout.write_all(&out).map_err(|e| e.to_string()),
+        }
+    };
     if files.is_empty() {
         let mut bytes = Vec::new();
         if let Err(e) = std::io::stdin().read_to_end(&mut bytes) {
             eprintln!("ettin-edit: {e}");
             return Some(FAILED);
         }
-        let result = to_editor(bytes, "standard input")
-            .and_then(|(text, shape)| Ok(from_editor(&apply(&text, None)?, &shape)));
+        let result =
+            run_one(bytes, "standard input", None).and_then(|(_, out)| deliver(&mut stdout, out));
         return Some(match result {
-            Ok(out) => {
-                let _ = stdout.write_all(out.as_bytes());
-                0
-            }
+            Ok(()) => 0,
             Err(e) => {
                 eprintln!("ettin-edit: {e}");
                 FAILED
@@ -229,25 +266,21 @@ pub fn run(args: &[OsString]) -> Option<i32> {
         let what = file.display().to_string();
         let result = std::fs::read(&file)
             .map_err(|e| format!("{what}: {e}"))
-            .and_then(|b| to_editor(b, &what))
-            .and_then(|(text, shape)| {
-                let out = apply(&text, Some(&file)).map_err(|e| format!("{what}: {e}"))?;
-                Ok((text != out, from_editor(&out, &shape)))
-            });
-        match result {
+            .and_then(|b| run_one(b, &what, Some(&file)));
+        let result = match result {
             Ok((changed, out)) if in_place => {
-                if changed && let Err(e) = std::fs::write(&file, out) {
-                    eprintln!("ettin-edit: {what}: {e}");
-                    code = FAILED;
+                if changed {
+                    std::fs::write(&file, out).map_err(|e| format!("{what}: {e}"))
+                } else {
+                    Ok(())
                 }
             }
-            Ok((_, out)) => {
-                let _ = stdout.write_all(out.as_bytes());
-            }
-            Err(e) => {
-                eprintln!("ettin-edit: {e}");
-                code = FAILED;
-            }
+            Ok((_, out)) => deliver(&mut stdout, out),
+            Err(e) => Err(e),
+        };
+        if let Err(e) = result {
+            eprintln!("ettin-edit: {e}");
+            code = FAILED;
         }
     }
     Some(code)
@@ -291,8 +324,27 @@ mod tests {
                 files: vec![PathBuf::from("a.txt")],
                 in_place: true,
                 allow_commands: false,
+                out: None,
             }))
         );
+        assert_eq!(
+            parse(&args(&["--recipe", "T", "--out", "x.xlsx", "a.csv"])),
+            Some(Ok(Request::Run {
+                recipe: "T".into(),
+                files: vec![PathBuf::from("a.csv")],
+                in_place: false,
+                allow_commands: false,
+                out: Some(PathBuf::from("x.xlsx")),
+            }))
+        );
+        assert!(matches!(
+            parse(&args(&["--recipe", "T", "--out", "x", "a", "b"])),
+            Some(Err(_))
+        ));
+        assert!(matches!(
+            parse(&args(&["--recipe", "T", "--out"])),
+            Some(Err(_))
+        ));
         assert!(matches!(parse(&args(&["--recipe"])), Some(Err(_))));
         assert!(matches!(
             parse(&args(&["--recipe", "x", "--in-place"])),

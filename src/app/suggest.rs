@@ -159,7 +159,11 @@ impl EttinApp {
                             if !self.csv.open {
                                 button(ui, t!("suggest-open-csvquery"), Action::ToggleCsvQuery);
                             }
-                            button(ui, t!("suggest-show-table"), Action::RunCsvQuery);
+                            button(
+                                ui,
+                                t!("suggest-show-table"),
+                                Action::Table(crate::table_ui::TableCmd::ShowAsTable),
+                            );
                         }
                         Kind::MixedLineEndings | Kind::MixedIndentation => {
                             ui.menu_button(t!("suggest-fix"), |ui| {

@@ -10,6 +10,7 @@ use sha2::Digest;
 
 use crate::editor::lines::{self, CaseKind, SortKind, TrimKind};
 use crate::search::{Query, SearchOptions};
+use crate::table::export::Output;
 use crate::tools::convert::{self, DataFormat};
 use crate::tools::json::{self, JsonOp};
 use crate::tools::mime::MimeOp;
@@ -194,6 +195,9 @@ pub enum Step {
         #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
         options: serde_json::Map<String, serde_json::Value>,
     },
+    /// A table job (Ettin Edit 2.7): reads the text as a table, runs the
+    /// table's steps and writes it out again.
+    Table(crate::table::TableJob),
     /// A Columns and Fields command (Ettin Edit 2.6). Its JSON has its own
     /// `op` (`extract_matches`, `align_columns`…), so it must stay last.
     #[serde(untagged)]
@@ -348,6 +352,11 @@ impl Step {
                     | XmlOp::XslTransform,
             } => Err(t!("recipe-step-not-allowed")),
             Step::Field(op) => op.check().map_err(|e| e.message),
+            Step::Table(job) => job
+                .steps
+                .iter()
+                .filter(|s| s.enabled)
+                .try_for_each(|s| s.op.check()),
             _ => Ok(()),
         }
     }
@@ -491,6 +500,15 @@ impl Step {
                     .map_err(ToolError::new)?
             }
             Step::Field(op) => op.apply(text)?,
+            Step::Table(job) => {
+                match job
+                    .run(crate::table::import::Input::Text(text))
+                    .map_err(|e| ToolError::new(e.to_string()))?
+                {
+                    Output::Text(t) => t,
+                    Output::Bytes(_) => return Err(ToolError::new(t!("table-binary-result"))),
+                }
+            }
         })
     }
 }
@@ -555,6 +573,43 @@ impl Recipe {
             })?;
         }
         Ok(text)
+    }
+
+    /// Whether the first step reads a workbook, which needs the file's bytes
+    /// rather than its text.
+    pub fn wants_bytes(&self) -> bool {
+        matches!(
+            self.enabled().next(),
+            Some((_, Step::Table(job))) if job.read.is_excel()
+        )
+    }
+
+    /// Like [`Self::run`], for input and output that may be a file's bytes:
+    /// a table step reads a workbook from bytes and may write one.
+    pub fn run_output(&self, input: Output, env: &Env) -> Result<Output, Failure> {
+        let mut data = input;
+        for (i, step) in self.enabled() {
+            let fail = |message: String| Failure { step: i, message };
+            data = match (step, data) {
+                (Step::Table(job), d) => {
+                    let input = match &d {
+                        Output::Text(t) => crate::table::import::Input::Text(t),
+                        Output::Bytes(b) => crate::table::import::Input::Bytes(b),
+                    };
+                    job.run(input).map_err(|e| fail(e.to_string()))?
+                }
+                (step, d) => {
+                    let text = match d {
+                        Output::Text(t) => t,
+                        Output::Bytes(b) => {
+                            String::from_utf8(b).map_err(|_| fail(t!("table-not-utf8")))?
+                        }
+                    };
+                    Output::Text(step.apply(&text, env).map_err(|e| fail(e.message))?)
+                }
+            };
+        }
+        Ok(data)
     }
 
     /// Like [`Self::run`], but stops before the first command or plugin

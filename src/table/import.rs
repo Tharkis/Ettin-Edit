@@ -151,7 +151,7 @@ impl Source {
                 let sheet = if sheet.is_empty() {
                     t!("table-first-sheet")
                 } else {
-                    format!("\"{sheet}\"")
+                    t!("table-sheet-named", sheet = sheet.clone())
                 };
                 if *header_row == 0 {
                     t!("table-source-excel-no-header", sheet = sheet)
@@ -167,9 +167,12 @@ impl Source {
     /// Reads the table.
     pub fn read(&self, input: Input) -> Result<Table, String> {
         let mut table = match (self, input) {
-            (Source::Excel { sheet, header_row, .. }, Input::Bytes(b)) => {
-                read_workbook(b, sheet, *header_row)?
-            }
+            (
+                Source::Excel {
+                    sheet, header_row, ..
+                },
+                Input::Bytes(b),
+            ) => read_workbook(b, sheet, *header_row)?,
             (Source::Excel { .. }, Input::Text(_)) => return Err(t!("table-excel-needs-file")),
             (_, Input::Bytes(b)) => {
                 let text = std::str::from_utf8(b).map_err(|_| t!("table-not-utf8"))?;
@@ -220,6 +223,20 @@ pub fn sheet_names(bytes: &[u8]) -> Result<Vec<String>, String> {
     let wb = calamine::open_workbook_auto_from_rs(Cursor::new(bytes.to_vec()))
         .map_err(|e| t!("table-workbook-unreadable", error = e.to_string()))?;
     Ok(calamine::Reader::sheet_names(&wb))
+}
+
+/// The first row of a sheet with anything in it, counted from 1: where the
+/// headers usually are. The first sheet when `sheet` is empty.
+pub fn first_row(bytes: &[u8], sheet: &str) -> Option<usize> {
+    use calamine::Reader;
+    let mut wb = calamine::open_workbook_auto_from_rs(Cursor::new(bytes.to_vec())).ok()?;
+    let name = if sheet.is_empty() {
+        wb.sheet_names().first()?.clone()
+    } else {
+        sheet.to_owned()
+    };
+    let range = wb.worksheet_range(&name).ok()?;
+    Some(range.start()?.0 as usize + 1)
 }
 
 fn read_workbook(bytes: &[u8], sheet: &str, header_row: usize) -> Result<Table, String> {
@@ -335,8 +352,8 @@ fn number_text(f: f64) -> String {
 /// Reads a JSON list of rows. Objects inside a row become columns named
 /// with dots (`address.city`); lists inside a row stay as JSON text.
 fn read_json(text: &str, path: &str) -> Result<Table, String> {
-    let value: Value =
-        serde_json::from_str(text).map_err(|e| t!("table-json-unreadable", error = e.to_string()))?;
+    let value: Value = serde_json::from_str(text)
+        .map_err(|e| t!("table-json-unreadable", error = e.to_string()))?;
     let list = if path.trim().is_empty() {
         find_list(&value).ok_or_else(|| t!("table-json-no-list"))?
     } else {
@@ -449,7 +466,9 @@ mod tests {
     #[test]
     fn reads_csv_with_types() {
         let src = Source::guess("id;name;score\n1;Ann;2.5\n2;Bob;3\n", None);
-        let t = src.read(Input::Text("id;name;score\n1;Ann;2.5\n2;Bob;3\n")).unwrap();
+        let t = src
+            .read(Input::Text("id;name;score\n1;Ann;2.5\n2;Bob;3\n"))
+            .unwrap();
         assert_eq!(t.names(), ["id", "name", "score"]);
         assert_eq!(t.rows, 2);
         assert_eq!(t.columns[0].kind, Kind::Integer);

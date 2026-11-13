@@ -180,7 +180,9 @@ impl Export {
     /// The usual file extension.
     pub fn extension(&self) -> &'static str {
         match self {
-            Export::Csv { delimiter: '\t', .. } => "tsv",
+            Export::Csv {
+                delimiter: '\t', ..
+            } => "tsv",
             Export::Csv { .. } => "csv",
             Export::Excel { .. } => "xlsx",
             Export::Json { .. } => "json",
@@ -256,10 +258,16 @@ impl Export {
     }
 }
 
-fn write_delimited(t: &Table, delimiter: char, quote: QuoteMode, header: bool, crlf: bool) -> String {
+fn write_delimited(
+    t: &Table,
+    delimiter: char,
+    quote: QuoteMode,
+    header: bool,
+    crlf: bool,
+) -> String {
     let eol = if crlf { "\r\n" } else { "\n" };
     let mut out = String::new();
-    let mut field = |out: &mut String, v: &str| {
+    let field = |out: &mut String, v: &str| {
         let needs = v.contains(delimiter)
             || v.contains(['"', '\n', '\r'])
             || v.starts_with(' ')
@@ -277,7 +285,7 @@ fn write_delimited(t: &Table, delimiter: char, quote: QuoteMode, header: bool, c
             out.push_str(v);
         }
     };
-    let mut line = |out: &mut String, values: &mut dyn Iterator<Item = &str>| {
+    let line = |out: &mut String, values: &mut dyn Iterator<Item = &str>| {
         for (i, v) in values.enumerate() {
             if i > 0 {
                 out.push(delimiter);
@@ -396,7 +404,11 @@ pub fn write_xlsx(t: &Table, sheet: &str) -> Result<Vec<u8>, String> {
                         .and_then(|d| d.and_hms(at.hour() as u16, at.minute() as u8, at.second()));
                         match dt {
                             Ok(dt) => {
-                                let f = if col.kind == Kind::Date { &date } else { &datetime };
+                                let f = if col.kind == Kind::Date {
+                                    &date
+                                } else {
+                                    &datetime
+                                };
                                 ws.write_datetime_with_format(r, c, &dt, f).map_err(err)?;
                                 true
                             }
@@ -448,7 +460,10 @@ mod tests {
         let Output::Text(p) = pipe.write(&t).unwrap() else {
             panic!()
         };
-        assert_eq!(p, "\"1\"|\"Ann, B\"|\"2.5\"|\"true\"\r\n\"2\"|\"\"|\"\"|\"false\"\r\n");
+        assert_eq!(
+            p,
+            "\"1\"|\"Ann, B\"|\"2.5\"|\"true\"\r\n\"2\"|\"\"|\"\"|\"false\"\r\n"
+        );
     }
 
     #[test]

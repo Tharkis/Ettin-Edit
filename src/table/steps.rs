@@ -301,7 +301,11 @@ impl TableStep {
                 )
             }
             TableStep::Text { column, text } => {
-                t!("table-step-text", column = column.clone(), op = text.label())
+                t!(
+                    "table-step-text",
+                    column = column.clone(),
+                    op = text.label()
+                )
             }
             TableStep::FilterRows {
                 column,
@@ -616,7 +620,9 @@ pub fn convert_cells(cells: &Cells, kind: Kind, format: &str) -> Result<Cells, S
         _ => None,
     };
     let decimal_comma = format == ",";
-    Ok(cells.map(|v| convert_value(v, kind, pattern.as_ref(), decimal_comma).unwrap_or_else(|| v.to_owned())))
+    Ok(cells.map(|v| {
+        convert_value(v, kind, pattern.as_ref(), decimal_comma).unwrap_or_else(|| v.to_owned())
+    }))
 }
 
 /// `v` in `kind`'s form, or `None` when it can't be read as one.
@@ -861,7 +867,13 @@ mod tests {
         let out = step.apply(&t).unwrap();
         assert_eq!(
             col(&out, "DOB"),
-            ["1984-03-02", "1951-11-19", "1990-07-25", "1984-03-02", "31/02/1979"]
+            [
+                "1984-03-02",
+                "1951-11-19",
+                "1990-07-25",
+                "1984-03-02",
+                "31/02/1979"
+            ]
         );
         assert_eq!(out.problems(), 1);
     }
@@ -873,7 +885,12 @@ mod tests {
         assert_eq!(d.iter().collect::<Vec<_>>(), ["1234.5", "3,5", "7", "x"]);
         let d = convert_cells(&c, Kind::Decimal, ",").unwrap();
         assert_eq!(d.get(1), "3.5");
-        let i = convert_cells(&Cells::from_values(["+12", "12.0", "1.5"]), Kind::Integer, "").unwrap();
+        let i = convert_cells(
+            &Cells::from_values(["+12", "12.0", "1.5"]),
+            Kind::Integer,
+            "",
+        )
+        .unwrap();
         assert_eq!(i.iter().collect::<Vec<_>>(), ["12", "12", "1.5"]);
     }
 

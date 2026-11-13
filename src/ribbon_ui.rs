@@ -57,6 +57,10 @@ pub struct Button {
     pub menu: Option<Vec<MenuEntry>>,
 }
 
+/// The layout index of a tab the app adds while it applies (the Table tab
+/// while a tab shows a table). Its buttons can't be taken off.
+pub const CONTEXT_TAB: usize = usize::MAX / 2;
+
 pub struct GroupView {
     pub name: String,
     pub buttons: Vec<Button>,
@@ -844,7 +848,7 @@ fn finish(response: Response, b: &Button, events: &mut Vec<BarEvent>) {
         events.push(BarEvent::Run(b.action.clone()));
     }
     response.context_menu(|ui| {
-        if ui.button(t!("toolbar-remove-button")).clicked() {
+        if b.place.0 != CONTEXT_TAB && ui.button(t!("toolbar-remove-button")).clicked() {
             let (t, g, i) = b.place;
             events.push(BarEvent::Remove(t, g, i));
         }
