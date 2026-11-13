@@ -862,6 +862,8 @@ fn table_icon(cmd: crate::table_ui::TableCmd) -> &'static str {
         RemoveDuplicates => ph::LIST_DASHES,
         RemoveEmptyRows => ph::ROWS,
         RemoveRow => ph::MINUS_SQUARE,
+        Explode => ph::TREE_STRUCTURE,
+        Flatten => ph::COLUMNS_PLUS_RIGHT,
         EditCell => ph::CURSOR_TEXT,
         ColumnStats => ph::CHART_BAR,
         Export => ph::EXPORT,

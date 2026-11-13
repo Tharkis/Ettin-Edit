@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up appointments for trying out tables in Ettin Edit. -->
+<schedule clinic="Riverbend Family Clinic" date="2026-11-14">
+  <appointment id="A-3301" status="booked">
+    <start>2026-11-14T08:30:00</start>
+    <minutes>20</minutes>
+    <patient mrn="800123456">
+      <name><family>Quillfeather</family><given>Maribel</given></name>
+      <born>1984-03-12</born>
+    </patient>
+    <provider npi="1234567893">Dana Halvorsen, MD</provider>
+    <reason code="Z00.00">Annual wellness visit</reason>
+  </appointment>
+  <appointment id="A-3302" status="booked">
+    <start>2026-11-14T09:00:00</start>
+    <minutes>40</minutes>
+    <patient mrn="800123571">
+      <name><family>Okafor-Lindqvist</family><given>Tobias</given></name>
+      <born>1967-12-30</born>
+    </patient>
+    <provider npi="9876543210">Ada Okonkwo-Reyes, DO</provider>
+    <reason code="E11.9">Diabetes follow-up</reason>
+    <reason code="I10">Blood pressure check</reason>
+  </appointment>
+  <appointment id="A-3303" status="cancelled">
+    <start>2026-11-14T10:15:00</start>
+    <minutes>20</minutes>
+    <patient mrn="800124002">
+      <name><family>Brightwater</family><given>Robin</given></name>
+      <born>1990-07-15</born>
+    </patient>
+    <provider npi="1234567893">Dana Halvorsen, MD</provider>
+    <reason code="J06.9">Sore throat &amp; cough</reason>
+  </appointment>
+</schedule>

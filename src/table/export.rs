@@ -1,5 +1,6 @@
-//! Writing a table out: delimited text, Excel, JSON, JSON Lines and
-//! Markdown.
+//! Writing a table out: delimited text, Excel, JSON, JSON Lines, YAML,
+//! XML, HL7 v2 and Markdown. Dotted column names (`clinic.address.city`)
+//! become nested objects or elements when asked.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -76,6 +77,9 @@ pub enum Export {
         /// Empty text values as `null` rather than `""`.
         #[serde(default, skip_serializing_if = "is_false")]
         empty_as_null: bool,
+        /// Dotted column names as nested objects.
+        #[serde(default, skip_serializing_if = "is_false")]
+        nested: bool,
     },
     /// One JSON object per line.
     JsonLines {
@@ -83,8 +87,43 @@ pub enum Export {
         typed: bool,
         #[serde(default, skip_serializing_if = "is_false")]
         empty_as_null: bool,
+        #[serde(default, skip_serializing_if = "is_false")]
+        nested: bool,
+    },
+    /// A YAML list of mappings.
+    Yaml {
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        typed: bool,
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        nested: bool,
+    },
+    /// An XML document: a `root` element holding one `row` element per row.
+    /// Dotted names nest elements; a name part starting with `@` is an
+    /// attribute.
+    Xml {
+        #[serde(default = "rows_name")]
+        root: String,
+        #[serde(default = "row_name")]
+        row: String,
+        /// Leave out elements for empty values.
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        skip_empty: bool,
+    },
+    /// HL7 v2 messages, one per row, from a template with `{Column}`
+    /// placeholders. An empty template is made from columns named like
+    /// `PID.5.1`.
+    Hl7 {
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        template: String,
     },
     Markdown,
+}
+
+fn rows_name() -> String {
+    "rows".into()
+}
+fn row_name() -> String {
+    "row".into()
 }
 
 impl Default for Export {
@@ -105,15 +144,21 @@ pub enum ExportKind {
     Excel,
     Json,
     JsonLines,
+    Yaml,
+    Xml,
+    Hl7,
     Markdown,
 }
 
 impl ExportKind {
-    pub const ALL: [ExportKind; 5] = [
+    pub const ALL: [ExportKind; 8] = [
         ExportKind::Csv,
         ExportKind::Excel,
         ExportKind::Json,
         ExportKind::JsonLines,
+        ExportKind::Yaml,
+        ExportKind::Xml,
+        ExportKind::Hl7,
         ExportKind::Markdown,
     ];
 
@@ -123,6 +168,9 @@ impl ExportKind {
             ExportKind::Excel => "table-export-excel",
             ExportKind::Json => "table-export-json",
             ExportKind::JsonLines => "table-export-jsonl",
+            ExportKind::Yaml => "table-export-yaml",
+            ExportKind::Xml => "table-export-xml",
+            ExportKind::Hl7 => "table-export-hl7",
             ExportKind::Markdown => "table-export-markdown",
         })
     }
@@ -135,10 +183,24 @@ impl ExportKind {
                 pretty: true,
                 typed: true,
                 empty_as_null: false,
+                nested: false,
             },
             ExportKind::JsonLines => Export::JsonLines {
                 typed: true,
                 empty_as_null: false,
+                nested: false,
+            },
+            ExportKind::Yaml => Export::Yaml {
+                typed: true,
+                nested: true,
+            },
+            ExportKind::Xml => Export::Xml {
+                root: rows_name(),
+                row: row_name(),
+                skip_empty: true,
+            },
+            ExportKind::Hl7 => Export::Hl7 {
+                template: String::new(),
             },
             ExportKind::Markdown => Export::Markdown,
         }
@@ -168,6 +230,9 @@ impl Export {
             Export::Excel { .. } => ExportKind::Excel,
             Export::Json { .. } => ExportKind::Json,
             Export::JsonLines { .. } => ExportKind::JsonLines,
+            Export::Yaml { .. } => ExportKind::Yaml,
+            Export::Xml { .. } => ExportKind::Xml,
+            Export::Hl7 { .. } => ExportKind::Hl7,
             Export::Markdown => ExportKind::Markdown,
         }
     }
@@ -187,6 +252,9 @@ impl Export {
             Export::Excel { .. } => "xlsx",
             Export::Json { .. } => "json",
             Export::JsonLines { .. } => "jsonl",
+            Export::Yaml { .. } => "yaml",
+            Export::Xml { .. } => "xml",
+            Export::Hl7 { .. } => "hl7",
             Export::Markdown => "md",
         }
     }
@@ -198,6 +266,9 @@ impl Export {
             Export::Excel { .. } => "Plain Text",
             Export::Json { .. } => "JSON",
             Export::JsonLines { .. } => "Plain Text",
+            Export::Yaml { .. } => "YAML",
+            Export::Xml { .. } => "XML",
+            Export::Hl7 { .. } => "HL7",
             Export::Markdown => "Markdown",
         }
     }
@@ -225,9 +296,10 @@ impl Export {
                 pretty,
                 typed,
                 empty_as_null,
+                nested,
             } => {
                 let rows: Vec<Value> = (0..t.rows)
-                    .map(|r| row_object(t, r, *typed, *empty_as_null))
+                    .map(|r| row_value(t, r, *typed, *empty_as_null, *nested))
                     .collect();
                 let list = Value::Array(rows);
                 let mut text = if *pretty {
@@ -242,11 +314,44 @@ impl Export {
             Export::JsonLines {
                 typed,
                 empty_as_null,
+                nested,
             } => {
                 let mut out = String::new();
                 for r in 0..t.rows {
-                    out.push_str(&row_object(t, r, *typed, *empty_as_null).to_string());
+                    out.push_str(&row_value(t, r, *typed, *empty_as_null, *nested).to_string());
                     out.push('\n');
+                }
+                Output::Text(out)
+            }
+            Export::Yaml { typed, nested } => {
+                let rows: Vec<Value> = (0..t.rows)
+                    .map(|r| row_value(t, r, *typed, false, *nested))
+                    .collect();
+                Output::Text(serde_yaml_ng::to_string(&rows).map_err(|e| e.to_string())?)
+            }
+            Export::Xml {
+                root,
+                row,
+                skip_empty,
+            } => Output::Text(write_xml(t, root, row, *skip_empty)),
+            Export::Hl7 { template } => {
+                let template = if template.trim().is_empty() {
+                    hl7_template(t)
+                } else {
+                    template.clone()
+                };
+                let mut out = String::new();
+                for r in 0..t.rows {
+                    let value = |name: &str| -> Option<String> {
+                        if name == "#" {
+                            return Some((r + 1).to_string());
+                        }
+                        t.find(name).map(|c| t.get(r, c).to_owned())
+                    };
+                    let msg = super::hl7::fill(&template, &value)
+                        .map_err(|e| t!("table-row-failed", row = r + 1, message = e))?;
+                    out.push_str(&msg);
+                    out.push('\r');
                 }
                 Output::Text(out)
             }
@@ -334,15 +439,253 @@ fn typed_value(kind: Kind, v: &str, typed: bool, empty_as_null: bool) -> Value {
     Value::String(v.to_owned())
 }
 
-fn row_object(t: &Table, r: usize, typed: bool, empty_as_null: bool) -> Value {
+fn row_value(t: &Table, r: usize, typed: bool, empty_as_null: bool, nested: bool) -> Value {
     let mut m = Map::new();
     for c in &t.columns {
-        m.insert(
-            c.name.clone(),
-            typed_value(c.kind, c.cells.get(r), typed, empty_as_null),
-        );
+        let v = typed_value(c.kind, c.cells.get(r), typed, empty_as_null);
+        if nested && c.name.contains('.') {
+            insert_nested(&mut m, &c.name, v);
+        } else {
+            m.insert(c.name.clone(), v);
+        }
     }
     Value::Object(m)
+}
+
+/// Puts `v` at a dotted path, making objects on the way. When a part on the
+/// way already holds a plain value, `v` goes in under its full dotted name
+/// instead, so nothing is lost.
+fn insert_nested(m: &mut Map<String, Value>, name: &str, v: Value) {
+    let parts: Vec<&str> = name.split('.').collect();
+    let mut at = &mut *m;
+    for (i, p) in parts.iter().enumerate() {
+        if i + 1 == parts.len() {
+            at.insert((*p).to_owned(), v);
+            return;
+        }
+        let entry = at
+            .entry((*p).to_owned())
+            .or_insert_with(|| Value::Object(Map::new()));
+        if !entry.is_object() {
+            // `a` is a value and `a.b` wants it to be an object.
+            m.insert(name.to_owned(), v);
+            return;
+        }
+        at = entry.as_object_mut().expect("checked");
+    }
+}
+
+/// An element name made from a column name: letters, digits, `-`, `_` and
+/// `.`; anything else becomes `_`, and a name can't start with a digit.
+fn xml_name(s: &str) -> String {
+    let mut out: String = s
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if out.is_empty() || out.starts_with(|c: char| c.is_ascii_digit() || c == '-') {
+        out.insert(0, '_');
+    }
+    out
+}
+
+fn xml_escape(s: &str, attr: bool) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' if attr => out.push_str("&quot;"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// An element being built: attributes, own text and children in order.
+#[derive(Default)]
+struct Elem {
+    attrs: Vec<(String, String)>,
+    text: Option<String>,
+    children: Vec<(String, Elem)>,
+}
+
+impl Elem {
+    fn child(&mut self, name: &str) -> &mut Elem {
+        let i = match self.children.iter().position(|(n, _)| n == name) {
+            Some(i) => i,
+            None => {
+                self.children.push((name.to_owned(), Elem::default()));
+                self.children.len() - 1
+            }
+        };
+        &mut self.children[i].1
+    }
+
+    fn write(&self, name: &str, depth: usize, out: &mut String) {
+        let pad = "  ".repeat(depth);
+        out.push_str(&pad);
+        out.push('<');
+        out.push_str(name);
+        for (k, v) in &self.attrs {
+            out.push_str(&format!(" {k}=\"{}\"", xml_escape(v, true)));
+        }
+        match (&self.text, self.children.is_empty()) {
+            (None, true) => out.push_str("/>\n"),
+            (Some(t), true) => out.push_str(&format!(">{}</{name}>\n", xml_escape(t, false))),
+            (text, false) => {
+                out.push_str(">\n");
+                if let Some(t) = text {
+                    out.push_str(&format!("{pad}  {}\n", xml_escape(t, false)));
+                }
+                for (n, c) in &self.children {
+                    c.write(n, depth + 1, out);
+                }
+                out.push_str(&format!("{pad}</{name}>\n"));
+            }
+        }
+    }
+}
+
+fn write_xml(t: &Table, root: &str, row: &str, skip_empty: bool) -> String {
+    let root = xml_name(root.trim());
+    let row = xml_name(row.trim());
+    let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    out.push_str(&format!("<{root}>\n"));
+    for r in 0..t.rows {
+        let mut e = Elem::default();
+        for c in &t.columns {
+            let v = c.cells.get(r);
+            if skip_empty && v.is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = c.name.split('.').filter(|p| !p.is_empty()).collect();
+            let Some((last, path)) = parts.split_last() else {
+                continue;
+            };
+            let mut at = &mut e;
+            for p in path {
+                at = at.child(&xml_name(p));
+            }
+            if let Some(attr) = last.strip_prefix('@') {
+                at.attrs.push((xml_name(attr), v.to_owned()));
+            } else {
+                at.child(&xml_name(last)).text = Some(v.to_owned());
+            }
+        }
+        e.write(&row, 1, &mut out);
+    }
+    out.push_str(&format!("</{root}>\n"));
+    out
+}
+
+/// A template made from columns named like HL7 fields (`PID.5.1`,
+/// `OBX[2].5`, `PID.3[2].1`): each placeholder where its field is. Without
+/// such columns, a starting point to fill in.
+pub fn hl7_template(t: &Table) -> String {
+    // (segment, occurrence) → field → repeat → component → subcomponent → column
+    type Subs = std::collections::BTreeMap<usize, String>;
+    type Comps = std::collections::BTreeMap<usize, Subs>;
+    type Reps = std::collections::BTreeMap<usize, Comps>;
+    type Fields = std::collections::BTreeMap<usize, Reps>;
+    let re = regex::Regex::new(
+        r"^([A-Z][A-Z0-9]{2})(?:\[(\d+)\])?\.(\d+)(?:\[(\d+)\])?(?:\.(\d+))?(?:\.(\d+))?$",
+    )
+    .expect("valid");
+    let mut segments: Vec<((String, usize), Fields)> = Vec::new();
+    for c in &t.columns {
+        let Some(m) = re.captures(&c.name) else {
+            continue;
+        };
+        let num = |i: usize, d: usize| m.get(i).and_then(|x| x.as_str().parse().ok()).unwrap_or(d);
+        let key = (m[1].to_owned(), num(2, 1));
+        let field = num(3, 0);
+        if key.0 == "MSH" && field <= 2 {
+            continue;
+        }
+        let i = match segments.iter().position(|(k, _)| *k == key) {
+            Some(i) => i,
+            None => {
+                segments.push((key, Fields::new()));
+                segments.len() - 1
+            }
+        };
+        segments[i]
+            .1
+            .entry(field)
+            .or_default()
+            .entry(num(4, 1))
+            .or_default()
+            .entry(num(5, 1))
+            .or_default()
+            .insert(num(6, 1), format!("{{{}}}", c.name));
+    }
+    if segments.is_empty() {
+        let names = t.names();
+        let col = |i: usize| names.get(i).map(|n| format!("{{{n}}}")).unwrap_or_default();
+        return format!(
+            "MSH|^~\\&|ETTIN|||||||ADT^A08^ADT_A01|MSG{{#}}|P|2.5.1\nEVN|A08\nPID|1||{}||{}\n",
+            col(0),
+            col(1)
+        );
+    }
+    let join = |parts: Vec<String>, sep: char| -> String {
+        parts
+            .join(&sep.to_string())
+            .trim_end_matches(sep)
+            .to_owned()
+    };
+    let numbered =
+        |max: usize, get: &dyn Fn(usize) -> String| -> Vec<String> { (1..=max).map(get).collect() };
+    let mut out = String::new();
+    if !segments.iter().any(|((id, _), _)| id == "MSH") {
+        out.push_str("MSH|^~\\&|ETTIN|||||||ADT^A08^ADT_A01|MSG{#}|P|2.5.1\n");
+    }
+    for ((id, _), fields) in &segments {
+        let max_field = *fields.keys().max().unwrap_or(&0);
+        let first = if id == "MSH" { 3 } else { 1 };
+        let mut line = if id == "MSH" {
+            "MSH|^~\\&".to_owned()
+        } else {
+            id.clone()
+        };
+        for f in first..=max_field {
+            line.push('|');
+            let Some(reps) = fields.get(&f) else {
+                continue;
+            };
+            let rep_max = *reps.keys().max().unwrap_or(&1);
+            let reps_text = numbered(rep_max, &|r| {
+                let Some(comps) = reps.get(&r) else {
+                    return String::new();
+                };
+                let comp_max = *comps.keys().max().unwrap_or(&1);
+                join(
+                    numbered(comp_max, &|c| {
+                        let Some(subs) = comps.get(&c) else {
+                            return String::new();
+                        };
+                        let sub_max = *subs.keys().max().unwrap_or(&1);
+                        join(
+                            numbered(sub_max, &|s| subs.get(&s).cloned().unwrap_or_default()),
+                            '&',
+                        )
+                    }),
+                    '^',
+                )
+            });
+            line.push_str(&join(reps_text, '~'));
+        }
+        out.push_str(line.trim_end_matches('|'));
+        out.push('\n');
+    }
+    out
 }
 
 /// The most rows a worksheet holds, header included.
@@ -477,6 +820,7 @@ mod tests {
             "{\"id\":1,\"name\":\"Ann, B\",\"score\":2.5,\"ok\":true}\n{\"id\":2,\"name\":\"\",\"score\":null,\"ok\":false}\n"
         );
         let plain = Export::JsonLines {
+            nested: false,
             typed: false,
             empty_as_null: true,
         };

@@ -231,6 +231,18 @@ pub enum TableStep {
     RemoveRows {
         rows: Vec<usize>,
     },
+    /// One row for each item of a list in the column: a JSON list, or text
+    /// split at `separator`. The other columns are repeated.
+    ExplodeColumn {
+        column: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        separator: String,
+    },
+    /// Turns JSON objects in the column into columns named with dots
+    /// (`lines.sku`), in its place.
+    FlattenColumn {
+        column: String,
+    },
     /// A value typed into a cell. Rows are numbered from 0 at this step.
     EditCell {
         row: usize,
@@ -348,6 +360,17 @@ impl TableStep {
                 t!("table-step-dedupe", columns = list(columns))
             }
             TableStep::RemoveEmptyRows => t!("table-step-remove-empty"),
+            TableStep::ExplodeColumn { column, separator } if separator.is_empty() => {
+                t!("table-step-explode", column = column.clone())
+            }
+            TableStep::ExplodeColumn { column, separator } => t!(
+                "table-step-explode-at",
+                column = column.clone(),
+                separator = separator.clone()
+            ),
+            TableStep::FlattenColumn { column } => {
+                t!("table-step-flatten", column = column.clone())
+            }
             TableStep::RemoveRows { rows } => t!("table-step-remove-rows", count = rows.len()),
             TableStep::EditCell { row, column, value } => t!(
                 "table-step-edit-cell",
@@ -382,6 +405,8 @@ impl TableStep {
             | TableStep::ReplaceValues { column, .. }
             | TableStep::Text { column, .. }
             | TableStep::FilterRows { column, .. }
+            | TableStep::ExplodeColumn { column, .. }
+            | TableStep::FlattenColumn { column }
             | TableStep::EditCell { column, .. } => fix(column),
             TableStep::RemoveColumns { columns }
             | TableStep::ChooseColumns { columns }
@@ -591,6 +616,71 @@ impl TableStep {
                 let keep: Vec<usize> = (0..t.rows).filter(|r| !drop.contains(r)).collect();
                 out = t.pick_rows(&keep);
             }
+            TableStep::ExplodeColumn { column, separator } => {
+                let c = t.need(column)?;
+                let mut rows = Vec::with_capacity(t.rows);
+                let mut values = Cells::with_capacity(t.rows);
+                for (r, v) in t.columns[c].cells.iter().enumerate() {
+                    let items = list_items(v, separator);
+                    if items.is_empty() {
+                        rows.push(r);
+                        values.push("");
+                    }
+                    for item in items {
+                        rows.push(r);
+                        values.push(&item);
+                    }
+                }
+                out = t.pick_rows(&rows);
+                let kind = crate::table::detect_kind(&values);
+                out.columns[c] = Column::new(t.columns[c].name.clone(), kind, values);
+            }
+            TableStep::FlattenColumn { column } => {
+                let c = t.need(column)?;
+                let name = t.columns[c].name.clone();
+                let mut names: Vec<String> = Vec::new();
+                let mut rows: Vec<Vec<(String, String)>> = Vec::with_capacity(t.rows);
+                for v in t.columns[c].cells.iter() {
+                    let mut row = Vec::new();
+                    match serde_json::from_str::<serde_json::Value>(v.trim()) {
+                        Ok(obj @ serde_json::Value::Object(_))
+                            if v.trim_start().starts_with('{') =>
+                        {
+                            flatten_json(&name, &obj, &mut row)
+                        }
+                        _ if v.is_empty() => {}
+                        _ => row.push((name.clone(), v.to_owned())),
+                    }
+                    for (k, _) in &row {
+                        if !names.contains(k) {
+                            names.push(k.clone());
+                        }
+                    }
+                    rows.push(row);
+                }
+                let mut new_cols: Vec<Column> = Vec::new();
+                for n in &names {
+                    let mut cells = Cells::with_capacity(t.rows);
+                    for row in &rows {
+                        cells.push(row.iter().find(|(k, _)| k == n).map_or("", |(_, v)| v));
+                    }
+                    // A column of that name already: fill its empty cells.
+                    if let Some(o) =
+                        (0..t.columns.len()).find(|&i| i != c && t.columns[i].name == *n)
+                    {
+                        let mut merged = Cells::with_capacity(t.rows);
+                        for (old, new) in t.columns[o].cells.iter().zip(cells.iter()) {
+                            merged.push(if old.is_empty() { new } else { old });
+                        }
+                        let kind = crate::table::detect_kind(&merged);
+                        out.columns[o] = Column::new(n.clone(), kind, merged);
+                        continue;
+                    }
+                    let kind = crate::table::detect_kind(&cells);
+                    new_cols.push(Column::new(n.clone(), kind, cells));
+                }
+                out.columns.splice(c..=c, new_cols);
+            }
             TableStep::EditCell { row, column, value } => {
                 let c = t.need(column)?;
                 if *row >= t.rows {
@@ -610,6 +700,56 @@ impl TableStep {
 
 fn list(names: &[String]) -> String {
     names.join(", ")
+}
+
+/// The items of a list cell: a JSON list's items (objects and lists as JSON
+/// text), or the text split at `separator`. Anything else is one item.
+fn list_items(v: &str, separator: &str) -> Vec<String> {
+    if v.is_empty() {
+        return Vec::new();
+    }
+    if !separator.is_empty() {
+        let sep = match separator {
+            "\\n" => "\n",
+            "\\t" => "\t",
+            s => s,
+        };
+        return v.split(sep).map(|s| s.trim().to_owned()).collect();
+    }
+    if v.trim_start().starts_with('[')
+        && let Ok(serde_json::Value::Array(a)) = serde_json::from_str(v.trim())
+    {
+        return a
+            .iter()
+            .map(|x| match x {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Null => String::new(),
+                other => other.to_string(),
+            })
+            .collect();
+    }
+    vec![v.to_owned()]
+}
+
+/// Flattens a JSON object into dotted names under `prefix`; an XML
+/// element's own text (`#text`) takes the element's name.
+fn flatten_json(prefix: &str, v: &serde_json::Value, out: &mut Vec<(String, String)>) {
+    match v {
+        serde_json::Value::Object(m) if !m.is_empty() => {
+            for (k, v) in m {
+                let key = if k == "#text" {
+                    prefix.to_owned()
+                } else {
+                    format!("{prefix}.{k}")
+                };
+                flatten_json(&key, v, out);
+            }
+        }
+        serde_json::Value::Null => out.push((prefix.to_owned(), String::new())),
+        serde_json::Value::String(s) => out.push((prefix.to_owned(), s.clone())),
+        serde_json::Value::Array(_) => out.push((prefix.to_owned(), v.to_string())),
+        other => out.push((prefix.to_owned(), other.to_string())),
+    }
 }
 
 /// Rewrites values in `kind`'s canonical form, reading them with `format`.

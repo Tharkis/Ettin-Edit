@@ -941,6 +941,7 @@ commands when it is built.
 | Table › Columns › Change Type… | `{"Table":"ChangeType"}` |
 | Table › Columns › Choose Columns… | `{"Table":"ChooseColumns"}` |
 | Table › Columns › Duplicate Column… | `{"Table":"DuplicateColumn"}` |
+| Table › Columns › Flatten Objects | `{"Table":"Flatten"}` |
 | Table › Columns › Move Column Left | `{"Table":"MoveLeft"}` |
 | Table › Columns › Move Column Right | `{"Table":"MoveRight"}` |
 | Table › Columns › Remove Column | `{"Table":"RemoveColumn"}` |
@@ -954,6 +955,7 @@ commands when it is built.
 | Table › Rows › Sort Ascending | `{"Table":"SortAscending"}` |
 | Table › Rows › Sort Descending | `{"Table":"SortDescending"}` |
 | Table › Rows › Sort… | `{"Table":"Sort"}` |
+| Table › Rows › Explode into Rows… | `{"Table":"Explode"}` |
 | Table › Rows › Remove Duplicates… | `{"Table":"RemoveDuplicates"}` |
 | Table › Rows › Remove Empty Rows | `{"Table":"RemoveEmptyRows"}` |
 | Table › Rows › Remove Row | `{"Table":"RemoveRow"}` |

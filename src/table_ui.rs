@@ -50,6 +50,10 @@ pub enum TableCmd {
     RemoveDuplicates,
     RemoveEmptyRows,
     RemoveRow,
+    /// One row per item of a list in the column.
+    Explode,
+    /// JSON objects in the column become columns.
+    Flatten,
     EditCell,
     ColumnStats,
     Export,
@@ -86,6 +90,8 @@ impl TableCmd {
                 TableCmd::RemoveDuplicates => "table-remove-duplicates",
                 TableCmd::RemoveEmptyRows => "table-remove-empty-rows",
                 TableCmd::RemoveRow => "table-remove-row",
+                TableCmd::Explode => "table-explode",
+                TableCmd::Flatten => "table-flatten",
                 TableCmd::EditCell => "table-edit-cell",
                 TableCmd::ColumnStats => "table-column-stats",
                 TableCmd::Export => "table-export",
@@ -154,6 +160,7 @@ enum Dialog {
     Import {
         source: Source,
         sheets: Vec<String>,
+        choices: crate::table::import::Choices,
     },
     Rename {
         column: String,
@@ -209,6 +216,10 @@ enum Dialog {
     },
     Stats {
         column: String,
+    },
+    Explode {
+        column: String,
+        separator: String,
     },
 }
 
@@ -536,13 +547,17 @@ impl TableTab {
         match cmd {
             TableCmd::OpenAsTable | TableCmd::ShowAsTable | TableCmd::ShowAsText => {}
             TableCmd::ImportOptions => {
-                let sheets = match &self.data {
-                    Data::Bytes(b) => crate::table::import::sheet_names(b).unwrap_or_default(),
-                    Data::Text(_) => Vec::new(),
+                let (sheets, choices) = match &self.data {
+                    Data::Bytes(b) => (
+                        crate::table::import::sheet_names(b).unwrap_or_default(),
+                        Default::default(),
+                    ),
+                    Data::Text(t) => (Vec::new(), crate::table::import::choices(t)),
                 };
                 self.open(Dialog::Import {
                     source: self.job.read.clone(),
                     sheets,
+                    choices,
                 });
             }
             TableCmd::Refresh => {
@@ -674,6 +689,11 @@ impl TableTab {
                         })
                     }
                     TableCmd::ColumnStats => self.open(Dialog::Stats { column: name }),
+                    TableCmd::Explode => self.open(Dialog::Explode {
+                        column: name,
+                        separator: String::new(),
+                    }),
+                    TableCmd::Flatten => self.add_step(TableStep::FlattenColumn { column: name }),
                     _ => {}
                 }
             }
@@ -770,6 +790,7 @@ impl TableTab {
                 self.editing_cell_step = Some(i);
                 return;
             }
+            TableStep::ExplodeColumn { column, separator } => Dialog::Explode { column, separator },
             _ => return,
         };
         self.dialog = Some(OpenDialog {
@@ -1243,6 +1264,7 @@ impl TableTab {
             h.finish()
         };
         let scroll_to = self.scroll_to.take();
+        let hl7 = matches!(self.job.read, Source::Hl7 { .. });
         ScrollArea::horizontal()
             .id_salt(id.with("grid-h"))
             .auto_shrink([false, false])
@@ -1283,6 +1305,13 @@ impl TableTab {
                                 RichText::new(format!("{}{arrow} {}", col.name, ph::CARET_DOWN))
                                     .strong(),
                             );
+                            let r = match hl7
+                                .then(|| crate::table::hl7::describe(&col.name))
+                                .flatten()
+                            {
+                                Some(d) => r.on_hover_text(d),
+                                None => r,
+                            };
                             // Not the default popup id: the right-click
                             // menu uses that one and closes on a left click.
                             if let Some(Some(cmd)) = egui::Popup::menu(&r)
@@ -1689,6 +1718,7 @@ fn column_menu(ui: &mut Ui) -> Option<TableCmd> {
     item(ui, TableCmd::RenameColumn, true);
     item(ui, TableCmd::ChangeType, true);
     item(ui, TableCmd::DuplicateColumn, true);
+    item(ui, TableCmd::Flatten, false);
     item(ui, TableCmd::MoveLeft, false);
     item(ui, TableCmd::MoveRight, false);
     item(ui, TableCmd::RemoveColumn, false);
@@ -1701,6 +1731,7 @@ fn column_menu(ui: &mut Ui) -> Option<TableCmd> {
         }
     });
     ui.separator();
+    item(ui, TableCmd::Explode, true);
     item(ui, TableCmd::RemoveDuplicates, true);
     item(ui, TableCmd::ColumnStats, false);
     out
@@ -1981,6 +2012,7 @@ fn dialog_title(kind: &Dialog) -> (String, Vec2) {
         Dialog::Export { .. } => ("table-export", Vec2::new(720.0, 560.0)),
         Dialog::Recipe { .. } => ("table-save-as-recipe", Vec2::new(520.0, 320.0)),
         Dialog::Stats { .. } => ("table-column-stats", Vec2::new(460.0, 460.0)),
+        Dialog::Explode { .. } => ("table-explode", Vec2::new(600.0, 460.0)),
     };
     (tr(id).trim_end_matches(['…', '.']).to_owned(), size)
 }
@@ -1994,7 +2026,8 @@ fn step_column(step: &TableStep) -> Option<String> {
         TableStep::ChangeType { column, .. }
         | TableStep::ReplaceValues { column, .. }
         | TableStep::Text { column, .. }
-        | TableStep::FilterRows { column, .. } => Some(column.clone()),
+        | TableStep::FilterRows { column, .. }
+        | TableStep::ExplodeColumn { column, .. } => Some(column.clone()),
         TableStep::SortRows { keys } => keys.first().map(|k| k.column.clone()),
         _ => None,
     }
@@ -2033,7 +2066,11 @@ fn form(
         });
     };
     match kind {
-        Dialog::Import { source, sheets } => {
+        Dialog::Import {
+            source,
+            sheets,
+            choices,
+        } => {
             let is_bytes = matches!(data, Data::Bytes(_));
             if !is_bytes {
                 ui.horizontal(|ui| {
@@ -2046,11 +2083,25 @@ fn form(
                     if ui.radio(json, tr("table-read-json")).clicked() && !json {
                         *source = Source::Json {
                             rows: String::new(),
+                            parents: true,
                             detect_types: true,
                         };
                     }
+                    let xml = matches!(source, Source::Xml { .. });
+                    if ui.radio(xml, tr("table-read-xml")).clicked() && !xml {
+                        *source = Source::Xml {
+                            rows: String::new(),
+                            parents: true,
+                            detect_types: true,
+                        };
+                    }
+                    let hl7 = matches!(source, Source::Hl7 { .. });
+                    if ui.radio(hl7, tr("table-read-hl7")).clicked() && !hl7 {
+                        *source = Source::guess("MSH|^~\\&|", Some("hl7"));
+                    }
                 });
             }
+            let is_xml = matches!(source, Source::Xml { .. });
             match source {
                 Source::Csv {
                     delimiter,
@@ -2097,21 +2148,90 @@ fn form(
                     });
                     hint(ui, tr("table-header-row-hint"));
                 }
-                Source::Json { rows, .. } => {
+                Source::Json { rows, parents, .. } | Source::Xml { rows, parents, .. } => {
+                    let paths = if is_xml { &choices.xml } else { &choices.json };
                     grid(ui, &tr("table-json-rows"), &mut |ui| {
                         ui.add(
                             TextEdit::singleline(rows)
                                 .hint_text(tr("table-json-rows-hint"))
                                 .desired_width(260.0),
                         );
+                        if !paths.is_empty() {
+                            ui.menu_button(tr("table-pick-path"), |ui| {
+                                ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                                    if ui.button(tr("table-path-auto")).clicked() {
+                                        rows.clear();
+                                        ui.close();
+                                    }
+                                    for p in paths.iter() {
+                                        if ui.button(p).clicked() {
+                                            *rows = p.clone();
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            });
+                        }
                     });
+                    ui.checkbox(parents, tr("table-copy-parents"));
                     hint(ui, tr("table-json-flatten-hint"));
+                }
+                Source::Hl7 {
+                    segment,
+                    components,
+                    keep,
+                    ..
+                } => {
+                    grid(ui, &tr("table-hl7-row"), &mut |ui| {
+                        let shown = if segment.is_empty() {
+                            tr("table-hl7-per-message")
+                        } else {
+                            t!("table-hl7-per-segment", segment = segment.clone())
+                        };
+                        egui::ComboBox::from_id_salt("table-import-segment")
+                            .selected_text(shown)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    segment,
+                                    String::new(),
+                                    tr("table-hl7-per-message"),
+                                );
+                                for s in choices.segments.iter().filter(|s| *s != "MSH") {
+                                    ui.selectable_value(
+                                        segment,
+                                        s.clone(),
+                                        t!("table-hl7-per-segment", segment = s.clone()),
+                                    );
+                                }
+                            });
+                    });
+                    ui.checkbox(components, tr("table-hl7-components"));
+                    if !segment.is_empty() {
+                        let mut text = keep.join(", ");
+                        grid(ui, &tr("table-hl7-keep"), &mut |ui| {
+                            if ui
+                                .add(TextEdit::singleline(&mut text).desired_width(320.0))
+                                .changed()
+                            {
+                                *keep = text
+                                    .split([',', ' '])
+                                    .map(str::trim)
+                                    .filter(|s| !s.is_empty())
+                                    .map(str::to_owned)
+                                    .collect();
+                            }
+                        });
+                        hint(ui, tr("table-hl7-keep-hint"));
+                    }
+                    hint(ui, tr("table-hl7-hint"));
                 }
             }
             let mut detect = match source {
                 Source::Csv { detect_types, .. }
                 | Source::Excel { detect_types, .. }
-                | Source::Json { detect_types, .. } => *detect_types,
+                | Source::Json { detect_types, .. }
+                | Source::Xml { detect_types, .. }
+                | Source::Hl7 { detect_types, .. } => *detect_types,
             };
             if ui.checkbox(&mut detect, tr("table-detect-types")).changed() {
                 source.set_detect_types(detect);
@@ -2452,6 +2572,9 @@ fn form(
                             && export.kind() != k
                         {
                             *export = k.default_export();
+                            if let Export::Hl7 { template } = export {
+                                *template = crate::table::export::hl7_template(base);
+                            }
                             if !export.is_text() {
                                 *dest = Dest::File;
                             }
@@ -2478,7 +2601,8 @@ fn form(
                     let keep: Vec<usize> = (0..base.rows.min(30)).collect();
                     sample = sample.pick_rows(&keep);
                     let text = match export.write(&sample) {
-                        Ok(Output::Text(t)) => t,
+                        // HL7 ends segments with a bare CR; show each on its own line.
+                        Ok(Output::Text(t)) => t.replace("\r\n", "\n").replace('\r', "\n"),
                         Ok(Output::Bytes(_)) => {
                             t!("table-workbook-preview", rows = thousands(base.rows))
                         }
@@ -2524,6 +2648,23 @@ fn form(
                 return Built::Invalid(String::new());
             }
             Built::Nothing
+        }
+        Dialog::Explode { column, separator } => {
+            grid(ui, &tr("table-column"), &mut |ui| {
+                column_combo(ui, Id::new("table-explode-col"), &names, column);
+            });
+            grid(ui, &tr("table-explode-separator"), &mut |ui| {
+                ui.add(
+                    TextEdit::singleline(separator)
+                        .hint_text(tr("table-explode-json"))
+                        .desired_width(160.0),
+                );
+            });
+            hint(ui, tr("table-explode-hint"));
+            Built::Step(TableStep::ExplodeColumn {
+                column: column.clone(),
+                separator: separator.clone(),
+            })
         }
         Dialog::Stats { column } => {
             grid(ui, &tr("table-column"), &mut |ui| {
@@ -2604,17 +2745,53 @@ fn export_options(ui: &mut Ui, export: &mut Export) {
             pretty,
             typed,
             empty_as_null,
+            nested,
         } => {
             ui.checkbox(pretty, tr("table-json-pretty"));
             ui.checkbox(typed, tr("table-json-typed"));
             ui.checkbox(empty_as_null, tr("table-json-null"));
+            ui.checkbox(nested, tr("table-json-nested"));
         }
         Export::JsonLines {
             typed,
             empty_as_null,
+            nested,
         } => {
             ui.checkbox(typed, tr("table-json-typed"));
             ui.checkbox(empty_as_null, tr("table-json-null"));
+            ui.checkbox(nested, tr("table-json-nested"));
+        }
+        Export::Yaml { typed, nested } => {
+            ui.checkbox(typed, tr("table-json-typed"));
+            ui.checkbox(nested, tr("table-json-nested"));
+        }
+        Export::Xml {
+            root,
+            row,
+            skip_empty,
+        } => {
+            ui.horizontal(|ui| {
+                ui.label(tr("table-xml-root"));
+                ui.add(TextEdit::singleline(root).desired_width(140.0));
+                ui.label(tr("table-xml-row"));
+                ui.add(TextEdit::singleline(row).desired_width(140.0));
+            });
+            ui.checkbox(skip_empty, tr("table-xml-skip-empty"));
+            ui.label(RichText::new(tr("table-xml-hint")).size(11.5).weak());
+        }
+        Export::Hl7 { template } => {
+            ui.label(tr("table-hl7-template"));
+            ui.add(
+                TextEdit::multiline(template)
+                    .code_editor()
+                    .desired_rows(5)
+                    .desired_width(f32::INFINITY),
+            );
+            ui.label(
+                RichText::new(tr("table-hl7-template-hint"))
+                    .size(11.5)
+                    .weak(),
+            );
         }
         Export::Markdown => {}
     }
