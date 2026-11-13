@@ -55,6 +55,7 @@ mod startup_window;
 mod style_ui;
 mod suggest;
 mod system;
+mod table;
 mod text_tools_ui;
 mod theme;
 mod theme_simple;
