@@ -68,6 +68,17 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.8.1" date="2026-11-13">
+      <description>
+        <p>Bangla, Hindi, Tamil, Thai and other scripts now show as text
+        instead of boxes.</p>
+        <ul>
+          <li>Ettin Edit finds a font on your system for each script its own fonts don't cover: the Indian scripts, Sinhala, Thai, Lao, Khmer, Myanmar, Tibetan, Ethiopic, Armenian and Georgian, as well as Chinese, Japanese and Korean</li>
+          <li>Letters that join, such as Bangla conjuncts and vowel signs, are drawn joined</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.1</url>
+    </release>
     <release version="2.8.0" date="2026-11-13">
       <description>
         <p>Tables read nested data and HL7: pick the rows out of a JSON or

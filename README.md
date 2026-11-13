@@ -34,6 +34,10 @@
 
 <!-- Keep this to the latest two releases: each release adds itself at the top and drops the oldest. -->
 
+**[2.8.1: Fonts for more scripts](https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.1)**
+
+- Bangla, Hindi, Tamil, Thai and other scripts show as text instead of boxes: Ettin Edit now finds a font for them on your system.
+
 **[2.8.0: Nested data and HL7](https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.0)**
 
 - HL7 v2 messages open as a table, one message or one result (such as OBX) per row, with field names like `PID.5.1` explained when you point at a column.
@@ -41,13 +45,6 @@
 - New **Explode into Rows** and **Flatten Objects** steps.
 - Export as nested JSON, YAML, XML, or HL7 messages from a template.
 - Made-up [sample files](samples/tables) to try it on.
-
-**[2.7.0: Table view](https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.7.0)**
-
-- Open Excel workbooks, CSV and JSON as a table with typed columns (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> switches any text tab).
-- Every change (rename, retype, filter, sort, clean up, remove duplicates) is a step you can switch off, change or reorder.
-- Export to CSV, `.xlsx`, JSON, JSON Lines or Markdown.
-- Save the steps as a recipe and run it on next week's export, even from the command line.
 
 Older releases are listed in [FEATURES.md](FEATURES.md#release-history) and on the [releases page](https://github.com/Tharkis/Ettin-Edit/releases).
 

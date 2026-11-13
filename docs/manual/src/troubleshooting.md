@@ -40,10 +40,23 @@ The file's encoding can't hold that character (for example `€` in
 ISO-8859-1). Choose **Encoding > UTF-8** and save again, or remove the
 character. Nothing is lost while you decide.
 
-## Chinese, Japanese or Korean text shows as boxes
+## Text in another script shows as boxes
 
-Install a CJK font, such as Noto Sans CJK (`noto-fonts-cjk` on Arch,
-`fonts-noto-cjk` on Debian and Ubuntu), and restart Ettin Edit.
+Ettin Edit draws scripts its own fonts don't cover (Chinese, Japanese,
+Korean, Bangla, Hindi, Tamil, Thai and others) with a font from your
+system. Boxes mean no installed font covers that script. Install one and
+restart Ettin Edit:
+
+- **Arch, CachyOS:** `noto-fonts` (most scripts) and `noto-fonts-cjk`.
+- **Debian, Ubuntu:** `fonts-noto-core` and `fonts-noto-cjk`.
+- **Fedora:** `google-noto-sans-bengali-fonts` and the like, one per script,
+  or `google-noto-sans-cjk-fonts`.
+- **Windows:** the fonts come with Windows. If a script is missing, add its
+  language under **Settings > Time & language > Language & region**, which
+  also installs its font.
+
+Arabic and Hebrew show their letters but left to right, because Ettin Edit
+doesn't lay out right-to-left text yet.
 
 ## A shortcut doesn't work
 
