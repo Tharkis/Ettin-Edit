@@ -70,8 +70,9 @@ search can find them. Clear the box to go back to the sections.
 - **Size**: the text size. <kbd>Ctrl+0</kbd> returns to this size after
   zooming.
 
-Whatever font you choose, Chinese, Japanese and Korean characters are drawn
-with a CJK font from your system when one is installed.
+Whatever font you choose, characters it doesn't have (Chinese, Japanese,
+Korean, Bangla, Hindi, Thai and other scripts) are drawn with a font from
+your system that has them. See [Text in other scripts](encodings.md#text-in-other-scripts).
 
 **Markdown Preview**
 

@@ -1,9 +1,10 @@
-//! Editor fonts: the font picked in Preferences, plus fallback fonts for
-//! scripts the bundled fonts don't cover (Chinese, Japanese, Korean).
+//! Editor fonts: the font picked in Preferences, plus fallback fonts found on
+//! the system for scripts the bundled fonts don't cover (Chinese, Japanese,
+//! Korean, Bangla, Devanagari, Tamil, Thai and the rest).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use egui::{FontData, FontDefinitions, FontFamily};
 use skrifa::raw::{FileRef, TableProvider};
@@ -72,17 +73,10 @@ pub fn install(ctx: &egui::Context, editor: &EditorFont) -> Result<(), String> {
             }
         }
     }
-    if let Some(bytes) = CANDIDATES.iter().find_map(|p| std::fs::read(p).ok()) {
-        fonts.font_data.insert(
-            "cjk-fallback".to_owned(),
-            Arc::new(FontData::from_owned(bytes)),
-        );
+    for (name, data) in script_fallbacks() {
+        fonts.font_data.insert(name.clone(), data.clone());
         for family in [FontFamily::Proportional, FontFamily::Monospace] {
-            fonts
-                .families
-                .entry(family)
-                .or_default()
-                .push("cjk-fallback".to_owned());
+            fonts.families.entry(family).or_default().push(name.clone());
         }
     }
     // Toolbar icons; also a fallback so icons can sit inside ordinary labels.
@@ -93,6 +87,408 @@ pub fn install(ctx: &egui::Context, editor: &EditorFont) -> Result<(), String> {
     );
     ctx.set_fonts(fonts);
     result
+}
+
+/// A writing system the bundled fonts don't cover, with a letter to test a
+/// font with and the font files that usually cover it.
+struct Script {
+    /// Also the fallback's name in egui's font list.
+    name: &'static str,
+    /// A letter of the script; a font that has it is taken to cover the script.
+    probe: char,
+    /// fontconfig language code, used when none of `files` is installed.
+    #[cfg_attr(windows, allow(dead_code))]
+    lang: &'static str,
+    /// Start of the file name (lower case, without extension) of fonts that
+    /// cover the script, best first. Noto and Lohit on Linux, the Windows
+    /// fonts on Windows; only files that exist and have `probe` are used.
+    files: &'static [&'static str],
+}
+
+/// Right-to-left scripts (Arabic, Hebrew) are left out: egui lays text out
+/// left to right only, so their letters would show in reverse order.
+const SCRIPTS: &[Script] = &[
+    Script {
+        name: "bengali",
+        probe: 'অ',
+        lang: "bn",
+        files: &[
+            "notosansbengali",
+            "notoserifbengali",
+            "lohit-bengali",
+            "lohit-assamese",
+            "nirmala",
+            "vrinda",
+            "freeserif",
+            "freesans",
+        ],
+    },
+    Script {
+        name: "devanagari",
+        probe: 'अ',
+        lang: "hi",
+        files: &[
+            "notosansdevanagari",
+            "notoserifdevanagari",
+            "lohit-devanagari",
+            "lohit-hindi",
+            "lohit-marathi",
+            "nirmala",
+            "mangal",
+            "freesans",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "gurmukhi",
+        probe: 'ਅ',
+        lang: "pa",
+        files: &[
+            "notosansgurmukhi",
+            "notoserifgurmukhi",
+            "lohit-gurmukhi",
+            "lohit-punjabi",
+            "nirmala",
+            "raavi",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "gujarati",
+        probe: 'અ',
+        lang: "gu",
+        files: &[
+            "notosansgujarati",
+            "notoserifgujarati",
+            "lohit-gujarati",
+            "nirmala",
+            "shruti",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "oriya",
+        probe: 'ଅ',
+        lang: "or",
+        files: &[
+            "notosansoriya",
+            "notoserifodia",
+            "notoserifor",
+            "lohit-odia",
+            "lohit-oriya",
+            "nirmala",
+            "kalinga",
+        ],
+    },
+    Script {
+        name: "tamil",
+        probe: 'அ',
+        lang: "ta",
+        files: &[
+            "notosanstamil",
+            "notoseriftamil",
+            "lohit-tamil",
+            "nirmala",
+            "latha",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "telugu",
+        probe: 'అ',
+        lang: "te",
+        files: &[
+            "notosanstelugu",
+            "notoseriftelugu",
+            "lohit-telugu",
+            "nirmala",
+            "gautami",
+        ],
+    },
+    Script {
+        name: "kannada",
+        probe: 'ಅ',
+        lang: "kn",
+        files: &[
+            "notosanskannada",
+            "notoserifkannada",
+            "lohit-kannada",
+            "nirmala",
+            "tunga",
+        ],
+    },
+    Script {
+        name: "malayalam",
+        probe: 'അ',
+        lang: "ml",
+        files: &[
+            "notosansmalayalam",
+            "notoserifmalayalam",
+            "lohit-malayalam",
+            "nirmala",
+            "kartika",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "sinhala",
+        probe: 'අ',
+        lang: "si",
+        files: &[
+            "notosanssinhala",
+            "notoserifsinhala",
+            "nirmala",
+            "iskpota",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "thai",
+        probe: 'ก',
+        lang: "th",
+        files: &[
+            "notosansthai",
+            "notoserifthai",
+            "garuda",
+            "loma",
+            "leelawui",
+            "leelawadeeui",
+            "tahoma",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "lao",
+        probe: 'ກ',
+        lang: "lo",
+        files: &[
+            "notosanslao",
+            "notoseriflao",
+            "leelawui",
+            "leelawadeeui",
+            "laosansui",
+        ],
+    },
+    Script {
+        name: "khmer",
+        probe: 'ក',
+        lang: "km",
+        files: &[
+            "notosanskhmer",
+            "notoserifkhmer",
+            "leelawui",
+            "leelawadeeui",
+            "khmerui",
+        ],
+    },
+    Script {
+        name: "myanmar",
+        probe: 'က',
+        lang: "my",
+        files: &["notosansmyanmar", "notoserifmyanmar", "padauk", "mmrtext"],
+    },
+    Script {
+        name: "tibetan",
+        probe: 'ཀ',
+        lang: "bo",
+        files: &[
+            "notoseriftibetan",
+            "notosanstibetan",
+            "himalaya",
+            "jomolhari",
+        ],
+    },
+    Script {
+        name: "ethiopic",
+        probe: 'አ',
+        lang: "am",
+        files: &[
+            "notosansethiopic",
+            "notoserifethiopic",
+            "ebrima",
+            "abyssinica",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "armenian",
+        probe: 'Ա',
+        lang: "hy",
+        files: &[
+            "notosansarmenian",
+            "notoserifarmenian",
+            "segoeui",
+            "sylfaen",
+            "freesans",
+            "freeserif",
+        ],
+    },
+    Script {
+        name: "georgian",
+        probe: 'ა',
+        lang: "ka",
+        files: &[
+            "notosansgeorgian",
+            "notoserifgeorgian",
+            "segoeui",
+            "sylfaen",
+            "freesans",
+            "freeserif",
+        ],
+    },
+];
+
+/// Fallback fonts for the scripts above, plus the CJK one, read once and
+/// kept: they don't change while the app runs, and `install` runs again
+/// whenever the editor font changes.
+fn script_fallbacks() -> &'static [(String, Arc<FontData>)] {
+    static FALLBACKS: OnceLock<Vec<(String, Arc<FontData>)>> = OnceLock::new();
+    FALLBACKS.get_or_init(find_fallbacks)
+}
+
+fn find_fallbacks() -> Vec<(String, Arc<FontData>)> {
+    let mut out = Vec::new();
+    if let Some(bytes) = CANDIDATES.iter().find_map(|p| std::fs::read(p).ok()) {
+        out.push((
+            "cjk-fallback".to_owned(),
+            Arc::new(FontData::from_owned(bytes)),
+        ));
+    }
+    // Only file names are listed here; a font file is read only when its
+    // name matches a script that still needs one.
+    let mut files = Vec::new();
+    for dir in font_dirs() {
+        collect_files(&dir, 0, &mut files);
+    }
+    let by_stem = file_stems(&files);
+    // A file can cover several scripts (Nirmala UI covers all the Indian
+    // ones); it is loaded once and checked against the others.
+    let mut loaded: Vec<(PathBuf, u32, Arc<FontData>)> = Vec::new();
+    for script in SCRIPTS {
+        if loaded.iter().any(|(_, _, d)| has_char(d, script.probe)) {
+            continue;
+        }
+        let found = script
+            .files
+            .iter()
+            .flat_map(|prefix| matching_files(&by_stem, prefix))
+            .map(|p| (p, 0))
+            .chain(std::iter::once(()).flat_map(|()| fontconfig_match(script)))
+            .find_map(|(path, index)| {
+                let bytes = std::fs::read(&path).ok()?;
+                let mut data = FontData::from_owned(bytes);
+                data.index = index;
+                let data = Arc::new(data);
+                has_char(&data, script.probe).then_some((path, index, data))
+            });
+        if let Some(entry) = found {
+            out.push((format!("{}-fallback", script.name), entry.2.clone()));
+            loaded.push(entry);
+        }
+    }
+    out
+}
+
+/// Font files by lower-case file name without extension.
+fn file_stems(files: &[PathBuf]) -> Vec<(String, PathBuf)> {
+    let mut stems: Vec<(String, PathBuf)> = files
+        .iter()
+        .filter_map(|p| Some((p.file_stem()?.to_str()?.to_lowercase(), p.clone())))
+        .collect();
+    stems.sort();
+    stems
+}
+
+/// Files whose name starts with `prefix`, the regular face first, then a
+/// variable font, then anything that isn't bold or italic.
+fn matching_files(stems: &[(String, PathBuf)], prefix: &str) -> Vec<PathBuf> {
+    let rank = |stem: &str| {
+        let rest = &stem[prefix.len()..];
+        if rest.is_empty() || rest == "-regular" || rest == "ui-regular" {
+            0
+        } else if rest.starts_with('[') || rest.contains("-vf") || rest.ends_with("vf") {
+            1
+        } else if rest.contains("bold")
+            || rest.contains("italic")
+            || rest.contains("oblique")
+            || rest.contains("light")
+            || rest.contains("thin")
+            || rest.contains("black")
+            || rest.contains("medium")
+        {
+            3
+        } else {
+            2
+        }
+    };
+    let mut hits: Vec<(u8, &PathBuf)> = stems
+        .iter()
+        .filter(|(stem, _)| stem.starts_with(prefix))
+        .map(|(stem, path)| (rank(stem), path))
+        .filter(|(r, _)| *r < 3)
+        .collect();
+    hits.sort_by_key(|(r, _)| *r);
+    hits.into_iter().map(|(_, p)| p.clone()).collect()
+}
+
+/// Fonts fontconfig says support the script's language, regular faces
+/// first, for fonts that aren't in the lists above. Empty when fontconfig
+/// isn't installed. `fc-list` runs once, and only if a script needs it.
+/// A face from `fc-list`: file, index in the file, regular style, languages.
+#[cfg(not(windows))]
+type FcFace = (PathBuf, u32, bool, Vec<String>);
+
+#[cfg(not(windows))]
+fn fontconfig_match(script: &Script) -> Vec<(PathBuf, u32)> {
+    static LIST: OnceLock<Vec<FcFace>> = OnceLock::new();
+    let list = LIST.get_or_init(|| {
+        let Ok(out) = std::process::Command::new("fc-list")
+            .args(["--format", "%{file}\t%{index}\t%{style[0]}\t%{lang}\n"])
+            .stderr(std::process::Stdio::null())
+            .output()
+        else {
+            return Vec::new();
+        };
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter_map(|line| {
+                let mut parts = line.split('\t');
+                let file = parts.next().filter(|f| !f.is_empty())?;
+                let index = parts.next()?.trim().parse().unwrap_or(0);
+                let style = parts.next().unwrap_or("").to_ascii_lowercase();
+                let langs = parts
+                    .next()
+                    .unwrap_or("")
+                    .split('|')
+                    .map(str::to_owned)
+                    .collect();
+                let regular = matches!(style.as_str(), "regular" | "book" | "normal" | "roman");
+                Some((PathBuf::from(file), index, regular, langs))
+            })
+            .collect()
+    });
+    let mut hits: Vec<_> = list
+        .iter()
+        .filter(|(_, _, _, langs)| langs.iter().any(|l| l == script.lang))
+        .collect();
+    hits.sort_by_key(|(_, _, regular, _)| !regular);
+    hits.into_iter()
+        .map(|(p, i, _, _)| (p.clone(), *i))
+        .collect()
+}
+
+#[cfg(windows)]
+fn fontconfig_match(_script: &Script) -> Vec<(PathBuf, u32)> {
+    Vec::new()
+}
+
+/// The font has an outline for `c` (colour bitmap fonts don't count, egui
+/// can't draw them).
+fn has_char(data: &FontData, c: char) -> bool {
+    FontRef::from_index(&data.font, data.index).is_ok_and(|f| {
+        (f.glyf().is_ok() || f.cff().is_ok() || f.cff2().is_ok())
+            && f.charmap().map(c).is_some_and(|g| g.to_u32() != 0)
+    })
 }
 
 /// The font family of the toolbar icons (Phosphor, MIT licence).
@@ -246,6 +642,35 @@ pub fn system_fonts() -> Vec<SystemFont> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn picks_the_regular_face_of_a_script_font() {
+        let stems = file_stems(&[
+            PathBuf::from("/f/NotoSansBengali-Bold.ttf"),
+            PathBuf::from("/f/NotoSansBengali[wdth,wght].ttf"),
+            PathBuf::from("/f/NotoSansBengali-Regular.ttf"),
+            PathBuf::from("/f/NotoSansBengaliUI-Regular.ttf"),
+        ]);
+        let hits = matching_files(&stems, "notosansbengali");
+        assert_eq!(hits[0], PathBuf::from("/f/NotoSansBengali-Regular.ttf"));
+        assert!(!hits.contains(&PathBuf::from("/f/NotoSansBengali-Bold.ttf")));
+        assert_eq!(hits.len(), 3);
+    }
+
+    #[test]
+    fn fallbacks_cover_what_they_claim() {
+        let start = std::time::Instant::now();
+        let names: Vec<_> = script_fallbacks().iter().map(|(n, _)| n.as_str()).collect();
+        eprintln!("fallbacks {names:?} found in {:?}", start.elapsed());
+        for (name, data) in script_fallbacks() {
+            if let Some(s) = SCRIPTS
+                .iter()
+                .find(|s| name == &format!("{}-fallback", s.name))
+            {
+                assert!(has_char(data, s.probe), "{name}");
+            }
+        }
+    }
 
     #[test]
     fn reads_the_system_fonts_without_panicking() {

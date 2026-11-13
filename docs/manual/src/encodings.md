@@ -65,9 +65,22 @@ Symbol > Show End of Line** shows each line's ending.
 New tabs use the line ending set in **Preferences > New Documents**: your
 system's usual one unless you change it.
 
-## Chinese, Japanese and Korean text
+## Text in other scripts
 
-Ettin Edit's own fonts don't include Chinese, Japanese or Korean characters,
-so it uses a CJK font installed on your system for them, such as Noto Sans
-CJK on Linux or Microsoft YaHei on Windows. If those characters show as
-boxes, install a CJK font.
+Ettin Edit's own fonts cover Latin, Greek and Cyrillic. For other scripts it
+uses fonts installed on your system:
+
+- **Chinese, Japanese and Korean:** Noto Sans CJK or WenQuanYi on Linux,
+  Microsoft YaHei, Yu Gothic or Malgun Gothic on Windows.
+- **Bangla, Hindi and the other Indian scripts, Sinhala, Thai, Lao, Khmer,
+  Myanmar, Tibetan, Ethiopic, Armenian and Georgian:** the Noto or Lohit
+  font for the script on Linux, or any font fontconfig says covers it;
+  Nirmala UI, Leelawadee UI, Myanmar Text, Microsoft Himalaya, Ebrima and
+  Segoe UI on Windows.
+
+Letters that join, such as Bangla and Hindi conjuncts and vowel signs, are
+drawn joined, and the arrow keys move over a joined letter as one.
+
+If a script shows as boxes, no installed font covers it: see
+[Troubleshooting](troubleshooting.md#text-in-another-script-shows-as-boxes).
+Right-to-left scripts (Arabic, Hebrew) aren't laid out right to left yet.

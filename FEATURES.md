@@ -20,6 +20,15 @@ the [README](README.md#whats-new), which always covers the latest two releases.
 
 ## Release history
 
+### 2.8.1: Fonts for more scripts
+
+Bangla text showed as boxes ([#47](https://github.com/Tharkis/Ettin-Edit/issues/47)): the only system fallback font was a CJK one. egui already shapes text (harfrust), so finding a font was all that was missing ([Text in other scripts](docs/manual/src/encodings.md#text-in-other-scripts)).
+
+- [x] Fallback fonts from the system for Bangla, Devanagari, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam, Sinhala, Thai, Lao, Khmer, Myanmar, Tibetan, Ethiopic, Armenian and Georgian, after the editor font and egui's own (`src/fonts.rs`)
+- [x] Found by file name (Noto, Lohit, FreeFont on Linux; Nirmala UI, Leelawadee UI, Segoe UI and others on Windows), then by `fc-list` language on Linux; each font is checked for a letter of its script, and one font covering several scripts is loaded once
+- [x] Fonts are found once per run (about 15 ms) and kept, so changing the editor font doesn't read them again
+- [x] Right-to-left scripts left out until text can be laid out right to left
+
 ### 2.8: Nested data and HL7
 
 Requested on 2026-11-13, the second part of the tables plan. Joe had no sample files, so the release brings its own made-up ones in `samples/tables` (no real patient data) for the tests and the manual ([Nested data](docs/manual/src/tables.md#nested-data), [HL7 v2 messages](docs/manual/src/tables.md#hl7-v2-messages)).
@@ -413,7 +422,7 @@ The six features requested on 2026-10-16.
 - [x] Right-click menu: Undo, Redo, Cut, Copy, Paste, Select All
 - [x] Large files keep their colours: incremental highlighting parses only what is on screen (a 50 MB, 940,000-line file opens in about a second)
 - [x] Very long lines (minified files) stay responsive: lines over 20 KB are shown unstyled
-- [x] Chinese, Japanese and Korean text uses a system CJK font when one is installed
+- [x] Chinese, Japanese and Korean text uses a system CJK font when one is installed (2.8.1 adds fonts for Bangla, Hindi, Tamil, Thai and other scripts)
 - [x] Application icon, Linux `.desktop` file, and an Arch/CachyOS `PKGBUILD`
 - [x] CI builds and tests for Linux and Windows on every pull request
 
@@ -708,6 +717,7 @@ Bugs reported but not yet in a release, with the release that fixes them.
 
 | Bug | Fixed in |
 | --- | --- |
+| Bangla and other Indian, South-East Asian and Caucasian scripts showed as boxes even with a font for them installed ([#47](https://github.com/Tharkis/Ettin-Edit/issues/47)) | 2.8.1 |
 | Preferences was wider than its window: the Interface language row ran past the right edge | 2.6 |
 | Opening a file while Ettin Edit was minimized added the tab but left the window minimized ([#36](https://github.com/Tharkis/Ettin-Edit/issues/36)) | 2.4.1 |
 | On Windows, starting with the window maximized made it flicker: it showed, vanished and came back maximized ([#30](https://github.com/Tharkis/Ettin-Edit/issues/30)) | 2.1.1 |
