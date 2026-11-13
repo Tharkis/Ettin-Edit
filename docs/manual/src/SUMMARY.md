@@ -22,6 +22,7 @@
 - [Transforming text](transform.md)
 - [Suggestions](suggestions.md)
 - [Recipes](recipes.md)
+- [Tables](tables.md)
 - [JSON and JavaScript](json.md)
 - [XML Tools](xml.md)
 - [MIME Tools](mime.md)

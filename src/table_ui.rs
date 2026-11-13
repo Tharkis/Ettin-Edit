@@ -1279,21 +1279,19 @@ impl TableTab {
                                 Some(false) => format!(" {}", ph::ARROW_UP),
                                 None => String::new(),
                             };
-                            let r = ui
-                                .menu_button(
-                                    RichText::new(format!(
-                                        "{}{arrow} {}",
-                                        col.name,
-                                        ph::CARET_DOWN
-                                    ))
+                            let r = ui.button(
+                                RichText::new(format!("{}{arrow} {}", col.name, ph::CARET_DOWN))
                                     .strong(),
-                                    |ui| {
-                                        if let Some(cmd) = column_menu(ui) {
-                                            picked = Some((c, cmd));
-                                        }
-                                    },
-                                )
-                                .response;
+                            );
+                            // Not the default popup id: the right-click
+                            // menu uses that one and closes on a left click.
+                            if let Some(Some(cmd)) = egui::Popup::menu(&r)
+                                .id(id.with(("column-menu", c)))
+                                .show(column_menu)
+                                .map(|r| r.inner)
+                            {
+                                picked = Some((c, cmd));
+                            }
                             r.context_menu(|ui| {
                                 if let Some(cmd) = column_menu(ui) {
                                     picked = Some((c, cmd));

@@ -7,6 +7,8 @@
 - **File > Open Recent** lists the last 12 files you had open.
   **Clear Recent Files** at the bottom empties the list.
 - Drag files from your file manager onto the window.
+- Excel and OpenDocument workbooks open as a [table](tables.md); **File >
+  Open as Table…** opens a CSV or JSON file as a table too.
 - Pass them on the command line: `ettin-edit notes.txt todo.md`
   (see [the command line](folders.md#the-command-line)).
 - On Windows, right-click a file and choose **Edit with Ettin Edit**, if you
