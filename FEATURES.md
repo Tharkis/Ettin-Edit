@@ -19,6 +19,19 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.8: Nested data and HL7
+
+Requested on 2026-11-13, the second part of the tables plan. Joe had no sample files, so the release brings its own made-up ones in `samples/tables` (no real patient data) for the tests and the manual ([Nested data](docs/manual/src/tables.md#nested-data), [HL7 v2 messages](docs/manual/src/tables.md#hl7-v2-messages)).
+
+- [x] **HL7 v2 reader** (`src/table/hl7.rs`): segments, fields, repeats, components and subcomponents with the separators from MSH, escape sequences (`\F\`, `\S\`, `\T\`, `\R\`, `\E\`, `\.br\`, `\X..\`) both ways; columns named `PID.5.1`, `OBX[2].5`, `PID.3[2]`; a field-name dictionary (`src/table/hl7_dict.txt`, from the HL7 viewer plugin's definitions) shown when pointing at a column name
+- [x] **HL7 import**: one row per message, or one row per segment (such as OBX) with the segments up to the next one and chosen message fields (default `MSH.10`, `PID.3.1`, `PID.5.1`, `PID.5.2`) copied in; components split or whole
+- [x] **JSON import**: rows at a path that may go through lists (`orders.lines`), a **Pick…** list of every list in the file, and the fields of the items above copied into each row
+- [x] **XML import**: rows at an element path, attributes and child elements as columns, element text under the element's name, repeated elements as lists
+- [x] **Explode into Rows** (JSON lists, or text split at a separator) and **Flatten Objects** steps, in the column menu, the Table menu, the ribbon and recipes
+- [x] **Exports**: JSON and JSON Lines with dotted names as nested objects, YAML, XML (root and row names, `@` attributes, nested elements, empty values left out) and HL7 v2 messages from a template (`{Column}`, `{#}`), made automatically from HL7-named columns
+- [x] **Sample files** in `samples/tables`: three ORU^R01 lab messages, nested orders JSON, appointments XML and patients CSV, all invented
+- [x] New text in all four interface languages
+
 ### 2.7: Table view
 
 Requested on 2026-11-13: "a table based transformation tool" for exports from other systems in Excel, JSON, HL7 and XML, reshaped for other platforms: "Think excel or calc, but for structured data." The plan splits it over 2.7 to 3.0; this is the first part: the table tab itself with CSV, Excel and flat JSON ([Tables](docs/manual/src/tables.md)).
@@ -712,7 +725,7 @@ Features that are planned or only partly done.
 ### Planned (not yet scheduled)
 The UX plan from the 2.0.0 review is finished with 2.5.
 
-Tables continue after 2.7: 2.8 nested data and HL7, 2.9 reshaping (split, merge, pivot, joins, formulas per column), 3.0 target layouts and batch runs.
+Tables continue after 2.8: 2.9 reshaping (split, merge, pivot, joins, formulas per column), 3.0 target layouts and batch runs.
 
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 

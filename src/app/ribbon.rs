@@ -404,6 +404,7 @@ impl EttinApp {
                     (C::ReplaceValues, Small),
                     (C::RemoveColumn, Small),
                     (C::DuplicateColumn, Small),
+                    (C::Flatten, Small),
                 ],
             ),
             (
@@ -413,6 +414,7 @@ impl EttinApp {
                     (C::Sort, Large),
                     (C::RemoveDuplicates, Small),
                     (C::RemoveEmptyRows, Small),
+                    (C::Explode, Small),
                     (C::ColumnStats, Small),
                 ],
             ),

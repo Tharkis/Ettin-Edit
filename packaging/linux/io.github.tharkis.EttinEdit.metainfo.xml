@@ -68,6 +68,21 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.8.0" date="2026-11-13">
+      <description>
+        <p>Tables read nested data and HL7: pick the rows out of a JSON or
+        XML tree, read HL7 v2 lab results one row per result, and write
+        nested JSON, YAML, XML or HL7 messages.</p>
+        <ul>
+          <li>JSON and XML exports open as tables, with the rows at a path you pick from a list and the parent's fields copied into each row</li>
+          <li>HL7 v2 messages open as tables, one row per message or per segment, with columns named PID.5.1 and the field's meaning on hover</li>
+          <li>Explode into Rows gives each item of a list its own row; Flatten Objects turns an object into columns</li>
+          <li>Export as nested JSON, YAML, XML with attributes, or HL7 v2 messages from a template</li>
+          <li>Made-up sample files to try it on, in samples/tables</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.0</url>
+    </release>
     <release version="2.7.0" date="2026-11-13">
       <description>
         <p>Tables: open a workbook, a CSV or a JSON export as a table and

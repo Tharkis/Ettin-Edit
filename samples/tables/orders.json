@@ -1,0 +1,39 @@
+{
+  "exported": "2026-11-12T18:30:00Z",
+  "warehouse": { "code": "FW-02", "name": "Fernwood Central Supply" },
+  "orders": [
+    {
+      "id": "SO-10421",
+      "placed": "2026-11-10",
+      "status": "shipped",
+      "clinic": { "id": "RC-204", "name": "Riverbend Family Clinic", "address": { "city": "Fernwood", "state": "OR" } },
+      "tags": ["priority", "cold-chain"],
+      "lines": [
+        { "sku": "GLV-NIT-M", "description": "Nitrile gloves, medium (box of 100)", "qty": 12, "unit_price": 8.95 },
+        { "sku": "SWB-ALC-200", "description": "Alcohol prep pads (200)", "qty": 4, "unit_price": 5.4 },
+        { "sku": "VAC-FLU-26", "description": "Influenza vaccine 2026-27, 10 doses", "qty": 2, "unit_price": 182.0 }
+      ]
+    },
+    {
+      "id": "SO-10422",
+      "placed": "2026-11-11",
+      "status": "packing",
+      "clinic": { "id": "MB-010", "name": "Millbrook Community Health", "address": { "city": "Millbrook", "state": "OR" } },
+      "tags": [],
+      "lines": [
+        { "sku": "GLV-NIT-L", "description": "Nitrile gloves, large (box of 100)", "qty": 6, "unit_price": 8.95 },
+        { "sku": "BND-ADH-1X3", "description": "Adhesive bandages 1\" x 3\" (100)", "qty": 10, "unit_price": 3.25 }
+      ]
+    },
+    {
+      "id": "SO-10423",
+      "placed": "2026-11-12",
+      "status": "on hold",
+      "clinic": { "id": "RC-204", "name": "Riverbend Family Clinic", "address": { "city": "Fernwood", "state": "OR" } },
+      "tags": ["backorder"],
+      "lines": [
+        { "sku": "THM-DIG-01", "description": "Digital thermometer", "qty": 3, "unit_price": 14.5 }
+      ]
+    }
+  ]
+}

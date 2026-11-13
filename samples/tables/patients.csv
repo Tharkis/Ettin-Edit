@@ -1,0 +1,7 @@
+MRN,Last name,First name,Born,Ward,Admitted,Weight kg,Discharged
+000123,Smith,Alex,02/03/1984,North,2026-11-01 08:12,72.5,true
+000124,Jones,Sam,30/12/1967,South,2026-11-02 14:40,81,false
+000125,Brown,Robin,15/07/1990,North,2026-11-03 09:05,n/a,false
+000126,Taylor,Jamie,01/01/2001,East,2026-11-03 17:30,64.2,true
+000127,Smith,Alex,02/03/1984,North,2026-11-04 10:00,72.5,false
+000128,Wilson,Casey,22/09/1975,,2026-11-05 11:11,90.1,false

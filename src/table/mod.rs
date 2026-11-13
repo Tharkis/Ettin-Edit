@@ -7,6 +7,7 @@
 //! column's type is never lost: it stays as it was and counts as a problem.
 
 pub mod export;
+pub mod hl7;
 pub mod import;
 pub mod job;
 pub mod pattern;
@@ -455,6 +456,9 @@ pub fn unique_names(names: Vec<String>) -> Vec<String> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tree_tests;
 
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,6 @@
 //! Reading a table: delimited text (CSV, TSV…), Excel and OpenDocument
-//! workbooks, and JSON lists of objects.
+//! workbooks, JSON and XML (rows found by a path, nested values flattened
+//! to dotted columns) and HL7 v2 messages.
 
 use std::io::Cursor;
 
@@ -23,6 +24,11 @@ fn comma() -> char {
 }
 fn dquote() -> Option<char> {
     Some('"')
+}
+fn default_keep() -> Vec<String> {
+    ["MSH.10", "PID.3.1", "PID.5.1", "PID.5.2"]
+        .map(String::from)
+        .to_vec()
 }
 
 /// How the table's data is read. Saved as the first step of a table job.
@@ -57,8 +63,41 @@ pub enum Source {
     /// JSON: a list of objects (or of lists, the first naming the columns).
     Json {
         /// Where the list is, like `data.items`; found by itself when empty.
+        /// A path through a list, like `orders.lines`, takes the rows from
+        /// every item.
         #[serde(default, skip_serializing_if = "String::is_empty")]
         rows: String,
+        /// On a path through a list, copy each item's other fields
+        /// (`orders.id`) into its rows.
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        parents: bool,
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        detect_types: bool,
+    },
+    /// XML: one row per element at a path like `schedule.appointment`.
+    /// Attributes and child elements become columns.
+    Xml {
+        /// Element names from the root down; the root may be left out.
+        /// Found by itself when empty.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        rows: String,
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        parents: bool,
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        detect_types: bool,
+    },
+    /// HL7 v2 messages: a row per message, or per segment of one kind.
+    Hl7 {
+        /// The segment that makes a row, like `OBX`; one row per message
+        /// when empty.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        segment: String,
+        /// Split fields into components (`PID.5.1`), or keep them whole.
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        components: bool,
+        /// With a segment: fields copied from the rest of the message.
+        #[serde(default = "default_keep")]
+        keep: Vec<String>,
         #[serde(default = "yes", skip_serializing_if = "is_true")]
         detect_types: bool,
     },
@@ -99,7 +138,9 @@ impl Source {
         match self {
             Source::Csv { detect_types, .. }
             | Source::Excel { detect_types, .. }
-            | Source::Json { detect_types, .. } => *detect_types,
+            | Source::Json { detect_types, .. }
+            | Source::Xml { detect_types, .. }
+            | Source::Hl7 { detect_types, .. } => *detect_types,
         }
     }
 
@@ -107,19 +148,39 @@ impl Source {
         match self {
             Source::Csv { detect_types, .. }
             | Source::Excel { detect_types, .. }
-            | Source::Json { detect_types, .. } => *detect_types = on,
+            | Source::Json { detect_types, .. }
+            | Source::Xml { detect_types, .. }
+            | Source::Hl7 { detect_types, .. } => *detect_types = on,
         }
     }
 
-    /// A guess at how to read `text`: JSON when it starts like JSON,
-    /// otherwise delimited text with the delimiter worked out.
+    /// A guess at how to read `text`: JSON, XML or HL7 when it starts like
+    /// them, otherwise delimited text with the delimiter worked out.
     pub fn guess(text: &str, extension: Option<&str>) -> Source {
-        let start = text.trim_start();
+        let start = text.trim_start_matches('\u{feff}').trim_start();
         if extension == Some("json")
             || (start.starts_with(['[', '{']) && serde_json::from_str::<Value>(text).is_ok())
         {
             return Source::Json {
                 rows: String::new(),
+                parents: true,
+                detect_types: true,
+            };
+        }
+        if extension == Some("hl7") || super::hl7::looks_like(text) {
+            return Source::Hl7 {
+                segment: String::new(),
+                components: true,
+                keep: default_keep(),
+                detect_types: true,
+            };
+        }
+        if extension == Some("xml")
+            || (start.starts_with('<') && roxmltree::Document::parse(text).is_ok())
+        {
+            return Source::Xml {
+                rows: String::new(),
+                parents: true,
                 detect_types: true,
             };
         }
@@ -161,6 +222,12 @@ impl Source {
             }
             Source::Json { rows, .. } if rows.is_empty() => t!("table-source-json"),
             Source::Json { rows, .. } => t!("table-source-json-at", path = rows.clone()),
+            Source::Xml { rows, .. } if rows.is_empty() => t!("table-source-xml"),
+            Source::Xml { rows, .. } => t!("table-source-xml-at", path = rows.clone()),
+            Source::Hl7 { segment, .. } if segment.is_empty() => t!("table-source-hl7"),
+            Source::Hl7 { segment, .. } => {
+                t!("table-source-hl7-segment", segment = segment.clone())
+            }
         }
     }
 
@@ -201,7 +268,43 @@ impl Source {
                 };
                 Table::from_rows(names, &t.rows)
             }
-            (Source::Json { rows, .. }, Input::Text(text)) => read_json(text, rows)?,
+            (Source::Json { rows, parents, .. }, Input::Text(text)) => {
+                let value: Value = serde_json::from_str(text)
+                    .map_err(|e| t!("table-json-unreadable", error = e.to_string()))?;
+                read_value(&value, rows, *parents)?
+            }
+            (Source::Xml { rows, parents, .. }, Input::Text(text)) => {
+                let (root, value) = xml_value(text)?;
+                let path = rows.trim();
+                let path = if path.is_empty() || path.split('.').next() == Some(root.as_str()) {
+                    path.to_owned()
+                } else {
+                    format!("{root}.{path}")
+                };
+                let mut t = read_value(&value, &path, *parents)?;
+                // Parent columns are named from below the root element.
+                let prefix = format!("{root}.");
+                for c in &mut t.columns {
+                    if let Some(rest) = c.name.strip_prefix(&prefix) {
+                        c.name = rest.to_owned();
+                    }
+                }
+                t
+            }
+            (
+                Source::Hl7 {
+                    segment,
+                    components,
+                    keep,
+                    ..
+                },
+                Input::Text(text),
+            ) => {
+                let messages = super::hl7::parse(text)?;
+                let (names, rows) =
+                    super::hl7::tabulate(super::hl7::rows(&messages, segment, *components, keep));
+                Table::from_rows(names, &rows)
+            }
         };
         if self.detect_types() {
             table.detect_types();
@@ -215,6 +318,98 @@ fn ascii(c: char) -> Result<u8, String> {
         Ok(c as u8)
     } else {
         Err(t!("table-delimiter-ascii"))
+    }
+}
+
+/// What the Import Options dialog can offer for `text`: paths to lists in
+/// JSON, element paths in XML, and segment ids in HL7. Each is empty when
+/// the text isn't in that format.
+#[derive(Clone, Debug, Default)]
+pub struct Choices {
+    pub json: Vec<String>,
+    pub xml: Vec<String>,
+    pub segments: Vec<String>,
+}
+
+pub fn choices(text: &str) -> Choices {
+    let start = text.trim_start_matches('\u{feff}').trim_start();
+    let mut c = Choices::default();
+    if start.starts_with(['[', '{'])
+        && let Ok(v) = serde_json::from_str::<Value>(text)
+    {
+        list_paths(&v, "", &mut c.json);
+    }
+    if start.starts_with('<')
+        && let Ok((root, v)) = xml_value(text)
+    {
+        let mut paths = Vec::new();
+        list_paths(&v, "", &mut paths);
+        // Elements that appear once but hold others can be rows too.
+        object_paths(&v, "", &mut paths);
+        let prefix = format!("{root}.");
+        c.xml = paths
+            .into_iter()
+            .map(|p| p.strip_prefix(&prefix).map(str::to_owned).unwrap_or(p))
+            .filter(|p| p != &root)
+            .collect();
+    }
+    if super::hl7::looks_like(text)
+        && let Ok(m) = super::hl7::parse(text)
+    {
+        c.segments = super::hl7::segment_ids(&m);
+    }
+    c
+}
+
+/// Paths to the lists of objects in `v`, through lists on the way.
+fn list_paths(v: &Value, path: &str, out: &mut Vec<String>) {
+    let join = |k: &str| {
+        if path.is_empty() {
+            k.to_owned()
+        } else {
+            format!("{path}.{k}")
+        }
+    };
+    match v {
+        Value::Array(a) => {
+            if !path.is_empty() && a.iter().any(Value::is_object) && !out.iter().any(|p| p == path)
+            {
+                out.push(path.to_owned());
+            }
+            for item in a.iter().take(50) {
+                if let Value::Object(m) = item {
+                    for (k, v) in m {
+                        list_paths(v, &join(k), out);
+                    }
+                }
+            }
+        }
+        Value::Object(m) => {
+            for (k, v) in m {
+                list_paths(v, &join(k), out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn object_paths(v: &Value, path: &str, out: &mut Vec<String>) {
+    if let Value::Object(m) = v {
+        for (k, v) in m {
+            let p = if path.is_empty() {
+                k.clone()
+            } else {
+                format!("{path}.{k}")
+            };
+            if let Value::Object(inner) = v
+                && inner.values().any(|x| x.is_object() || x.is_array())
+            {
+                if !out.contains(&p) {
+                    out.push(p.clone());
+                }
+                object_paths(v, &p, out);
+            }
+        }
     }
 }
 
@@ -349,46 +544,52 @@ fn number_text(f: f64) -> String {
     }
 }
 
-/// Reads a JSON list of rows. Objects inside a row become columns named
-/// with dots (`address.city`); lists inside a row stay as JSON text.
-fn read_json(text: &str, path: &str) -> Result<Table, String> {
-    let value: Value = serde_json::from_str(text)
-        .map_err(|e| t!("table-json-unreadable", error = e.to_string()))?;
-    let list = if path.trim().is_empty() {
-        find_list(&value).ok_or_else(|| t!("table-json-no-list"))?
+/// Reads a list of rows from JSON (or XML turned into JSON). Objects inside
+/// a row become columns named with dots (`address.city`); lists inside a row
+/// stay as JSON text. A path through a list (`orders.lines`) takes the rows
+/// from every item, and with `parents` copies the item's other fields.
+fn read_value(value: &Value, path: &str, parents: bool) -> Result<Table, String> {
+    let path = path.trim().trim_start_matches("$.");
+    let mut found: Vec<(&Value, Vec<(String, String)>)> = Vec::new();
+    if path.is_empty() {
+        let list = find_list(value).ok_or_else(|| t!("table-json-no-list"))?;
+        found.extend(list.iter().map(|v| (v, Vec::new())));
     } else {
-        let mut at = &value;
-        for key in path.trim().trim_start_matches("$.").split('.') {
-            at = match at {
-                Value::Object(m) => m.get(key),
-                Value::Array(a) => key.parse::<usize>().ok().and_then(|i| a.get(i)),
-                _ => None,
-            }
-            .ok_or_else(|| t!("table-json-no-path", path = path.to_owned()))?;
+        let keys: Vec<&str> = path.split('.').collect();
+        if !collect(value, &keys, "", &[], parents, &mut found) {
+            return Err(t!("table-json-no-path", path = path.to_owned()));
         }
-        match at {
-            Value::Array(a) => a.as_slice(),
-            _ => return Err(t!("table-json-not-list", path = path.to_owned())),
-        }
-    };
-    if !list.is_empty() && list.iter().all(Value::is_array) {
-        let mut rows: Vec<Vec<String>> = list
+    }
+    if !found.is_empty() && found.iter().all(|(v, p)| v.is_array() && p.is_empty()) {
+        let mut rows: Vec<Vec<String>> = found
             .iter()
-            .map(|r| r.as_array().unwrap().iter().map(scalar).collect())
+            .map(|(r, _)| r.as_array().unwrap().iter().map(scalar).collect())
             .collect();
         let header = rows.remove(0);
         return Ok(Table::from_rows(unique_names(header), &rows));
     }
     let mut names: Vec<String> = Vec::new();
-    let mut flat: Vec<Vec<(String, String)>> = Vec::with_capacity(list.len());
-    for item in list {
-        let mut row = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut flat: Vec<Vec<(String, String)>> = Vec::with_capacity(found.len());
+    // Rows that are XML elements with text: the text is named after them.
+    let own = path
+        .rsplit('.')
+        .next()
+        .filter(|p| !p.is_empty())
+        .unwrap_or("value");
+    for (item, inherited) in found {
+        let mut row = inherited;
         match item {
-            Value::Object(_) => flatten("", item, &mut row),
+            Value::Object(m) => {
+                for (k, v) in m {
+                    let k = if k == "#text" { own } else { k.as_str() };
+                    flatten(k, v, &mut row);
+                }
+            }
             other => row.push((t!("table-json-value-column"), scalar(other))),
         }
         for (k, _) in &row {
-            if !names.contains(k) {
+            if seen.insert(k.clone()) {
                 names.push(k.clone());
             }
         }
@@ -410,6 +611,121 @@ fn read_json(text: &str, path: &str) -> Result<Table, String> {
         })
         .collect();
     Ok(Table::from_rows(names.clone(), &rows))
+}
+
+/// Follows `keys` from `at`, collecting the rows at the end with the
+/// fields inherited from the list items passed on the way. False when the
+/// path leads nowhere.
+fn collect<'a>(
+    at: &'a Value,
+    keys: &[&str],
+    prefix: &str,
+    inherited: &[(String, String)],
+    parents: bool,
+    out: &mut Vec<(&'a Value, Vec<(String, String)>)>,
+) -> bool {
+    let Some((key, rest)) = keys.split_first() else {
+        match at {
+            Value::Array(a) => out.extend(a.iter().map(|v| (v, inherited.to_vec()))),
+            other => out.push((other, inherited.to_vec())),
+        }
+        return true;
+    };
+    match at {
+        Value::Array(a) => {
+            if let Ok(i) = key.parse::<usize>() {
+                return a
+                    .get(i)
+                    .is_some_and(|v| collect(v, rest, prefix, inherited, parents, out));
+            }
+            let mut any = false;
+            for item in a {
+                let mut inh = inherited.to_vec();
+                if parents && let Value::Object(m) = item {
+                    for (k, v) in m {
+                        if k != key && !v.is_array() {
+                            let name = if prefix.is_empty() {
+                                k.clone()
+                            } else {
+                                format!("{prefix}.{k}")
+                            };
+                            flatten(&name, v, &mut inh);
+                        }
+                    }
+                }
+                any |= collect(item, keys, prefix, &inh, parents, out);
+            }
+            any
+        }
+        Value::Object(m) => match m.get(*key) {
+            Some(v) => {
+                let p = if prefix.is_empty() {
+                    (*key).to_owned()
+                } else {
+                    format!("{prefix}.{key}")
+                };
+                collect(v, rest, &p, inherited, parents, out)
+            }
+            None => false,
+        },
+        _ => false,
+    }
+}
+
+/// XML as JSON: an element with only text is a string; otherwise an object
+/// of its attributes and child elements (repeated children make a list)
+/// with any text under `#text`. Returns the root's name and `{root: …}`.
+fn xml_value(text: &str) -> Result<(String, Value), String> {
+    let doc = roxmltree::Document::parse(text)
+        .map_err(|e| t!("table-xml-unreadable", error = e.to_string()))?;
+    let root = doc.root_element();
+    let name = root.tag_name().name().to_owned();
+    let mut top = serde_json::Map::new();
+    top.insert(name.clone(), element_value(root));
+    Ok((name, Value::Object(top)))
+}
+
+fn element_value(e: roxmltree::Node) -> Value {
+    let children: Vec<roxmltree::Node> = e.children().filter(|c| c.is_element()).collect();
+    let text: String = e
+        .children()
+        .filter(|c| c.is_text())
+        .filter_map(|c| c.text())
+        .collect::<String>();
+    let text = text.trim();
+    if children.is_empty() && e.attributes().len() == 0 {
+        return Value::String(text.to_owned());
+    }
+    let mut m = serde_json::Map::new();
+    for a in e.attributes() {
+        m.insert(a.name().to_owned(), Value::String(a.value().to_owned()));
+    }
+    for c in children {
+        let name = c.tag_name().name().to_owned();
+        let v = element_value(c);
+        // A child named like an attribute keeps both: the attribute gets `@`.
+        if let Some(existing) = m.get_mut(&name) {
+            if e.attribute(name.as_str()).is_some() && !existing.is_array() {
+                let attr = m.remove(&name).unwrap();
+                m.insert(format!("@{name}"), attr);
+                m.insert(name, v);
+                continue;
+            }
+            match existing {
+                Value::Array(a) => a.push(v),
+                other => {
+                    let first = other.take();
+                    *other = Value::Array(vec![first, v]);
+                }
+            }
+        } else {
+            m.insert(name, v);
+        }
+    }
+    if !text.is_empty() {
+        m.insert("#text".into(), Value::String(text.to_owned()));
+    }
+    Value::Object(m)
 }
 
 /// The list of rows: the value itself, or the only list inside an object
@@ -436,7 +752,10 @@ fn flatten(prefix: &str, v: &Value, out: &mut Vec<(String, String)>) {
     match v {
         Value::Object(m) if !m.is_empty() || prefix.is_empty() => {
             for (k, v) in m {
-                let key = if prefix.is_empty() {
+                // An XML element's own text is the element's column.
+                let key = if k == "#text" && !prefix.is_empty() {
+                    prefix.to_owned()
+                } else if prefix.is_empty() {
                     k.clone()
                 } else {
                     format!("{prefix}.{k}")
@@ -493,6 +812,7 @@ mod tests {
         assert_eq!(t.row(0), ["1", "Ann", "[\"a\"]", "true", ""]);
         assert_eq!(t.columns[3].kind, Kind::Boolean);
         let at = Source::Json {
+            parents: true,
             rows: "data".into(),
             detect_types: true,
         };
@@ -502,6 +822,7 @@ mod tests {
         assert_eq!(t.names(), ["a", "b"]);
         assert_eq!(t.rows, 2);
         let bad = Source::Json {
+            parents: true,
             rows: "nope".into(),
             detect_types: true,
         };
