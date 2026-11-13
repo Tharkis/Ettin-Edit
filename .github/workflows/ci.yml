@@ -1,9 +1,27 @@
 name: CI
 
+# Runs on code changes only: a change that touches nothing but documentation
+# (Markdown files outside the user manual, screenshots, the mascot, LICENSE)
+# skips CI. No branch protection requires these checks, so a skipped run
+# doesn't hold up a merge.
 on:
   push:
     branches: [main]
+    paths:
+      - "**"
+      # Documentation alone doesn't need a build. The user manual is compiled
+      # into the app, so changes to it still run CI (manual.yml builds the site).
+      - "!**.md"
+      - "!docs/**"
+      - "!LICENSE"
+      - "docs/manual/**"
   pull_request:
+    paths:
+      - "**"
+      - "!**.md"
+      - "!docs/**"
+      - "!LICENSE"
+      - "docs/manual/**"
 
 env:
   CARGO_TERM_COLOR: always
