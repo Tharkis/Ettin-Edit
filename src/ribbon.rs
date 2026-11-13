@@ -837,10 +837,43 @@ pub const GENERIC_ICON: &str = ph::LIGHTNING;
 /// The icon for plugin commands whose plugin gave none.
 pub const PLUGIN_ICON: &str = ph::PUZZLE_PIECE;
 
+/// The icons of the Table commands.
+fn table_icon(cmd: crate::table_ui::TableCmd) -> &'static str {
+    use crate::table_ui::TableCmd::*;
+    match cmd {
+        OpenAsTable => ph::FILE_XLS,
+        ShowAsTable => ph::TABLE,
+        ShowAsText => ph::TEXT_ALIGN_LEFT,
+        ImportOptions => ph::SLIDERS_HORIZONTAL,
+        Refresh => ph::ARROWS_CLOCKWISE,
+        RenameColumn => ph::PENCIL_SIMPLE,
+        ChangeType => ph::TEXT_T,
+        ChooseColumns => ph::COLUMNS,
+        RemoveColumn => ph::X,
+        DuplicateColumn => ph::COPY,
+        MoveLeft => ph::ARROW_LEFT,
+        MoveRight => ph::ARROW_RIGHT,
+        ReplaceValues => ph::SWAP,
+        Text(_) => ph::TEXT_AA,
+        Filter => ph::FUNNEL,
+        SortAscending => ph::SORT_ASCENDING,
+        SortDescending => ph::SORT_DESCENDING,
+        Sort => ph::ARROWS_DOWN_UP,
+        RemoveDuplicates => ph::LIST_DASHES,
+        RemoveEmptyRows => ph::ROWS,
+        RemoveRow => ph::MINUS_SQUARE,
+        EditCell => ph::CURSOR_TEXT,
+        ColumnStats => ph::CHART_BAR,
+        Export => ph::EXPORT,
+        SaveAsRecipe => ph::COOKING_POT,
+    }
+}
+
 /// The icon a command shows unless the user or a plugin picked another.
 pub fn default_icon(action: &Action) -> &'static str {
     use Action::*;
     match action {
+        Table(cmd) => table_icon(*cmd),
         NewTab => ph::FILE_PLUS,
         Open | OpenPath(_) => ph::FOLDER_OPEN,
         Save => ph::FLOPPY_DISK,

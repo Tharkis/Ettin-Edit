@@ -933,6 +933,34 @@ commands when it is built.
 | Transform › JSON and XML › Linearize | `{"Xml":"Linearize"}` |
 | Transform › JSON and XML › Escape Special Characters | `{"Xml":"Escape"}` |
 | Transform › JSON and XML › Unescape Special Characters | `{"Xml":"Unescape"}` |
+| Table › Open as Table… | `{"Table":"OpenAsTable"}` |
+| Table › Show as Table | `{"Table":"ShowAsTable"}` |
+| Table › Import Options… | `{"Table":"ImportOptions"}` |
+| Table › Refresh | `{"Table":"Refresh"}` |
+| Table › Columns › Rename Column… | `{"Table":"RenameColumn"}` |
+| Table › Columns › Change Type… | `{"Table":"ChangeType"}` |
+| Table › Columns › Choose Columns… | `{"Table":"ChooseColumns"}` |
+| Table › Columns › Duplicate Column… | `{"Table":"DuplicateColumn"}` |
+| Table › Columns › Move Column Left | `{"Table":"MoveLeft"}` |
+| Table › Columns › Move Column Right | `{"Table":"MoveRight"}` |
+| Table › Columns › Remove Column | `{"Table":"RemoveColumn"}` |
+| Table › Values › Replace Values… | `{"Table":"ReplaceValues"}` |
+| Table › Values › Trim spaces | `{"Table":{"Text":"trim"}}` |
+| Table › Values › Collapse spaces | `{"Table":{"Text":"collapse_spaces"}}` |
+| Table › Values › UPPER CASE | `{"Table":{"Text":"upper"}}` |
+| Table › Values › lower case | `{"Table":{"Text":"lower"}}` |
+| Table › Values › Title Case | `{"Table":{"Text":"title"}}` |
+| Table › Rows › Filter Rows… | `{"Table":"Filter"}` |
+| Table › Rows › Sort Ascending | `{"Table":"SortAscending"}` |
+| Table › Rows › Sort Descending | `{"Table":"SortDescending"}` |
+| Table › Rows › Sort… | `{"Table":"Sort"}` |
+| Table › Rows › Remove Duplicates… | `{"Table":"RemoveDuplicates"}` |
+| Table › Rows › Remove Empty Rows | `{"Table":"RemoveEmptyRows"}` |
+| Table › Rows › Remove Row | `{"Table":"RemoveRow"}` |
+| Table › Edit Cell | `{"Table":"EditCell"}` |
+| Table › Column Statistics | `{"Table":"ColumnStats"}` |
+| Table › Export… | `{"Table":"Export"}` |
+| Table › Save as Recipe… | `{"Table":"SaveAsRecipe"}` |
 | Tools › CsvQuery › CsvQuery Panel | `ToggleCsvQuery` |
 | Tools › CsvQuery › Run Query | `RunCsvQuery` |
 | Tools › CsvQuery › Copy Results | `CopyCsvResults` |

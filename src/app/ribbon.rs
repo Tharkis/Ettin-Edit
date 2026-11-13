@@ -32,7 +32,11 @@ pub struct Toolbar {
     cache: Option<(f64, Vec<(Action, CommandEntry)>)>,
     /// Plugin PNG icons by file; `None` for one that couldn't be read.
     images: HashMap<PathBuf, Option<egui::TextureHandle>>,
+    /// The Table tab showed last frame (it's picked when it appears).
+    table_shown: bool,
 }
+
+use crate::ribbon_ui::CONTEXT_TAB as TABLE_TAB;
 
 impl Toolbar {
     pub fn load() -> (Self, Option<String>) {
@@ -43,6 +47,7 @@ impl Toolbar {
                 bar: RibbonBar::default(),
                 dialog: CustomiseDialog::default(),
                 cache: None,
+                table_shown: false,
                 images: HashMap::new(),
             },
             error,
@@ -201,7 +206,15 @@ impl EttinApp {
         let recording = self.recorder.is_recording();
         let has_macro = !self.recorder.current.is_empty();
         let on = |b: bool| (true, Some(b));
+        let table = self.table_tab();
         match action {
+            Action::Undo if table.is_some() => (table.is_some_and(|t| t.can_undo()), None),
+            Action::Redo if table.is_some() => (table.is_some_and(|t| t.can_redo()), None),
+            Action::Cut | Action::Copy if table.is_some() => (true, None),
+            Action::Table(cmd) if cmd.needs_table() => (
+                table.is_some() || doc.is_some_and(|d| d.binary.is_none() && !d.welcome),
+                None,
+            ),
             Action::Undo => (editor.is_some_and(|e| e.buffer.can_undo()), None),
             Action::Redo => (editor.is_some_and(|e| e.buffer.can_redo()), None),
             Action::Cut | Action::Copy => {
@@ -358,7 +371,96 @@ impl EttinApp {
                 groups,
             });
         }
+        let shown = self.table_shown(self.active);
+        if shown {
+            if !self.toolbar.table_shown {
+                self.toolbar.bar.selected = TABLE_TAB;
+            }
+            views.push(self.table_ribbon_tab(ctx));
+        }
+        self.toolbar.table_shown = shown;
         views
+    }
+
+    /// The Table tab of the ribbon, shown while the active tab shows a table.
+    fn table_ribbon_tab(&self, ctx: &egui::Context) -> TabView {
+        use crate::ribbon::Size::{Large, Small};
+        use crate::table_ui::TableCmd as C;
+        let groups: [(&str, &[(C, ribbon::Size)]); 4] = [
+            (
+                "table-group-data",
+                &[
+                    (C::ShowAsText, Large),
+                    (C::ImportOptions, Small),
+                    (C::Refresh, Small),
+                ],
+            ),
+            (
+                "table-menu-columns",
+                &[
+                    (C::RenameColumn, Small),
+                    (C::ChangeType, Small),
+                    (C::ChooseColumns, Small),
+                    (C::ReplaceValues, Small),
+                    (C::RemoveColumn, Small),
+                    (C::DuplicateColumn, Small),
+                ],
+            ),
+            (
+                "table-menu-rows",
+                &[
+                    (C::Filter, Large),
+                    (C::Sort, Large),
+                    (C::RemoveDuplicates, Small),
+                    (C::RemoveEmptyRows, Small),
+                    (C::ColumnStats, Small),
+                ],
+            ),
+            (
+                "table-group-output",
+                &[(C::Export, Large), (C::SaveAsRecipe, Large)],
+            ),
+        ];
+        let workbook = self.docs.get(self.active).is_some_and(|d| d.workbook);
+        let views = groups
+            .iter()
+            .enumerate()
+            .map(|(g, (name, cmds))| GroupView {
+                name: crate::i18n::tr(name),
+                buttons: cmds
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, (cmd, _))| !(workbook && *cmd == C::ShowAsText))
+                    .map(|(i, (cmd, size))| {
+                        let action = Action::Table(*cmd);
+                        let shortcut = actions::effective_shortcut(&action, None)
+                            .map(|s| ctx.format_shortcut(&s));
+                        let label = cmd.label();
+                        let tooltip = match &shortcut {
+                            Some(s) => format!("{label} ({s})"),
+                            None => label.clone(),
+                        };
+                        Button {
+                            icon: IconImage::Glyph(ribbon::default_icon(&action)),
+                            label,
+                            tooltip,
+                            shortcut,
+                            enabled: true,
+                            checked: None,
+                            size: *size,
+                            place: (TABLE_TAB, g, i),
+                            menu: None,
+                            action,
+                        }
+                    })
+                    .collect(),
+            })
+            .collect();
+        TabView {
+            index: TABLE_TAB,
+            name: crate::i18n::tr("menu-table"),
+            groups: views,
+        }
     }
 
     /// Draws the toolbar under the menu bar.
@@ -394,6 +496,7 @@ impl EttinApp {
                 BarEvent::Run(action) => self.pending.push(action),
                 BarEvent::Menu(id) => self.pending.extend(m.action(id)),
                 BarEvent::ToggleMode => self.pending.push(Action::ToggleSimplifiedToolbar),
+                BarEvent::Remove(TABLE_TAB, ..) => {}
                 BarEvent::Remove(t, g, i) => {
                     self.toolbar.layout.remove(t, g, i);
                     self.save_toolbar();

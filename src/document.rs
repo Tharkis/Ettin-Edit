@@ -144,6 +144,11 @@ pub struct Document {
     pub detected_indent: Option<crate::indent::Detected>,
     /// Tabs or spaces picked for this tab with View > Indent with Spaces.
     pub own_indent: Option<bool>,
+    /// An Excel or OpenDocument workbook, shown only as a table (2.7). Its
+    /// text is empty and read-only.
+    pub workbook: bool,
+    /// The tab's table has steps that weren't exported or saved as a recipe.
+    pub table_dirty: bool,
 }
 
 impl Document {
@@ -170,6 +175,8 @@ impl Document {
             welcome: false,
             detected_indent: None,
             own_indent: None,
+            workbook: false,
+            table_dirty: false,
         }
     }
 
@@ -213,6 +220,12 @@ impl Document {
         let Some(path) = self.path.clone() else {
             return Ok(());
         };
+        // A workbook's table reads the file again itself.
+        if self.workbook {
+            self.disk = DiskStamp::read(&path).ok();
+            self.disk_change = None;
+            return Ok(());
+        }
         // A tab edited as bytes reads the bytes again, unless an encoding
         // was picked to read it as text.
         if self.binary.is_some() && encoding.is_none() {
@@ -302,7 +315,22 @@ impl Document {
     }
 
     pub fn is_dirty(&self) -> bool {
+        self.content_dirty() || self.table_dirty
+    }
+
+    /// The text or bytes have unsaved changes (not counting a table's steps).
+    pub fn content_dirty(&self) -> bool {
         self.editor.buffer.is_modified() || self.binary.as_ref().is_some_and(|b| b.is_modified())
+    }
+
+    /// A workbook, as a table tab: no text, read-only.
+    pub fn open_workbook(id: u64, path: &Path) -> Self {
+        let mut doc = Self::new_untitled(id, 0);
+        doc.path = Some(path.to_path_buf());
+        doc.disk = DiskStamp::read(path).ok();
+        doc.workbook = true;
+        doc.editor.buffer.read_only = true;
+        doc
     }
 
     pub fn set_line_ending(&mut self, le: LineEnding) {

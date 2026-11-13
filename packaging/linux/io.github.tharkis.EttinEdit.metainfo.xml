@@ -68,6 +68,20 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.7.0" date="2026-11-13">
+      <description>
+        <p>Tables: open a workbook, a CSV or a JSON export as a table and
+        reshape it step by step for another system.</p>
+        <ul>
+          <li>Excel and OpenDocument workbooks open straight into a table tab; any CSV or JSON tab shows as a table with Ctrl+Alt+T</li>
+          <li>Typed columns, dates read by pattern such as DD/MM/YYYY, and values that don't fit marked in red</li>
+          <li>Rename, reorder and remove columns, replace and tidy values, filter, sort and remove duplicates, each a step you can switch off or change</li>
+          <li>Export as CSV, Excel .xlsx, JSON, JSON Lines or Markdown, to a new tab, a file or the clipboard</li>
+          <li>Save the steps as a recipe and run it from the command line, with --out for a file</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.7.0</url>
+    </release>
     <release version="2.6.0" date="2026-11-12">
       <description>
         <p>Columns and fields: pull matches out of text, line up columns, pick

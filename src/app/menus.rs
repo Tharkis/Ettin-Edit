@@ -19,6 +19,7 @@ use crate::transforms::{self, Entry, GroupId};
 pub(super) enum SharedMenu {
     Edit,
     Transform,
+    Table,
     Tools,
 }
 
@@ -257,6 +258,62 @@ pub(super) fn tools_entries(
     ]
 }
 
+/// The Table menu's entries: `shown` when the tab shows a table,
+/// `workbook` when it can't show text.
+pub(super) fn table_entries(m: &mut MenuModel, shown: bool, workbook: bool) -> Vec<MenuEntry> {
+    use crate::table::steps::TextOp;
+    use crate::table_ui::TableCmd::{self, *};
+    let item = |m: &mut MenuModel, cmd: TableCmd, dots: bool, enabled: bool| {
+        let label = if dots {
+            format!("{}…", cmd.label())
+        } else {
+            cmd.label()
+        };
+        m.item_if(&label, enabled, Action::Table(cmd))
+    };
+    let mut out = vec![item(m, OpenAsTable, true, true)];
+    if shown {
+        out.push(item(m, ShowAsText, false, !workbook));
+    } else {
+        out.push(item(m, ShowAsTable, false, true));
+    }
+    out.push(item(m, ImportOptions, true, shown));
+    out.push(item(m, Refresh, false, shown));
+    out.push(MenuEntry::Separator);
+    let columns = vec![
+        item(m, RenameColumn, true, shown),
+        item(m, ChangeType, true, shown),
+        item(m, ChooseColumns, true, shown),
+        item(m, DuplicateColumn, true, shown),
+        item(m, MoveLeft, false, shown),
+        item(m, MoveRight, false, shown),
+        item(m, RemoveColumn, false, shown),
+    ];
+    out.push(submenu(&t!("table-menu-columns"), columns));
+    let mut values = vec![item(m, ReplaceValues, true, shown), MenuEntry::Separator];
+    for op in TextOp::ALL {
+        values.push(item(m, Text(op), false, shown));
+    }
+    out.push(submenu(&t!("table-menu-values"), values));
+    let rows = vec![
+        item(m, Filter, true, shown),
+        item(m, SortAscending, false, shown),
+        item(m, SortDescending, false, shown),
+        item(m, Sort, true, shown),
+        MenuEntry::Separator,
+        item(m, RemoveDuplicates, true, shown),
+        item(m, RemoveEmptyRows, false, shown),
+        item(m, RemoveRow, false, shown),
+    ];
+    out.push(submenu(&t!("table-menu-rows"), rows));
+    out.push(item(m, EditCell, false, shown));
+    out.push(item(m, ColumnStats, false, shown));
+    out.push(MenuEntry::Separator);
+    out.push(item(m, Export, true, shown));
+    out.push(item(m, SaveAsRecipe, true, shown));
+    out
+}
+
 impl EttinApp {
     /// Draws the Edit, Transform or Tools menu into an open menu-bar menu.
     pub(super) fn shared_menu(&mut self, ui: &mut Ui, which: SharedMenu) {
@@ -265,6 +322,7 @@ impl EttinApp {
         let entries = match which {
             SharedMenu::Edit => self.edit_menu(&mut m, self.active),
             SharedMenu::Transform => self.transform_menu(&mut m),
+            SharedMenu::Table => self.table_menu(&mut m),
             SharedMenu::Tools => self.tools_menu(&mut m),
         };
         if let Some(action) = menu::show(ui, &entries).and_then(|id| m.action(id)) {
@@ -521,6 +579,15 @@ impl EttinApp {
             out.push(submenu(&group.id.label(), entries));
         }
         out
+    }
+
+    /// The Table menu (2.7). Most commands need a tab shown as a table.
+    pub(super) fn table_menu(&self, m: &mut MenuModel) -> Vec<MenuEntry> {
+        table_entries(
+            m,
+            self.table_shown(self.active),
+            self.docs.get(self.active).is_some_and(|d| d.workbook),
+        )
     }
 
     /// Transform > Recipes.

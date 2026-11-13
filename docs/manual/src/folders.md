@@ -49,7 +49,7 @@ it starts.
 
 ```
 ettin-edit [--multi-instance] [file ...]
-ettin-edit --recipe NAME [--allow-commands] [--in-place] [file ...]
+ettin-edit --recipe NAME [--allow-commands] [--in-place] [--out FILE] [file ...]
 ettin-edit --list-recipes
 ```
 
@@ -61,8 +61,9 @@ ettin-edit --list-recipes
   window.
 
 - `--recipe` runs a [recipe](recipes.md#from-the-command-line) on the files
-  (or standard input) without opening a window, and `--list-recipes` lists
-  your recipes.
+  (or standard input) without opening a window; `--out` writes the result to
+  a file, and `--list-recipes` lists your recipes.
+- A workbook (`.xlsx`, `.ods` and so on) opens as a [table](tables.md).
 
 On Windows, the installer can add Ettin Edit to the `PATH` so this works in
 any terminal. On Linux the packages put `ettin-edit` on the `PATH`.

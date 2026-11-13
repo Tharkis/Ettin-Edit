@@ -19,6 +19,20 @@ work that remains. It is updated with every release.
 
 ## Release history
 
+### 2.7: Table view
+
+Requested on 2026-11-13: "a table based transformation tool" for exports from other systems in Excel, JSON, HL7 and XML, reshaped for other platforms: "Think excel or calc, but for structured data." The plan splits it over 2.7 to 3.0; this is the first part: the table tab itself with CSV, Excel and flat JSON ([Tables](docs/manual/src/tables.md)).
+
+- [x] **Table tab** (`src/table_ui.rs`, `src/app/tables.rs`): a grid with row numbers, typed column headers (`abc`, `123`, `1.2`, `date`, `time`, `y/n`), striped rows, resizable columns and smooth scrolling through large tables; values that don't fit their type are drawn in red and counted in the status bar
+- [x] **Opening**: workbooks (`.xlsx`, `.xlsm`, `.xls`, `.xlsb`, `.ods`) open straight into a table tab and are never written over; any text tab can be shown as a table and back with <kbd>Ctrl+Alt+T</kbd>; **File > Open as Table…**; the CSV suggestion's **Show as Table** opens the table tab
+- [x] **Import** (`src/table/import.rs`): delimited text (delimiter, quote, header row guessed and changeable), workbooks (sheet, header row; title rows above it skipped) and JSON (rows at a path such as `data.items`, nested objects flattened to dotted columns), with type detection that keeps leading zeros
+- [x] **Steps** (`src/table/steps.rs`): every change is a step in a panel at the right: rename, move, remove, duplicate, choose and reorder columns; change type (dates by pattern such as `DD/MM/YYYY` or `YYYYMMDD HHmm`, decimal comma); replace values; trim, collapse spaces and change case; filter rows (14 conditions including *is one of* with value counts); sort by several columns; remove duplicates, empty rows or a row; edit a cell. Steps can be viewed one at a time, switched off, changed, moved and deleted; renames carry into later steps; a step that can't run says why. Undo and redo work on the steps
+- [x] **Grid commands**: a menu on every column header, a right-click menu on cells (copy value or row, keep only or hide a value, sort, edit, remove row), filter chips above the grid, find in table, column statistics, and keyboard navigation and editing
+- [x] **Export** (`src/table/export.rs`): CSV/delimited (quoting, header, CRLF), Excel `.xlsx` with real numbers, dates and booleans, JSON (indented, typed, null for empty), JSON Lines and Markdown, to a new tab, a file or the clipboard, with a preview. Save in a table tab with changes opens Export
+- [x] **Recipes**: **Save as Recipe…** saves the source, steps and export as one `table` recipe step; the command line runs it, reading workbooks as bytes, and the new `--out FILE` writes the result (needed for `.xlsx`)
+- [x] **Table** menu, a **Table** ribbon tab that appears while a table is showing, command palette entries, and table tabs and their steps kept with the session
+- [x] New text in all four interface languages
+
 ### 2.6: Columns and fields
 
 Requested on 2026-11-12: the first release after the UX plan, chosen to fit "a text-transformation aid". Joe added two-key chords, a setting for web images in the Markdown preview, resizable dialogs and a full-size recipe editor, and reported Preferences overflowing its window.
@@ -698,7 +712,7 @@ Features that are planned or only partly done.
 ### Planned (not yet scheduled)
 The UX plan from the 2.0.0 review is finished with 2.5.
 
-Nothing else is scheduled after 2.6.
+Tables continue after 2.7: 2.8 nested data and HL7, 2.9 reshaping (split, merge, pivot, joins, formulas per column), 3.0 target layouts and batch runs.
 
 The six features requested on 2026-10-16 are in [1.5](#15-hex-view-character-panel-markdown-preview-and-more), and what was left of them is in [1.9](#19-markdown-preview-and-hex-view-finished).
 

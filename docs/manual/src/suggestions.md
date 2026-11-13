@@ -12,7 +12,7 @@ says so in a thin bar above the text:
 | XML with almost everything on one line | **Format** ([XML Tools](xml.md)) |
 | A JSON Web Token (three Base64 parts; the first a header with `alg`) | **Decode** ([Hex and JWT](transform.md#hex-and-jwt)) |
 | A block of Base64 that decodes to readable text | **Decode** ([MIME Tools](mime.md)) |
-| Comma, tab or semicolon separated values, or a `.csv` file | **Open in CsvQuery** and **Show as Table** ([CsvQuery](csvquery.md)) |
+| Comma, tab or semicolon separated values, or a `.csv` file | **Open in CsvQuery** ([CsvQuery](csvquery.md)) and **Show as Table** ([Tables](tables.md)) |
 | A file with more than one kind of line break | **Fix**: use LF or CRLF everywhere |
 | A file indented with both tabs and spaces | **Fix**: tabs to spaces, or spaces to tabs |
 

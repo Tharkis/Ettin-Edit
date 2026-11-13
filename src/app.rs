@@ -15,6 +15,7 @@ mod recipes;
 mod ribbon;
 mod settings_live;
 mod suggest;
+mod tables;
 mod text_tools;
 mod transform;
 mod views;
@@ -185,6 +186,8 @@ pub struct EttinApp {
     column_mode: bool,
     /// Tabs shown as hex, by document id.
     hex_views: HashMap<u64, crate::hex::HexView>,
+    /// Tabs shown as tables (2.7), by document id.
+    tables: HashMap<u64, tables::TableState>,
     char_panel: crate::char_panel::CharPanel,
     /// The tabbed toolbar under the menu bar.
     toolbar: ribbon::Toolbar,
@@ -407,6 +410,7 @@ impl EttinApp {
             distraction_free: false,
             column_mode: false,
             hex_views: HashMap::new(),
+            tables: HashMap::new(),
             char_panel: Default::default(),
             toolbar,
             watcher: None,
@@ -487,6 +491,8 @@ impl EttinApp {
                         caret: 0,
                         view: 0,
                         binary: false,
+                        table: None,
+                        table_shown: false,
                     })
                     .collect(),
                 active: app.settings.session_active,
@@ -573,6 +579,12 @@ impl EttinApp {
             self.select(i);
             return;
         }
+        if crate::table::import::is_workbook(&path) {
+            if self.open_workbook(&path) && record_recent {
+                self.settings.push_recent(path);
+            }
+            return;
+        }
         let id = self.alloc_id();
         match Document::open(id, &path, None) {
             Ok(mut doc) => {
@@ -635,6 +647,15 @@ impl EttinApp {
         let Some(doc) = self.docs.get(index) else {
             return false;
         };
+        // A table's steps are saved by exporting (or as a recipe).
+        if (doc.workbook || doc.table_dirty) && self.table_shown(index) {
+            let id = doc.id;
+            self.select(index);
+            if let Some(state) = self.tables.get_mut(&id) {
+                state.tab.command(crate::table_ui::TableCmd::Export);
+            }
+            return false;
+        }
         let path = match (&doc.path, force_dialog) {
             (Some(p), false) => p.clone(),
             _ => {
@@ -689,6 +710,7 @@ impl EttinApp {
             }
             let doc = self.docs.remove(i);
             self.hex_views.remove(&doc.id);
+            self.tables.remove(&doc.id);
             if let Some(backup) = doc.backup {
                 let _ = std::fs::remove_file(backup);
             }
@@ -756,6 +778,20 @@ impl EttinApp {
         let backup_path = tab.backup.as_ref().map(|b| store.backup_dir().join(b));
         let encoding = tab.encoding.as_deref().and_then(TextEncoding::from_name);
         let id = self.alloc_id();
+        if let Some(p) = &tab.path
+            && crate::table::import::is_workbook(p)
+        {
+            let (mut doc, state) = self.workbook_table(id, p, tab.table.clone(), true).ok()?;
+            doc.pinned = tab.pinned;
+            self.tables.insert(id, state);
+            let at = if doc.pinned {
+                self.docs.iter().filter(|d| d.pinned).count()
+            } else {
+                self.docs.len()
+            };
+            self.docs.insert(at, doc);
+            return Some(at);
+        }
         let mut doc = match (&tab.path, backup_text) {
             (_, None) if let Some(bytes) = backup_bytes => {
                 let mut doc = Document::new_untitled(id, tab.untitled_number);
@@ -813,6 +849,14 @@ impl EttinApp {
         if doc.path.is_none() {
             self.untitled_counter = self.untitled_counter.max(doc.untitled_number);
         }
+        if let Some(job) = tab.table
+            && doc.binary.is_none()
+        {
+            self.tables.insert(
+                id,
+                tables::TableState::for_text(&mut doc, job, tab.table_shown),
+            );
+        }
         // Pinned tabs stay in front.
         let at = if doc.pinned {
             self.docs.iter().filter(|d| d.pinned).count()
@@ -829,7 +873,7 @@ impl EttinApp {
         let mut tabs = Vec::new();
         let mut active = 0;
         for (i, doc) in self.docs.iter().enumerate() {
-            let backup = (with_backups && doc.is_dirty())
+            let backup = (with_backups && doc.content_dirty())
                 .then(|| doc.backup.as_ref()?.file_name())
                 .flatten()
                 .map(|n| n.to_string_lossy().into_owned());
@@ -855,6 +899,8 @@ impl EttinApp {
                     _ => 0,
                 },
                 binary: doc.binary.is_some(),
+                table: self.tables.get(&doc.id).map(|t| t.tab.job.clone()),
+                table_shown: self.tables.get(&doc.id).is_some_and(|t| t.tab.shown),
             });
         }
         Session { tabs, active }
@@ -875,7 +921,7 @@ impl EttinApp {
                 }
                 continue;
             }
-            if doc.is_dirty() {
+            if doc.content_dirty() {
                 let version = match &doc.binary {
                     Some(b) => b.version(),
                     None => doc.editor.buffer.version(),
@@ -1159,7 +1205,11 @@ impl EttinApp {
         }
         self.record_recipe_step(&action);
         self.remember_command(&action);
+        let Some(action) = self.table_intercept(ctx, action) else {
+            return;
+        };
         match action {
+            Action::Table(cmd) => self.run_table(cmd),
             Action::NewTab => self.new_tab(),
             Action::Open => self.open_dialog(),
             Action::OpenPath(p) => self.open_path(&p, true),
@@ -2469,6 +2519,11 @@ impl EttinApp {
             ui.menu_button(t!("menu-file"), |ui| {
                 self.menu_item(ui, &t!("new"), Action::NewTab);
                 self.menu_item(ui, &t!("open-dots"), Action::Open);
+                self.menu_item(
+                    ui,
+                    &format!("{}…", t!("table-open-as-table")),
+                    Action::Table(crate::table_ui::TableCmd::OpenAsTable),
+                );
                 ui.menu_button(t!("open-recent"), |ui| {
                     if self.settings.recent_files.is_empty() {
                         ui.label(RichText::new(t!("no-recent-files")).weak());
@@ -2710,6 +2765,9 @@ impl EttinApp {
             ui.menu_button(t!("menu-language"), |ui| self.language_menu(ui));
             ui.menu_button(t!("menu-transform"), |ui| {
                 self.shared_menu(ui, menus::SharedMenu::Transform)
+            });
+            ui.menu_button(t!("menu-table"), |ui| {
+                self.shared_menu(ui, menus::SharedMenu::Table)
             });
             ui.menu_button(t!("menu-tools"), |ui| {
                 self.shared_menu(ui, menus::SharedMenu::Tools)
@@ -3203,6 +3261,9 @@ impl EttinApp {
             self.welcome_pane(ui);
             return false;
         }
+        if self.table_shown(index) {
+            return self.table_pane(ui, view, index);
+        }
         if self.hex_views.contains_key(&self.docs[index].id) || self.docs[index].binary.is_some() {
             return self.hex_pane(ui, view, index, request_focus);
         }
@@ -3402,6 +3463,7 @@ impl EttinApp {
     fn status_bar(&mut self, ui: &mut Ui) {
         let palette = self.palette();
         let xpath = self.current_xpath(&ui.ctx().clone());
+        let table_status = self.table_status();
         let Some(doc) = self.docs.get(self.active) else {
             return;
         };
@@ -3440,7 +3502,17 @@ impl EttinApp {
                     }
                 });
             });
-            ui.label(dim(length));
+            match &table_status {
+                Some(parts) => {
+                    ui.label(dim(t!("table-status-table")));
+                    for p in parts {
+                        ui.label(dim(p.clone()));
+                    }
+                }
+                None => {
+                    ui.label(dim(length));
+                }
+            }
             if let Some(path) = xpath {
                 let shown = if path.chars().count() > 80 {
                     let tail: String = path.chars().rev().take(79).collect();
