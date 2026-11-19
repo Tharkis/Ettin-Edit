@@ -22,6 +22,26 @@ licence"](installing.md#why-a-downloaded-deb-shows-unknown-licence).
 A `.deb` from before 1.4.0 really had no package information: install the
 latest one once.
 
+## The title bar looks different from other apps
+
+On Linux the title bar (the strip with the window title and the minimise,
+maximise and close buttons) is drawn by your desktop where it can be:
+
+- **KDE Plasma, Xfce, Cinnamon, MATE, Sway, Hyprland, any X11 session, and
+  Windows:** the desktop draws it, so it matches your other apps and your
+  window decoration theme.
+- **GNOME on Wayland** (and some other Wayland desktops, such as Weston):
+  GNOME leaves the title bar to each app. Since 2.8.2 Ettin Edit draws a
+  GNOME-style one, light or dark to follow **Settings > Appearance** in
+  GNOME, with the buttons in the order GNOME is set to.
+
+Versions before 2.8.2 showed a plain grey strip with square buttons there.
+Update to get the GNOME-style title bar.
+
+If you'd rather have your desktop draw it on GNOME, start Ettin Edit as an
+X11 app with `WAYLAND_DISPLAY= ettin-edit`; GNOME then draws the title bar,
+though text can look slightly blurry on a scaled display.
+
 ## A file opened in the running window instead of a new one
 
 That's the **Single Window** setting. Turn it off in the **Settings** menu, or

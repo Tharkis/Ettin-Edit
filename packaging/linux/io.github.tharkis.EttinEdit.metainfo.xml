@@ -68,6 +68,16 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="2.8.2" date="2026-11-19">
+      <description>
+        <p>The window's title bar now matches other apps on GNOME.</p>
+        <ul>
+          <li>On Wayland desktops that leave the title bar to the app, such as GNOME, Ettin Edit draws a GNOME-style title bar with the window title and round buttons, light or dark to follow your desktop, instead of a plain grey strip</li>
+          <li>KDE Plasma, X11 sessions and Windows keep the title bar the desktop draws</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.2</url>
+    </release>
     <release version="2.8.1" date="2026-11-13">
       <description>
         <p>Bangla, Hindi, Tamil, Thai and other scripts now show as text

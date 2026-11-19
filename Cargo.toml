@@ -1,6 +1,6 @@
 [package]
 name = "ettin-edit"
-version = "2.8.1"
+version = "2.8.2"
 edition = "2024"
 description = "A modern, cross-platform text editor for Linux and Windows"
 license = "MIT"
@@ -61,6 +61,13 @@ x11rb = "0.13"
 wayland-client = "0.31"
 wayland-backend = { version = "0.3", features = ["client_system"] }
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+
+# Wayland title bars. KDE, Sway and most compositors draw the window frame
+# themselves; GNOME asks each app to draw its own. eframe builds winit without
+# its Adwaita frame, which leaves a bare grey fallback bar on GNOME. Turning
+# the feature on here gives the GNOME-style title bar other apps have.
+[target.'cfg(target_os = "linux")'.dependencies]
+winit = { version = "0.30.13", default-features = false, features = ["wayland", "wayland-csd-adwaita"] }
 
 [profile.release]
 opt-level = 3
