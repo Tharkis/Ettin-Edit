@@ -6,6 +6,7 @@ the [README](README.md#whats-new), which always covers the latest two releases.
 
 | Status | Meaning |
 | --- | --- |
+| On GNOME (Wayland) the title bar was a plain grey strip with square buttons and no title, unlike other apps | 2.8.2 |
 | `[x]` | Available |
 | `[~]` | Partially available (see the note) |
 | `[ ]` | Planned, not yet available |
@@ -19,6 +20,14 @@ the [README](README.md#whats-new), which always covers the latest two releases.
 - [Roadmap](#roadmap)
 
 ## Release history
+
+### 2.8.2: Title bar that matches the desktop
+
+On GNOME on Wayland the window had a bare grey title bar with square buttons and no title, unlike every other app. GNOME doesn't draw title bars for Wayland apps; each app draws its own, and Ettin Edit was built without the GNOME-style one ([The title bar looks different from other apps](docs/manual/src/troubleshooting.md#the-title-bar-looks-different-from-other-apps)).
+
+- [x] On Wayland desktops that leave the title bar to the app (GNOME, Weston and others), Ettin Edit draws a GNOME-style one: the window title, round minimise, maximise and close buttons, and a light or dark look that follows the desktop's dark style setting
+- [x] Button order and title font follow the GNOME settings when they're set
+- [x] KDE Plasma, Sway, Hyprland, X11 sessions and Windows are unchanged: the desktop still draws the title bar there
 
 ### 2.8.1: Fonts for more scripts
 

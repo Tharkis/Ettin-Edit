@@ -34,17 +34,13 @@
 
 <!-- Keep this to the latest two releases: each release adds itself at the top and drops the oldest. -->
 
+**[2.8.2: Title bar that matches the desktop](https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.2)**
+
+- On GNOME and other Wayland desktops that leave the title bar to the app, Ettin Edit now has a proper GNOME-style title bar instead of a plain grey strip with square buttons.
+
 **[2.8.1: Fonts for more scripts](https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.1)**
 
 - Bangla, Hindi, Tamil, Thai and other scripts show as text instead of boxes: Ettin Edit now finds a font for them on your system.
-
-**[2.8.0: Nested data and HL7](https://github.com/Tharkis/Ettin-Edit/releases/tag/v2.8.0)**
-
-- HL7 v2 messages open as a table, one message or one result (such as OBX) per row, with field names like `PID.5.1` explained when you point at a column.
-- Nested JSON and XML open as tables too: pick which list becomes the rows, and the fields above it come along.
-- New **Explode into Rows** and **Flatten Objects** steps.
-- Export as nested JSON, YAML, XML, or HL7 messages from a template.
-- Made-up [sample files](samples/tables) to try it on.
 
 Older releases are listed in [FEATURES.md](FEATURES.md#release-history) and on the [releases page](https://github.com/Tharkis/Ettin-Edit/releases).
 
